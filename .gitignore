@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.cache
+*.log
+.env
+.vscode
+.idea
+.DS_Store
+backend/uploads-*/*
+!backend/uploads-*/.gitkeep
