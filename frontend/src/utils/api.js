@@ -1,11 +1,11 @@
 import axios from "axios";
 
-export const api = axios.create({ baseURL: import.meta.env.VITE_API_URL });
+export const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "https://api.kingcreativestudio.my.id/adls/api" });
 
 export function resolveAssetUrl(url) {
   if (!url) return "";
   if (/^(https?:\/\/|data:|blob:)/i.test(url)) return url;
-  const base = (import.meta.env.VITE_API_URL || "").replace(/\/api\/?$/, "");
+  const base = (import.meta.env.VITE_API_URL || "https://api.kingcreativestudio.my.id/adls/api").replace(/\/api\/?$/, "");
   return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
