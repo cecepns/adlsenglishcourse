@@ -8,18 +8,22 @@ export default function ResourceForm({ fields, initial, onSubmit, onCancel, load
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState({});
 
+  const visibleFields = fields.filter((f) => !f.showWhen || f.showWhen(values));
+
   const submit = (e) => {
     e.preventDefault();
     const errs = {};
-    fields.forEach((f) => {
+    visibleFields.forEach((f) => {
       const val = values[f.key];
-      const empty = val === undefined || val === null || String(val).trim() === "";
+      const empty = Array.isArray(val)
+        ? val.length === 0
+        : val === undefined || val === null || String(val).trim() === "";
       if (f.required && empty) errs[f.key] = `${f.label} wajib diisi`;
     });
     setErrors(errs);
     if (!Object.keys(errs).length) {
       const payload = {};
-      fields.forEach((f) => {
+      visibleFields.forEach((f) => {
         if (f.type === "password" && !String(values[f.key] || "").trim()) return;
         if (values[f.key] !== undefined) payload[f.key] = values[f.key];
       });
@@ -29,7 +33,7 @@ export default function ResourceForm({ fields, initial, onSubmit, onCancel, load
 
   return (
     <form onSubmit={submit} className="space-y-3.5">
-      {fields.map((f) => {
+      {visibleFields.map((f) => {
         const normalizedOpts =
           f.type === "select"
             ? (f.options || []).map((o) => (typeof o === "object" ? o : { value: String(o), label: String(o) }))
@@ -52,9 +56,15 @@ export default function ResourceForm({ fields, initial, onSubmit, onCancel, load
                 extraParams={typeof f.extraParams === "function" ? f.extraParams(values) : f.extraParams}
                 placeholder={f.placeholder || `Pilih ${f.label}...`}
                 isClearable={!f.required}
+                isMulti={Boolean(f.isMulti)}
                 formatOption={f.formatOption}
                 onChange={(opt) => {
                   setValues((prev) => {
+                    if (f.isMulti) {
+                      const opts = Array.isArray(opt) ? opt : [];
+                      const next = { ...prev, [f.key]: opts.map((o) => o.value) };
+                      return f.onSelect ? { ...next, ...f.onSelect(opts, next) } : next;
+                    }
                     const next = {
                       ...prev,
                       [f.key]: opt ? opt.value : null,
@@ -80,7 +90,13 @@ export default function ResourceForm({ fields, initial, onSubmit, onCancel, load
               <select
                 className="input"
                 value={rawSelectVal}
-                onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+                onChange={(e) => {
+                  const nextVal = e.target.value;
+                  setValues((prev) => {
+                    const next = { ...prev, [f.key]: nextVal };
+                    return f.onChange ? { ...next, ...f.onChange(nextVal, prev) } : next;
+                  });
+                }}
               >
                 <option value="">-- pilih --</option>
                 {hasMissingOption && <option value={rawSelectVal}>{rawSelectVal}</option>}

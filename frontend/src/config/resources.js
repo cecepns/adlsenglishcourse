@@ -163,10 +163,51 @@ export const RESOURCES = {
           type: "password",
           required: !row,
         },
-        { key: "role", label: "Role", type: "select", options: roleOptions, required: true },
-        ...(isBranchAdmin ? [] : [branchField("Cabang Utama / Home Base (1 Tutor bisa mengajar di banyak cabang)", false)]),
+        {
+          key: "role",
+          label: "Role",
+          type: "select",
+          options: roleOptions,
+          required: true,
+          onChange: (nextRole, prev) => {
+            if (nextRole === "tutor" && prev.branch_id && (!prev.branch_ids || !prev.branch_ids.length)) {
+              return { branch_ids: [prev.branch_id] };
+            }
+            if (nextRole !== "tutor" && !prev.branch_id && prev.branch_ids?.length) {
+              return { branch_id: prev.branch_ids[0] };
+            }
+            return {};
+          },
+        },
+        ...(isBranchAdmin
+          ? []
+          : [
+              {
+                key: "branch_ids",
+                label: "Cabang Mengajar Tutor (Bisa Pilih Banyak Cabang)",
+                type: "async-select",
+                isMulti: true,
+                endpoint: E.BRANCHES.LIST,
+                placeholder: "Pilih 1 atau lebih cabang...",
+                formatOption: (b) => ({
+                  value: b.id,
+                  label: b.city ? `${b.name} (${b.city})` : b.name,
+                  raw: b,
+                }),
+                showWhen: (v) => v.role === "tutor",
+              },
+              {
+                ...branchField("Cabang", false),
+                showWhen: (v) => v.role !== "tutor",
+              },
+            ]),
         { key: "phone", label: "No. HP / WhatsApp" },
-        { key: "hourly_rate", label: "Tarif Honor / Sesi (khusus Tutor, opsional)", type: "number" },
+        {
+          key: "hourly_rate",
+          label: "Tarif Honor / Sesi (opsional)",
+          type: "number",
+          showWhen: (v) => v.role === "tutor",
+        },
         { key: "status", label: "Status", type: "select", options: status },
       ];
     },

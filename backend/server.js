@@ -205,17 +205,17 @@ const USER_SORT_MAP = {
 app.get("/api/users", auth, can(STAFF), wrap(async (req, res) => {
   const q = req.query, page = Math.max(+q.page || 1, 1), limit = [10, 25, 50, 100].includes(+q.limit) ? +q.limit : 10;
   const where = [], args = [];
-  if (q.search) { where.push("(u.name LIKE ? OR u.email LIKE ? OR b.name LIKE ?)"); args.push(`%${q.search}%`, `%${q.search}%`, `%${q.search}%`); }
+  if (q.search) { where.push("(u.name LIKE ? OR u.email LIKE ? OR b.name LIKE ? OR EXISTS (SELECT 1 FROM tutor_branches stb JOIN branches sbr ON sbr.id=stb.branch_id WHERE stb.tutor_id=u.id AND sbr.name LIKE ?))"); args.push(`%${q.search}%`, `%${q.search}%`, `%${q.search}%`, `%${q.search}%`); }
   if (q.id !== undefined && q.id !== "") { where.push("u.id=?"); args.push(q.id); }
   if (q.role) { where.push("u.role=?"); args.push(q.role); }
   if (q.status) { where.push("COALESCE(u.status,'active')=?"); args.push(q.status); }
   if (q.branch_id) {
-    where.push("(u.branch_id=? OR EXISTS (SELECT 1 FROM classes tc WHERE tc.tutor_id=u.id AND tc.branch_id=?))");
-    args.push(q.branch_id, q.branch_id);
+    where.push("(u.branch_id=? OR EXISTS (SELECT 1 FROM classes tc WHERE tc.tutor_id=u.id AND tc.branch_id=?) OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=u.id AND tb.branch_id=?))");
+    args.push(q.branch_id, q.branch_id, q.branch_id);
   }
   if (req.user.role === "admin_cabang") {
-    where.push("(u.branch_id=? OR (u.role='tutor' AND EXISTS (SELECT 1 FROM classes tc WHERE tc.tutor_id=u.id AND tc.branch_id=?))) AND u.role IN ('tutor','siswa','ortu')");
-    args.push(req.user.branch_id, req.user.branch_id);
+    where.push("(u.branch_id=? OR (u.role='tutor' AND (EXISTS (SELECT 1 FROM classes tc WHERE tc.tutor_id=u.id AND tc.branch_id=?) OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=u.id AND tb.branch_id=?)))) AND u.role IN ('tutor','siswa','ortu')");
+    args.push(req.user.branch_id, req.user.branch_id, req.user.branch_id);
   }
   const sortExpr = USER_SORT_MAP[q.sort] || "u.id";
   const sortOrder = q.order === "asc" ? "ASC" : "DESC";
@@ -224,7 +224,16 @@ app.get("/api/users", auth, can(STAFF), wrap(async (req, res) => {
   const [rows] = await pool.query(
     `SELECT u.id, u.name, u.email, u.role, u.branch_id, u.phone, u.hourly_rate, COALESCE(u.status,'active') AS status, u.created_at,
       b.name AS branch_name,
-      (SELECT GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', ') FROM classes tc INNER JOIN branches cb ON cb.id=tc.branch_id WHERE tc.tutor_id=u.id) AS teaching_branches
+      (SELECT GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', ')
+       FROM branches cb
+       WHERE cb.id = u.branch_id
+          OR cb.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=u.id)
+          OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)) AS teaching_branches,
+      (SELECT GROUP_CONCAT(DISTINCT cb.id ORDER BY cb.id)
+       FROM branches cb
+       WHERE cb.id = u.branch_id
+          OR cb.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=u.id)
+          OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)) AS branch_ids_raw
      FROM users u
      LEFT JOIN branches b ON b.id=u.branch_id
      ${w}
@@ -232,24 +241,44 @@ app.get("/api/users", auth, can(STAFF), wrap(async (req, res) => {
      LIMIT ? OFFSET ?`,
     [...args, limit, (page - 1) * limit]
   );
-  res.json({ success: true, data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  const data = rows.map((r) => {
+    const branchIds = r.branch_ids_raw
+      ? String(r.branch_ids_raw).split(",").map(Number).filter(Boolean)
+      : (r.branch_id ? [Number(r.branch_id)] : []);
+    const { branch_ids_raw, ...rest } = r;
+    return { ...rest, branch_ids: branchIds };
+  });
+  res.json({ success: true, data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
 }));
 
 app.post("/api/users", auth, can(STAFF), wrap(async (req, res) => {
   const name = clean(req.body.name), email = clean(req.body.email)?.toLowerCase(), password = String(req.body.password || "");
   const role = clean(req.body.role), phone = clean(req.body.phone), status = clean(req.body.status) || "active";
   const hourly_rate = req.body.hourly_rate ? Number(req.body.hourly_rate) : null;
+  const rawBranchIds = Array.isArray(req.body.branch_ids)
+    ? [...new Set(req.body.branch_ids.map(Number).filter(Boolean))]
+    : [];
   let branch_id = req.body.branch_id ? Number(req.body.branch_id) : null;
   if (!name || !email || !password || !role) return fail(res, 400, "Nama, email, password, dan role wajib diisi");
   if (!ALL.includes(role)) return fail(res, 400, "Role tidak valid");
   if (req.user.role === "admin_cabang") {
     if (!BRANCH_USER_ROLES.includes(role)) return fail(res, 403, "Admin cabang hanya dapat membuat akun tutor, siswa, atau ortu");
     branch_id = req.user.branch_id;
+  } else if (role === "tutor" && rawBranchIds.length > 0) {
+    branch_id = rawBranchIds[0];
   }
   const [[dup]] = await pool.query("SELECT id FROM users WHERE email=?", [email]);
   if (dup) return fail(res, 400, "Email sudah terdaftar");
   const hash = await bcrypt.hash(password, 10);
   const [r] = await pool.query("INSERT INTO users(name,email,password,role,branch_id,phone,hourly_rate,status) VALUES(?,?,?,?,?,?,?,?)", [name, email, hash, role, branch_id, phone, hourly_rate, status]);
+  if (role === "tutor") {
+    const syncIds = req.user.role === "admin_cabang"
+      ? (branch_id ? [branch_id] : [])
+      : (rawBranchIds.length ? rawBranchIds : (branch_id ? [branch_id] : []));
+    for (const bid of syncIds) {
+      await pool.query("INSERT IGNORE INTO tutor_branches(tutor_id, branch_id) VALUES(?,?)", [r.insertId, bid]);
+    }
+  }
   res.status(201).json({ success: true, data: { id: r.insertId } });
 }));
 
@@ -263,12 +292,18 @@ app.put("/api/users/:id", auth, can(STAFF), wrap(async (req, res) => {
   const phone = req.body.phone !== undefined ? clean(req.body.phone) : undefined;
   const status = req.body.status !== undefined ? clean(req.body.status) : undefined;
   const hourly_rate = req.body.hourly_rate !== undefined ? (req.body.hourly_rate ? Number(req.body.hourly_rate) : null) : undefined;
+  const hasBranchIds = req.body.branch_ids !== undefined;
+  const rawBranchIds = hasBranchIds
+    ? [...new Set((Array.isArray(req.body.branch_ids) ? req.body.branch_ids : []).map(Number).filter(Boolean))]
+    : [];
   let branch_id = req.body.branch_id !== undefined ? (req.body.branch_id ? Number(req.body.branch_id) : null) : undefined;
   if (!name || !email || !role) return fail(res, 400, "Nama, email, dan role wajib diisi");
   if (!ALL.includes(role)) return fail(res, 400, "Role tidak valid");
   if (req.user.role === "admin_cabang") {
     if (!BRANCH_USER_ROLES.includes(role)) return fail(res, 403, "Admin cabang hanya dapat mengelola tutor, siswa, atau ortu");
     branch_id = req.user.branch_id;
+  } else if (role === "tutor" && hasBranchIds) {
+    branch_id = rawBranchIds[0] || null;
   }
   const [[dup]] = await pool.query("SELECT id FROM users WHERE email=? AND id<>?", [email, req.params.id]);
   if (dup) return fail(res, 400, "Email sudah dipakai user lain");
@@ -284,6 +319,19 @@ app.put("/api/users/:id", auth, can(STAFF), wrap(async (req, res) => {
     args.push(await bcrypt.hash(String(req.body.password), 10));
   }
   await pool.query(`UPDATE users SET ${sets.join(",")} WHERE id=?`, [...args, req.params.id]);
+
+  if (role === "tutor") {
+    if (req.user.role !== "admin_cabang" && hasBranchIds) {
+      await pool.query("DELETE FROM tutor_branches WHERE tutor_id=?", [req.params.id]);
+      for (const bid of rawBranchIds) {
+        await pool.query("INSERT IGNORE INTO tutor_branches(tutor_id, branch_id) VALUES(?,?)", [req.params.id, bid]);
+      }
+    } else if (branch_id) {
+      await pool.query("INSERT IGNORE INTO tutor_branches(tutor_id, branch_id) VALUES(?,?)", [req.params.id, branch_id]);
+    }
+  } else {
+    await pool.query("DELETE FROM tutor_branches WHERE tutor_id=?", [req.params.id]);
+  }
   res.json({ success: true, message: "User berhasil diperbarui" });
 }));
 
@@ -294,6 +342,7 @@ app.delete("/api/users/:id", auth, can(STAFF), wrap(async (req, res) => {
   if (req.user.role === "admin_cabang" && (target.branch_id !== req.user.branch_id || !BRANCH_USER_ROLES.includes(target.role))) {
     return fail(res, 403, "Akses ditolak untuk user cabang lain");
   }
+  await pool.query("DELETE FROM tutor_branches WHERE tutor_id=?", [req.params.id]);
   await pool.query("DELETE FROM users WHERE id=?", [req.params.id]);
   res.json({ success: true, message: "User berhasil dihapus" });
 }));
@@ -504,7 +553,17 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
     [req.user.id, now.date, req.user.id]
   );
 
+  const [assignedBranches] = await pool.query(
+    `SELECT DISTINCT b.id AS branch_id, b.name AS branch_name
+     FROM branches b
+     WHERE b.id = (SELECT branch_id FROM users WHERE id=?)
+        OR b.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=?)`,
+    [req.user.id, req.user.id]
+  );
   const branchMap = new Map();
+  assignedBranches.forEach((b) => {
+    if (b.branch_id) branchMap.set(b.branch_id, { branch_id: b.branch_id, branch_name: b.branch_name, class_count: 0 });
+  });
   classes.forEach((c) => {
     const key = c.branch_id || 0;
     if (!branchMap.has(key)) {
@@ -998,13 +1057,13 @@ app.get("/api/payroll", auth, can([...STAFF, "tutor"]), wrap(async (req, res) =>
   const where = ["u.role='tutor'", "COALESCE(u.status,'active')='active'"], args = [];
   if (req.user.role === "tutor") { where.push("u.id=?"); args.push(req.user.id); }
   else if (branchId) {
-    where.push("(u.branch_id=? OR EXISTS (SELECT 1 FROM classes tc WHERE tc.tutor_id=u.id AND tc.branch_id=?))");
-    args.push(branchId, branchId);
+    where.push("(u.branch_id=? OR EXISTS (SELECT 1 FROM classes tc WHERE tc.tutor_id=u.id AND tc.branch_id=?) OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=u.id AND tb.branch_id=?))");
+    args.push(branchId, branchId, branchId);
   }
 
   const [tutors] = await pool.query(
     `SELECT u.id, u.name, u.email, u.branch_id, u.hourly_rate, b.name AS branch_name,
-      (SELECT GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', ') FROM classes tc INNER JOIN branches cb ON cb.id=tc.branch_id WHERE tc.tutor_id=u.id) AS teaching_branches
+      (SELECT GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', ') FROM branches cb WHERE cb.id=u.branch_id OR cb.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=u.id) OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)) AS teaching_branches
      FROM users u LEFT JOIN branches b ON b.id=u.branch_id WHERE ${where.join(" AND ")} ORDER BY u.name ASC`,
     args
   );
@@ -1063,7 +1122,10 @@ app.post("/api/payroll/pay", auth, can(STAFF), wrap(async (req, res) => {
   const [[tut]] = await pool.query("SELECT id, name, branch_id FROM users WHERE id=? AND role='tutor'", [tutorId]);
   if (!tut) return fail(res, 404, "Tutor tidak ditemukan");
   if (req.user.role === "admin_cabang") {
-    const [[teachesHere]] = await pool.query("SELECT id FROM classes WHERE tutor_id=? AND branch_id=? LIMIT 1", [tutorId, req.user.branch_id]);
+    const [[teachesHere]] = await pool.query(
+      "SELECT 1 ok FROM classes WHERE tutor_id=? AND branch_id=? UNION SELECT 1 ok FROM tutor_branches WHERE tutor_id=? AND branch_id=? LIMIT 1",
+      [tutorId, req.user.branch_id, tutorId, req.user.branch_id]
+    );
     if (tut.branch_id !== req.user.branch_id && !teachesHere) return fail(res, 403, "Akses ditolak");
   }
 
@@ -1091,9 +1153,9 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
   const [[billRow]] = await pool.query(`SELECT COALESCE(SUM(status<>'paid'),0) unpaidCount, COALESCE(SUM(CASE WHEN status<>'paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) unpaidAmount, COALESCE(SUM(status='paid'),0) paidCount, COALESCE(SUM(CASE WHEN status='paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) paidAmount, COALESCE(SUM(status='overdue' OR (status='unpaid' AND due_date < CURDATE())),0) overdueCount, COALESCE(SUM(status='verifikasi'),0) verifikasiCount FROM bills WHERE 1=1${bWhere}`, bArgs);
   const [[leaveRow]] = await pool.query(`SELECT COUNT(*) pending FROM leaves WHERE status='pending'${bWhere}`, bArgs);
   const tutorFilter = branchId
-    ? "AND (u.branch_id=? OR EXISTS (SELECT 1 FROM classes tc WHERE tc.tutor_id=u.id AND tc.branch_id=?))"
+    ? "AND (u.branch_id=? OR EXISTS (SELECT 1 FROM classes tc WHERE tc.tutor_id=u.id AND tc.branch_id=?) OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=u.id AND tb.branch_id=?))"
     : "";
-  const tutorFilterArgs = branchId ? [branchId, branchId] : [];
+  const tutorFilterArgs = branchId ? [branchId, branchId, branchId] : [];
   const [[tutorRow]] = await pool.query(`SELECT COUNT(*) total FROM users u WHERE u.role='tutor' AND COALESCE(u.status,'active')='active' ${tutorFilter}`, tutorFilterArgs);
   const [[branchRow]] = await pool.query(`SELECT COUNT(*) total FROM branches WHERE status='active'${branchId ? " AND id=?" : ""}`, bArgs);
   const [[prodRow]] = await pool.query("SELECT COUNT(*) total FROM products");
@@ -1104,7 +1166,7 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
   } else if (req.user.role === "owner") {
     openComplaints = (await pool.query("SELECT COUNT(*) n FROM complaints WHERE status='open' AND COALESCE(sender_role,'')<>'tutor'"))[0][0].n;
   } else if (req.user.role === "admin_cabang") {
-    openComplaints = (await pool.query("SELECT COUNT(*) n FROM complaints WHERE status='open' AND sender_role='tutor' AND (branch_id=? OR branch_id IS NULL)", [req.user.branch_id]))[0][0].n;
+    openComplaints = (await pool.query("SELECT COUNT(*) n FROM complaints WHERE status='open' AND sender_role='tutor' AND (branch_id=? OR branch_id IS NULL OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=complaints.user_id AND tb.branch_id=?))", [req.user.branch_id, req.user.branch_id]))[0][0].n;
   }
 
   const [attStatusRows] = await pool.query(`SELECT status, COUNT(*) total FROM attendance WHERE 1=1${bWhere} GROUP BY status`, bArgs);
@@ -1119,7 +1181,15 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
 
   const [topTutorRows] = await pool.query(
     `SELECT u.id, u.name,
-      COALESCE(GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', '), b.name, 'Multi-Cabang') AS branch_name,
+      COALESCE(
+        (SELECT GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', ')
+         FROM branches cb
+         WHERE cb.id=u.branch_id
+            OR cb.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=u.id)
+            OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)),
+        b.name,
+        'Multi-Cabang'
+      ) AS branch_name,
       COUNT(DISTINCT c.id) AS classes_count,
       COUNT(ta.id) AS total_sessions,
       COALESCE(SUM(ta.status='hadir' AND COALESCE(ta.late_minutes,0)=0),0) AS on_time_sessions,
@@ -1127,7 +1197,6 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
      FROM users u
      LEFT JOIN branches b ON b.id=u.branch_id
      LEFT JOIN classes c ON c.tutor_id=u.id
-     LEFT JOIN branches cb ON cb.id=c.branch_id
      LEFT JOIN tutor_attendance ta ON ta.tutor_id=u.id
      WHERE u.role='tutor' AND COALESCE(u.status,'active')='active' ${tutorFilter}
      GROUP BY u.id, u.name, b.name
@@ -1219,7 +1288,14 @@ app.get("/api/tutors", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => 
   if (req.query.id) { where.push("u.id=?"); args.push(req.query.id); }
   if (req.user.role === "tutor") { where.push("u.id=?"); args.push(req.user.id); }
   const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email, u.branch_id, COALESCE(b.name, 'Multi-Cabang') AS branch_name
+    `SELECT u.id, u.name, u.email, u.branch_id,
+      COALESCE(
+        (SELECT GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', ')
+         FROM branches cb
+         WHERE cb.id=u.branch_id OR cb.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=u.id) OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)),
+        b.name,
+        'Multi-Cabang'
+      ) AS branch_name
      FROM users u
      LEFT JOIN branches b ON b.id=u.branch_id
      WHERE ${where.join(" AND ")}
@@ -1301,8 +1377,8 @@ Object.entries(RESOURCES).forEach(([name, cfg]) => {
       } else if (req.user.role === "owner") {
         where.push("COALESCE(t.sender_role,'')<>'tutor'");
       } else if (req.user.role === "admin_cabang") {
-        where.push("(t.sender_role='tutor' AND (t.branch_id=? OR t.branch_id IS NULL OR EXISTS (SELECT 1 FROM classes c WHERE c.tutor_id=t.user_id AND c.branch_id=?))) OR t.user_id=?");
-        args.push(req.user.branch_id, req.user.branch_id, req.user.id);
+        where.push("(t.sender_role='tutor' AND (t.branch_id=? OR t.branch_id IS NULL OR EXISTS (SELECT 1 FROM classes c WHERE c.tutor_id=t.user_id AND c.branch_id=?) OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=t.user_id AND tb.branch_id=?))) OR t.user_id=?");
+        args.push(req.user.branch_id, req.user.branch_id, req.user.branch_id, req.user.id);
       } else {
         where.push("t.user_id=?");
         args.push(req.user.id);

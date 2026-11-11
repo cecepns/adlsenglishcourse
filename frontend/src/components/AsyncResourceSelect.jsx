@@ -11,6 +11,7 @@ export default function AsyncResourceSelect({
   extraParams,
   placeholder = "Pilih atau ketik untuk mencari...",
   isClearable = false,
+  isMulti = false,
   formatOption = defaultFormat,
   onChange,
 }) {
@@ -20,7 +21,11 @@ export default function AsyncResourceSelect({
   formatRef.current = formatOption;
 
   const extraParamsKey = useMemo(() => JSON.stringify(extraParams || {}), [extraParams]);
-  const [resolvedOpt, setResolvedOpt] = useState(null);
+  const valueKey = useMemo(
+    () => (Array.isArray(value) ? value.map(String).join(",") : String(value ?? "")),
+    [value]
+  );
+  const [resolvedOpt, setResolvedOpt] = useState(isMulti ? [] : null);
 
   useEffect(() => {
     return () => {
@@ -29,6 +34,42 @@ export default function AsyncResourceSelect({
   }, []);
 
   useEffect(() => {
+    if (isMulti) {
+      const ids = Array.isArray(value)
+        ? value.map((v) => Number(v) || v).filter(Boolean)
+        : value
+        ? [Number(value) || value]
+        : [];
+      if (!ids.length) {
+        setResolvedOpt([]);
+        return;
+      }
+      const missing = ids.filter((id) => !cacheRef.current.has(String(id)));
+      if (!missing.length) {
+        setResolvedOpt(ids.map((id) => cacheRef.current.get(String(id))));
+        return;
+      }
+      let active = true;
+      api
+        .get(endpoint, { params: { limit: 100 } })
+        .then(({ data }) => {
+          if (!active) return;
+          (data.data || []).forEach((row) => {
+            const opt = formatRef.current(row);
+            cacheRef.current.set(String(opt.value), opt);
+          });
+          setResolvedOpt(
+            ids.map((id) => cacheRef.current.get(String(id)) || { value: id, label: `#${id}` })
+          );
+        })
+        .catch(() => {
+          if (active) setResolvedOpt(ids.map((id) => ({ value: id, label: `#${id}` })));
+        });
+      return () => {
+        active = false;
+      };
+    }
+
     if (value === undefined || value === null || value === "") {
       setResolvedOpt(null);
       return;
@@ -64,7 +105,8 @@ export default function AsyncResourceSelect({
     return () => {
       active = false;
     };
-  }, [endpoint, value, initialLabel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpoint, isMulti, valueKey, initialLabel]);
 
   const loadOptions = useCallback(
     (inputValue) =>
@@ -115,6 +157,24 @@ export default function AsyncResourceSelect({
         color: state.isSelected ? "#ffffff" : "#1e293b",
         cursor: "pointer",
       }),
+      multiValue: (base) => ({
+        ...base,
+        borderRadius: "0.5rem",
+        backgroundImage: "linear-gradient(90deg, #1e3a5f, #2a5885, #0369a1)",
+        color: "#ffffff",
+      }),
+      multiValueLabel: (base) => ({
+        ...base,
+        color: "#ffffff",
+        fontWeight: 600,
+        fontSize: "0.75rem",
+      }),
+      multiValueRemove: (base) => ({
+        ...base,
+        color: "#e0f2fe",
+        cursor: "pointer",
+        ":hover": { backgroundColor: "rgba(255,255,255,0.2)", color: "#ffffff" },
+      }),
       placeholder: (base) => ({ ...base, color: "#94a3b8" }),
     }),
     []
@@ -122,13 +182,22 @@ export default function AsyncResourceSelect({
 
   return (
     <AsyncSelect
-      key={`${endpoint}-${extraParamsKey}`}
+      key={`${endpoint}-${extraParamsKey}-${isMulti ? "multi" : "single"}`}
       cacheOptions
       defaultOptions
+      isMulti={isMulti}
+      closeMenuOnSelect={!isMulti}
       isClearable={isClearable}
       value={resolvedOpt}
       loadOptions={loadOptions}
       onChange={(opt) => {
+        if (isMulti) {
+          const list = Array.isArray(opt) ? opt : [];
+          list.forEach((o) => cacheRef.current.set(String(o.value), o));
+          setResolvedOpt(list);
+          onChange?.(list);
+          return;
+        }
         if (opt) cacheRef.current.set(String(opt.value), opt);
         setResolvedOpt(opt || null);
         onChange?.(opt || null);
