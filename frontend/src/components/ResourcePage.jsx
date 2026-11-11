@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import Select from "react-select";
-import { ArrowRight, CalendarPlus, Loader2, Plus, Search, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarPlus, Check, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting, getOpeningGreeting } from "@/utils/greetings";
@@ -31,6 +31,7 @@ export default function ResourcePage({ resource: cfg }) {
   const [limit, setLimit] = useState(10);
   const [modal, setModal] = useState(null); // { row? }
   const [saving, setSaving] = useState(false);
+  const [quickBusyId, setQuickBusyId] = useState(null);
 
   // Modal siapkan slot nilai kelas oleh Admin Cabang / HQ (#8)
   const [initModal, setInitModal] = useState(false);
@@ -98,6 +99,26 @@ export default function ResourcePage({ resource: cfg }) {
       /* toast sudah tampil */
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleQuickDecision = async (row, status) => {
+    setQuickBusyId(row.id);
+    try {
+      await request(
+        () => api.put(cfg.endpoint.DETAIL(row.id), { status }),
+        {
+          success: getClosingGreeting(
+            user.role,
+            status === "approved" ? "Pengajuan berhasil di-ACC (disetujui)." : "Pengajuan telah ditolak."
+          ),
+        }
+      );
+      refetch();
+    } catch {
+      /* toast sudah tampil */
+    } finally {
+      setQuickBusyId(null);
     }
   };
 
@@ -303,6 +324,33 @@ export default function ResourcePage({ resource: cfg }) {
           sortKey={sortKey}
           sortOrder={sortOrder}
           onSort={handleSort}
+          quickActions={
+            cfg.quickApprove && isApprover
+              ? (row) =>
+                  row.status === "pending" ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={quickBusyId === row.id}
+                        onClick={() => handleQuickDecision(row, "approved")}
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                        title="ACC / Setujui"
+                      >
+                        <Check size={13} /> ACC
+                      </button>
+                      <button
+                        type="button"
+                        disabled={quickBusyId === row.id}
+                        onClick={() => handleQuickDecision(row, "rejected")}
+                        className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+                        title="Tolak"
+                      >
+                        <X size={13} /> Tolak
+                      </button>
+                    </>
+                  ) : null
+              : undefined
+          }
           onEdit={(row) => setModal({ row })}
           onDelete={remove}
           onRetry={refetch}

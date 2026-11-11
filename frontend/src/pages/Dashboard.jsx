@@ -106,8 +106,8 @@ export default function Dashboard() {
   const topExpenses = stats?.topExpenses || [];
 
   const todos = [];
-  if (stats?.pendingLeaves > 0) {
-    todos.push({ to: "/leaves", color: "text-amber-600", label: `${stats.pendingLeaves} pengajuan izin/cuti menunggu persetujuan` });
+  if (isHQ && stats?.pendingLeaves > 0) {
+    todos.push({ to: "/leaves", color: "text-amber-600", label: `${stats.pendingLeaves} pengajuan izin/cuti menunggu persetujuan Admin Pusat / Owner` });
   }
   if (stats?.verifikasiBills > 0) {
     todos.push({ to: "/bills", color: "text-sky-600", label: `${stats.verifikasiBills} bukti pembayaran SPP menunggu verifikasi admin` });

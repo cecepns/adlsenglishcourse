@@ -28,6 +28,7 @@ export const COURSE_LEVELS = [
   "Basic (A1)",
   "Intermediate (A2)",
   "Advance (B1 - B2)",
+  "Umum / Karyawan",
 ];
 
 const studentField = (onSelect) => ({
@@ -577,6 +578,7 @@ export const RESOURCES = {
     r: ALL,
     c: ALL,
     u: HQ,
+    quickApprove: true,
     branchFilter: true,
     defaultDateKey: "start_date",
     getDefaultValues: (user) => ({
