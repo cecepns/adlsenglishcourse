@@ -13,6 +13,7 @@ import Meetings from "@/pages/Meetings";
 import Payroll from "@/pages/Payroll";
 import PortalDashboard from "@/pages/PortalDashboard";
 import Referrals from "@/pages/Referrals";
+import TutorDashboard from "@/pages/TutorDashboard";
 import VideoProjects from "@/pages/VideoProjects";
 
 const STAFF = ["owner", "admin_pusat", "admin_cabang"];
@@ -31,7 +32,7 @@ export default function App() {
   const home = isStaff ? (
     <Dashboard />
   ) : user?.role === "tutor" ? (
-    <Navigate to="/tutor_attendance" replace />
+    <TutorDashboard />
   ) : (
     <PortalDashboard />
   );
@@ -44,7 +45,8 @@ export default function App() {
       <Route element={<Protected><Layout /></Protected>}>
         <Route index element={home} />
         <Route path="portal" element={<PortalDashboard />} />
-        <Route path="meetings" element={<Meetings />} />
+        <Route path="tutor-portal" element={user?.role === "tutor" ? <TutorDashboard /> : <Navigate to="/" replace />} />
+        <Route path="meetings" element={user?.role === "ortu" ? <Navigate to="/" replace /> : <Meetings />} />
         <Route path="audio" element={<AudioListening />} />
         <Route path="videos" element={<VideoProjects />} />
         <Route path="achievements" element={<Achievements />} />

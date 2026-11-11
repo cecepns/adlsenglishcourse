@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Building2,
   ClipboardList,
   Copy,
+  FolderPlus,
   Loader2,
   PackageCheck,
   Pencil,
@@ -26,7 +27,6 @@ import ProductImage from "@/components/ProductImage";
 
 const STAFF = ["owner", "admin_pusat", "admin_cabang"];
 const AGE_TABS = ["Semua", "Anak", "Remaja", "Dewasa"];
-const CATEGORIES = ["Semua", "Buku", "Merchandise"];
 const rp = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
 
 const ORDER_BADGE = {
@@ -43,6 +43,7 @@ export default function CatalogShop() {
 
   const [tab, setTab] = useState("catalog"); // catalog | orders
   const [products, setProducts] = useState([]);
+  const [categoriesList, setCategoriesList] = useState([]);
   const [orders, setOrders] = useState([]);
   const [bankInfo, setBankInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +52,11 @@ export default function CatalogShop() {
   const [category, setCategory] = useState("Semua");
   const [search, setSearch] = useState("");
   const debounced = useDebounce(search, 300);
+
+  // Kategori Modal (#21)
+  const [catModal, setCatModal] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [savingCat, setSavingCat] = useState(false);
 
   // Checkout Modal
   const [orderModal, setOrderModal] = useState(null);
@@ -77,6 +83,15 @@ export default function CatalogShop() {
   });
 
   const [saving, setSaving] = useState(false);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const { data } = await api.get(API_ENDPOINTS.PRODUCT_CATEGORIES.LIST);
+      setCategoriesList(data.data || []);
+    } catch {
+      setCategoriesList([]);
+    }
+  }, []);
 
   const loadProducts = async () => {
     setLoading(true);
@@ -112,17 +127,54 @@ export default function CatalogShop() {
   };
 
   useEffect(() => {
+    loadCategories();
     api
       .get(API_ENDPOINTS.BILLS_BANK_INFO)
       .then((r) => setBankInfo(r.data.data))
       .catch(() => {});
-  }, []);
+  }, [loadCategories]);
 
   useEffect(() => {
     if (tab === "catalog") loadProducts();
     else loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, ageGroup, category, debounced]);
+
+  const addCategory = async (e) => {
+    e.preventDefault();
+    if (!newCatName.trim()) {
+      toast.error("Nama kategori wajib diisi");
+      return;
+    }
+    setSavingCat(true);
+    try {
+      const res = await request(
+        () => api.post(API_ENDPOINTS.PRODUCT_CATEGORIES.LIST, { name: newCatName.trim() }),
+        { success: getClosingGreeting(user.role, `Kategori "${newCatName.trim()}" berhasil ditambahkan!`) }
+      );
+      setNewCatName("");
+      await loadCategories();
+      if (prodModal && res?.data?.name) {
+        setProdForm((prev) => ({ ...prev, category: res.data.name }));
+      }
+    } catch {
+      /* toast handled */
+    } finally {
+      setSavingCat(false);
+    }
+  };
+
+  const deleteCategory = async (catRow) => {
+    try {
+      await request(() => api.delete(API_ENDPOINTS.PRODUCT_CATEGORIES.DETAIL(catRow.id)), {
+        success: `Kategori "${catRow.name}" dihapus.`,
+      });
+      if (category === catRow.name) setCategory("Semua");
+      loadCategories();
+    } catch {
+      /* toast handled */
+    }
+  };
 
   const openOrder = (product) => {
     setOrderModal(product);
@@ -164,12 +216,13 @@ export default function CatalogShop() {
   };
 
   const openProdModal = (row = null) => {
+    const defaultCat = categoriesList[0]?.name || "Merchandise";
     setProdModal(row ? { row } : {});
     setProdForm(
       row
         ? {
             name: row.name || "",
-            category: row.category || "Merchandise",
+            category: row.category || defaultCat,
             age_group: row.age_group || "Semua",
             price: row.price ?? "",
             stock: row.stock ?? "",
@@ -178,7 +231,7 @@ export default function CatalogShop() {
           }
         : {
             name: "",
-            category: "Merchandise",
+            category: defaultCat,
             age_group: "Semua",
             price: "",
             stock: "20",
@@ -215,7 +268,7 @@ export default function CatalogShop() {
           <p className="mb-2 font-medium">Hapus produk "{row.name}"?</p>
           <div className="flex gap-2">
             <button
-              className="btn-primary !bg-red-600 !px-3 !py-1"
+              className="btn-primary !bg-none !bg-red-600 !px-3 !py-1"
               onClick={async () => {
                 toast.dismiss(t.id);
                 await request(() => api.delete(API_ENDPOINTS.PRODUCTS.DETAIL(row.id)), {
@@ -250,6 +303,11 @@ export default function CatalogShop() {
     toast.success(`Nomor rekening disalin: ${text}`);
   };
 
+  const categoryTabs = ["Semua", ...categoriesList.map((c) => c.name)];
+  const selectCategories = categoriesList.length
+    ? categoriesList.map((c) => c.name)
+    : ["Merchandise", "Buku"];
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -263,7 +321,9 @@ export default function CatalogShop() {
               type="button"
               onClick={() => setTab("catalog")}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
-                tab === "catalog" ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
+                tab === "catalog"
+                  ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               <ShoppingBag size={14} /> Katalog Produk
@@ -272,16 +332,23 @@ export default function CatalogShop() {
               type="button"
               onClick={() => setTab("orders")}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
-                tab === "orders" ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
+                tab === "orders"
+                  ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               <ClipboardList size={14} /> Riwayat Order
             </button>
           </div>
           {isStaff && tab === "catalog" && (
-            <button type="button" onClick={() => openProdModal(null)} className="btn-primary">
-              <Plus size={16} /> Tambah Produk
-            </button>
+            <>
+              <button type="button" onClick={() => setCatModal(true)} className="btn-ghost">
+                <FolderPlus size={16} /> Kelola Kategori
+              </button>
+              <button type="button" onClick={() => openProdModal(null)} className="btn-primary">
+                <Plus size={16} /> Tambah Produk
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -297,17 +364,19 @@ export default function CatalogShop() {
                   type="button"
                   onClick={() => setAgeGroup(ag)}
                   className={`rounded-full px-3 py-1 text-xs font-bold transition ${
-                    ageGroup === ag ? "bg-brand text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ageGroup === ag
+                      ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
                   {ag}
                 </button>
               ))}
             </div>
-            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+            <div className="hidden h-4 w-px bg-slate-200 sm:block" />
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-xs font-bold uppercase text-slate-400">Kategori:</span>
-              {CATEGORIES.map((cat) => (
+              {categoryTabs.map((cat) => (
                 <button
                   key={cat}
                   type="button"
@@ -384,7 +453,7 @@ export default function CatalogShop() {
                         type="button"
                         disabled={outOfStock}
                         onClick={() => openOrder(p)}
-                        className={`btn-primary flex-1 !py-2 text-xs ${outOfStock ? "!bg-slate-300 cursor-not-allowed" : ""}`}
+                        className={`btn-primary flex-1 !py-2 text-xs ${outOfStock ? "!bg-none !bg-slate-300 cursor-not-allowed" : ""}`}
                       >
                         <ShoppingCart size={14} /> {outOfStock ? "Stok Habis" : "Order Produk"}
                       </button>
@@ -498,6 +567,48 @@ export default function CatalogShop() {
         </div>
       )}
 
+      {/* Modal Kelola Kategori Produk (#21) */}
+      <Modal open={catModal} title="Kelola Kategori Produk" onClose={() => setCatModal(false)}>
+        <div className="space-y-4">
+          <form onSubmit={addCategory} className="flex gap-2">
+            <input
+              required
+              className="input flex-1"
+              placeholder="Nama kategori baru (mis. Seragam, Modul Grammar)"
+              value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+            />
+            <button className="btn-primary shrink-0" disabled={savingCat}>
+              {savingCat ? <Loader2 size={14} className="animate-spin" /> : <Plus size={15} />}
+              Tambah
+            </button>
+          </form>
+
+          <div className="space-y-2">
+            <div className="text-xs font-bold uppercase text-slate-400">Kategori Tersedia ({categoriesList.length})</div>
+            {categoriesList.length === 0 ? (
+              <div className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400">Belum ada kategori</div>
+            ) : (
+              <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                {categoriesList.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-3.5 py-2.5 text-sm">
+                    <span className="font-semibold text-slate-800">{c.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => deleteCategory(c)}
+                      className="rounded-lg p-1 text-red-500 hover:bg-red-50"
+                      title="Hapus kategori"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
       <Modal open={!!orderModal} title={`Order Produk: ${orderModal?.name || ""}`} onClose={() => setOrderModal(null)}>
         {orderModal && (
           <form onSubmit={submitOrder} className="space-y-3.5">
@@ -604,10 +715,23 @@ export default function CatalogShop() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Kategori</label>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-sm font-semibold text-slate-700">Kategori</label>
+                <button
+                  type="button"
+                  onClick={() => setCatModal(true)}
+                  className="text-[11px] font-bold text-brand hover:underline"
+                >
+                  + Kategori Baru
+                </button>
+              </div>
               <select className="input" value={prodForm.category} onChange={(e) => setProdForm({ ...prodForm, category: e.target.value })}>
-                <option value="Merchandise">Merchandise</option>
-                <option value="Buku">Buku</option>
+                {prodForm.category && !selectCategories.includes(prodForm.category) && (
+                  <option value={prodForm.category}>{prodForm.category}</option>
+                )}
+                {selectCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -646,4 +770,3 @@ export default function CatalogShop() {
     </div>
   );
 }
-

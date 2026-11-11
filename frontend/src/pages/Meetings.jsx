@@ -85,7 +85,7 @@ export default function Meetings() {
                 type="button"
                 onClick={() => setFilterType(tab.id)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                  filterType === tab.id ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
+                  filterType === tab.id ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 {tab.label}
@@ -138,7 +138,9 @@ export default function Meetings() {
                       {c.type || "offline"}
                     </span>
                   </div>
-                  <h3 className="mt-3 text-lg font-extrabold text-slate-900">{c.name}</h3>
+                  <h3 className="mt-3 text-lg font-extrabold text-slate-900">
+                    {c.class_type && c.class_type !== c.name ? `${c.class_type} · ${c.name}` : c.class_type || c.name}
+                  </h3>
                   <p className="mt-0.5 text-xs font-semibold text-brand">{c.level || "Umum"}</p>
                   <div className="mt-3 space-y-1 text-xs text-slate-600">
                     <div><span className="font-semibold">Jadwal:</span> {c.schedule || "-"}</div>

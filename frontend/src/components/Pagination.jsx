@@ -16,7 +16,7 @@ export default function Pagination({ pagination, onPage, onLimit }) {
       <div className="flex items-center gap-1">
         <button className="btn-ghost !px-2 !py-1" disabled={page <= 1} onClick={() => onPage(page - 1)}><ChevronLeft size={16} /></button>
         {pages.map((p) => (
-          <button key={p} onClick={() => onPage(p)} className={`h-8 w-8 rounded-lg ${p === page ? "bg-brand text-white" : "hover:bg-slate-100"}`}>{p}</button>
+          <button key={p} onClick={() => onPage(p)} className={`h-8 w-8 rounded-lg font-semibold ${p === page ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm" : "hover:bg-slate-100"}`}>{p}</button>
         ))}
         <button className="btn-ghost !px-2 !py-1" disabled={page >= totalPages} onClick={() => onPage(page + 1)}><ChevronRight size={16} /></button>
       </div>

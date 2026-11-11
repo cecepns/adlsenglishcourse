@@ -211,7 +211,7 @@ export default function Payroll() {
                           className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                             r.payment_status === "paid"
                               ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                              : "bg-brand text-white hover:bg-brand-dark"
+                              : "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm hover:brightness-110"
                           }`}
                         >
                           <Banknote size={14} /> {r.payment_status === "paid" ? "Lunas" : "Bayar Honor"}

@@ -110,6 +110,7 @@ export default function AsyncResourceSelect({
       option: (base, state) => ({
         ...base,
         fontSize: "0.875rem",
+        backgroundImage: state.isSelected ? "linear-gradient(90deg, #1e3a5f, #2a5885, #0369a1)" : "none",
         backgroundColor: state.isSelected ? "#2a5885" : state.isFocused ? "#eff6ff" : "#ffffff",
         color: state.isSelected ? "#ffffff" : "#1e293b",
         cursor: "pointer",

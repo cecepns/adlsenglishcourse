@@ -29,71 +29,87 @@ export default function ResourceForm({ fields, initial, onSubmit, onCancel, load
 
   return (
     <form onSubmit={submit} className="space-y-3.5">
-      {fields.map((f) => (
-        <div key={f.key}>
-          <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-            {f.label}
-            {f.required && <span className="ml-0.5 text-red-500">*</span>}
-          </label>
-          {f.type === "async-select" ? (
-            <AsyncResourceSelect
-              endpoint={f.endpoint}
-              value={values[f.key]}
-              initialLabel={f.labelKey ? values[f.labelKey] : undefined}
-              extraParams={typeof f.extraParams === "function" ? f.extraParams(values) : f.extraParams}
-              placeholder={f.placeholder || `Pilih ${f.label}...`}
-              isClearable={!f.required}
-              formatOption={f.formatOption}
-              onChange={(opt) => {
-                setValues((prev) => {
-                  const next = {
-                    ...prev,
-                    [f.key]: opt ? opt.value : null,
-                    ...(f.labelKey ? { [f.labelKey]: opt ? opt.label : "" } : {}),
-                  };
-                  return f.onSelect ? { ...next, ...f.onSelect(opt, next) } : next;
-                });
-              }}
-            />
-          ) : f.type === "image" ? (
-            <ImageUploadField
-              value={values[f.key] ?? ""}
-              onChange={(url) => setValues((prev) => ({ ...prev, [f.key]: url }))}
-            />
-          ) : f.type === "audio" || f.type === "video" ? (
-            <MediaUploadField
-              mode={f.type}
-              value={values[f.key] ?? ""}
-              onChange={(url) => setValues((prev) => ({ ...prev, [f.key]: url }))}
-            />
-          ) : f.type === "select" ? (
-            <select
-              className="input"
-              value={values[f.key] ?? ""}
-              onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
-            >
-              <option value="">-- pilih --</option>
-              {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
-          ) : f.type === "textarea" ? (
-            <textarea
-              rows={3}
-              className="input"
-              value={values[f.key] ?? ""}
-              onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
-            />
-          ) : (
-            <input
-              type={f.type || "text"}
-              className="input"
-              autoComplete={f.type === "password" ? "new-password" : undefined}
-              value={f.type === "date" ? String(values[f.key] ?? "").slice(0, 10) : (values[f.key] ?? "")}
-              onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
-            />
-          )}
-          {errors[f.key] && <p className="mt-1 text-xs font-medium text-red-600">{errors[f.key]}</p>}
-        </div>
-      ))}
+      {fields.map((f) => {
+        const normalizedOpts =
+          f.type === "select"
+            ? (f.options || []).map((o) => (typeof o === "object" ? o : { value: String(o), label: String(o) }))
+            : [];
+        const rawSelectVal = values[f.key] !== undefined && values[f.key] !== null ? String(values[f.key]) : "";
+        const hasMissingOption =
+          f.type === "select" && rawSelectVal !== "" && !normalizedOpts.some((o) => o.value === rawSelectVal);
+
+        return (
+          <div key={f.key}>
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+              {f.label}
+              {f.required && <span className="ml-0.5 text-red-500">*</span>}
+            </label>
+            {f.type === "async-select" ? (
+              <AsyncResourceSelect
+                endpoint={f.endpoint}
+                value={values[f.key]}
+                initialLabel={f.labelKey ? values[f.labelKey] : undefined}
+                extraParams={typeof f.extraParams === "function" ? f.extraParams(values) : f.extraParams}
+                placeholder={f.placeholder || `Pilih ${f.label}...`}
+                isClearable={!f.required}
+                formatOption={f.formatOption}
+                onChange={(opt) => {
+                  setValues((prev) => {
+                    const next = {
+                      ...prev,
+                      [f.key]: opt ? opt.value : null,
+                      ...(f.labelKey ? { [f.labelKey]: opt ? opt.label : "" } : {}),
+                    };
+                    return f.onSelect ? { ...next, ...f.onSelect(opt, next) } : next;
+                  });
+                }}
+              />
+            ) : f.type === "image" || f.type === "pdf-or-image" ? (
+              <ImageUploadField
+                allowPdf={f.type === "pdf-or-image"}
+                value={values[f.key] ?? ""}
+                onChange={(url) => setValues((prev) => ({ ...prev, [f.key]: url }))}
+              />
+            ) : f.type === "audio" || f.type === "video" ? (
+              <MediaUploadField
+                mode={f.type}
+                value={values[f.key] ?? ""}
+                onChange={(url) => setValues((prev) => ({ ...prev, [f.key]: url }))}
+              />
+            ) : f.type === "select" ? (
+              <select
+                className="input"
+                value={rawSelectVal}
+                onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+              >
+                <option value="">-- pilih --</option>
+                {hasMissingOption && <option value={rawSelectVal}>{rawSelectVal}</option>}
+                {normalizedOpts.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            ) : f.type === "textarea" ? (
+              <textarea
+                rows={3}
+                className="input"
+                value={values[f.key] ?? ""}
+                onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+              />
+            ) : (
+              <input
+                type={f.type || "text"}
+                className="input"
+                autoComplete={f.type === "password" ? "new-password" : undefined}
+                value={f.type === "date" ? String(values[f.key] ?? "").slice(0, 10) : (values[f.key] ?? "")}
+                onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+              />
+            )}
+            {errors[f.key] && <p className="mt-1 text-xs font-medium text-red-600">{errors[f.key]}</p>}
+          </div>
+        );
+      })}
       <div className="flex justify-end gap-2 pt-3">
         <button type="button" className="btn-ghost" onClick={onCancel}>Batal</button>
         <button className="btn-primary" disabled={loading}>

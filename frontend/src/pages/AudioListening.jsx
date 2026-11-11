@@ -6,13 +6,14 @@ import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting } from "@/utils/greetings";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
+import { COURSE_LEVELS } from "@/config/resources";
 import useDebounce from "@/hooks/useDebounce";
 import AsyncResourceSelect from "@/components/AsyncResourceSelect";
 import MediaUploadField from "@/components/MediaUploadField";
 import Modal from "@/components/Modal";
 
 const STAFF = ["owner", "admin_pusat", "admin_cabang"];
-const LEVELS = ["Semua", "Kids", "Teens", "Dewasa / Karyawan"];
+const LEVELS = ["Semua", ...COURSE_LEVELS];
 
 export default function AudioListening() {
   const { user } = useAuth();
@@ -23,7 +24,7 @@ export default function AudioListening() {
   const debounced = useDebounce(search, 300);
 
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ title: "", level: "Kids", module_name: "", audio_url: "", description: "", branch_id: null, branch_name: "" });
+  const [form, setForm] = useState({ title: "", level: COURSE_LEVELS[0], module_name: "", audio_url: "", description: "", branch_id: null, branch_name: "" });
   const [saving, setSaving] = useState(false);
 
   const canManage = [...STAFF, "tutor"].includes(user.role);
@@ -57,7 +58,7 @@ export default function AudioListening() {
       row
         ? {
             title: row.title || "",
-            level: row.level || "Kids",
+            level: row.level || COURSE_LEVELS[0],
             module_name: row.module_name || "",
             audio_url: row.audio_url || "",
             description: row.description || "",
@@ -66,7 +67,7 @@ export default function AudioListening() {
           }
         : {
             title: "",
-            level: "Kids",
+            level: COURSE_LEVELS[0],
             module_name: "",
             audio_url: "",
             description: "",
@@ -115,7 +116,7 @@ export default function AudioListening() {
           <p className="mb-2 font-medium">Hapus materi audio "{row.title}"?</p>
           <div className="flex gap-2">
             <button
-              className="btn-primary !bg-red-600 !px-3 !py-1"
+              className="btn-primary !bg-none !bg-red-600 !px-3 !py-1"
               onClick={async () => {
                 toast.dismiss(t.id);
                 await request(() => api.delete(API_ENDPOINTS.AUDIO_MATERIALS.DETAIL(row.id)), {
@@ -167,7 +168,7 @@ export default function AudioListening() {
             onClick={() => setLevelFilter(lv)}
             className={`rounded-full px-4 py-1.5 text-xs font-bold transition ${
               levelFilter === lv
-                ? "bg-brand text-white shadow-sm"
+                ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm"
                 : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
             }`}
           >
@@ -246,9 +247,12 @@ export default function AudioListening() {
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">Level</label>
               <select className="input" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
-                <option value="Kids">Kids</option>
-                <option value="Teens">Teens</option>
-                <option value="Dewasa / Karyawan">Dewasa / Karyawan</option>
+                {COURSE_LEVELS.map((lv) => (
+                  <option key={lv} value={lv}>{lv}</option>
+                ))}
+                {form.level && !COURSE_LEVELS.includes(form.level) && (
+                  <option value={form.level}>{form.level}</option>
+                )}
               </select>
             </div>
             <div>

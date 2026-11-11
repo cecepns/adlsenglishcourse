@@ -199,7 +199,7 @@ export function HorizontalBars({ items = [], formatValue = (v) => v, max, emptyT
               className="h-full rounded-full transition-all duration-500"
               style={{
                 width: `${Math.min(100, (item.value * 100) / maxVal)}%`,
-                backgroundColor: item.color || "#2a5885",
+                background: item.gradient || (item.color === "#2a5885" || !item.color ? "linear-gradient(90deg, #1e3a5f, #2a5885, #0369a1)" : item.color),
               }}
             />
           </div>

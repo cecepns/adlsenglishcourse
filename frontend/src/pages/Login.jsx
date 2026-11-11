@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   CheckCircle2,
   Eye,
@@ -9,12 +10,15 @@ import {
   Lock,
   LogIn,
   Mail,
+  Plus,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserPlus,
 } from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
+import { CLASS_TYPES, COURSE_LEVELS } from "@/config/resources";
 import { useAuth } from "@/context/AuthContext";
 
 const HIGHLIGHTS = [
@@ -36,11 +40,15 @@ export default function Login() {
     email: "",
     password: "",
     role: "siswa",
-    student_name: "",
-    level: "Kelas Karyawan",
+    class_type: "Regular",
+    level: COURSE_LEVELS[0],
     phone: "",
     branch_id: "",
   });
+  // #19 Mendukung 1 akun email Ortu mendaftarkan hingga 3+ anak sekaligus
+  const [children, setChildren] = useState([
+    { name: "", class_type: "Regular", level: COURSE_LEVELS[0], branch_id: "" },
+  ]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -65,14 +73,47 @@ export default function Login() {
     }
   };
 
+  const addChildRow = () => {
+    setChildren((prev) => [
+      ...prev,
+      { name: "", class_type: reg.class_type || "Regular", level: COURSE_LEVELS[0], branch_id: reg.branch_id || "" },
+    ]);
+  };
+
+  const updateChildRow = (idx, patch) => {
+    setChildren((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  };
+
+  const removeChildRow = (idx) => {
+    setChildren((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const submitRegister = async (e) => {
     e.preventDefault();
+    if (reg.role === "ortu") {
+      const validChildren = children.filter((c) => c.name.trim());
+      if (!validChildren.length) {
+        toast.error("Minimal 1 nama anak wajib diisi");
+        return;
+      }
+    }
     setLoading(true);
     try {
-      await register({
+      const payload = {
         ...reg,
         branch_id: reg.branch_id ? Number(reg.branch_id) : null,
-      });
+      };
+      if (reg.role === "ortu") {
+        payload.children = children
+          .filter((c) => c.name.trim())
+          .map((c) => ({
+            name: c.name.trim(),
+            class_type: c.class_type || reg.class_type || "Regular",
+            level: c.level || reg.level,
+            branch_id: c.branch_id ? Number(c.branch_id) : (reg.branch_id ? Number(reg.branch_id) : null),
+          }));
+      }
+      await register(payload);
     } catch {
       /* toast handled */
     } finally {
@@ -133,19 +174,19 @@ export default function Login() {
       </div>
 
       {/* Right Auth Form Panel */}
-      <div className="flex flex-col items-center justify-center p-5 sm:p-8 lg:col-span-6 lg:p-12">
-        <div className="w-full max-w-md space-y-5">
-          {/* Mobile Brand Header */}
-          <div className="flex flex-col items-center text-center lg:hidden">
-            <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-md">
-              <img src="/logo.png" alt="ADLS" className="h-14 w-14 object-contain" />
+      <div className="flex flex-col items-center justify-center p-5 sm:p-8 lg:col-span-6 lg:p-10">
+        <div className="w-full max-w-lg space-y-5">
+          {/* Mobile Brand Header (Gradient) */}
+          <div className="flex flex-col items-center rounded-2xl bg-gradient-to-br from-brand-dark via-brand to-sky-700 p-5 text-center text-white shadow-md lg:hidden">
+            <div className="rounded-2xl bg-white p-2 shadow-md">
+              <img src="/logo.png" alt="ADLS" className="h-12 w-12 object-contain" />
             </div>
-            <h1 className="mt-3 text-xl font-extrabold text-brand-dark">ADLS English Course</h1>
-            <p className="text-xs text-slate-500">Portal Pembelajaran & Manajemen Multi-Cabang</p>
+            <h1 className="mt-3 text-lg font-extrabold">ADLS English Course</h1>
+            <p className="text-xs text-sky-100">Portal Pembelajaran & Manajemen Multi-Cabang</p>
           </div>
 
           <div className="hidden lg:block">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-dark via-brand to-sky-700 px-3 py-1 text-xs font-bold text-white shadow-sm">
               <GraduationCap size={14} /> Portal Akses ADLS
             </div>
             <h2 className="mt-2.5 text-2xl font-extrabold text-slate-900">
@@ -154,7 +195,7 @@ export default function Login() {
             <p className="mt-1 text-sm text-slate-500">
               {mode === "login"
                 ? "Silakan masukkan email dan password untuk melanjutkan aktivitas hari ini."
-                : "Pendaftaran cepat untuk Siswa Mandiri (Kelas Karyawan) maupun Orang Tua."}
+                : "1 akun Orang Tua bisa mendaftarkan beberapa anak sekaligus dalam 1 email."}
             </p>
           </div>
 
@@ -165,7 +206,7 @@ export default function Login() {
               onClick={() => setMode("login")}
               className={`inline-flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-bold transition ${
                 mode === "login"
-                  ? "bg-brand text-white shadow-sm"
+                  ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
@@ -176,11 +217,11 @@ export default function Login() {
               onClick={() => setMode("register")}
               className={`inline-flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-bold transition ${
                 mode === "register"
-                  ? "bg-brand text-white shadow-sm"
+                  ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
-              <UserPlus size={15} /> Daftar Siswa / Ortu
+              <UserPlus size={15} /> Daftar di Sini
             </button>
           </div>
 
@@ -247,66 +288,29 @@ export default function Login() {
                   <select
                     className="input"
                     value={reg.role}
-                    onChange={(e) =>
-                      setReg({
-                        ...reg,
-                        role: e.target.value,
-                        level: e.target.value === "siswa" ? "Kelas Karyawan" : "Kids",
-                      })
-                    }
+                    onChange={(e) => setReg({ ...reg, role: e.target.value })}
                   >
                     <option value="siswa">Siswa Mandiri / Kelas Karyawan (Bayar Sendiri)</option>
-                    <option value="ortu">Orang Tua / Wali Siswa</option>
+                    <option value="ortu">Orang Tua / Wali Siswa (1 Email bisa untuk 3+ Anak)</option>
                   </select>
                 </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
-                    Nama Lengkap *
-                  </label>
-                  <input
-                    required
-                    className="input"
-                    placeholder="Nama lengkap Anda"
-                    value={reg.name}
-                    onChange={(e) => setReg({ ...reg, name: e.target.value })}
-                  />
-                </div>
-
-                {reg.role === "ortu" && (
-                  <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
-                      Nama Siswa (Anak) *
-                    </label>
-                    <input
-                      required
-                      className="input"
-                      placeholder="Nama lengkap putra/putri"
-                      value={reg.student_name}
-                      onChange={(e) => setReg({ ...reg, student_name: e.target.value })}
-                    />
-                  </div>
-                )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
-                      Level
+                      Nama Lengkap {reg.role === "ortu" ? "Orang Tua" : ""} *
                     </label>
-                    <select
+                    <input
+                      required
                       className="input"
-                      value={reg.level}
-                      onChange={(e) => setReg({ ...reg, level: e.target.value })}
-                    >
-                      <option value="Kids">Kids</option>
-                      <option value="Teens">Teens</option>
-                      <option value="Kelas Karyawan">Kelas Karyawan</option>
-                      <option value="Conversation / TOEFL">Conversation / TOEFL</option>
-                    </select>
+                      placeholder="Nama lengkap Anda"
+                      value={reg.name}
+                      onChange={(e) => setReg({ ...reg, name: e.target.value })}
+                    />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
-                      Cabang
+                      Cabang Utama
                     </label>
                     <select
                       className="input"
@@ -322,6 +326,100 @@ export default function Login() {
                     </select>
                   </div>
                 </div>
+
+                {/* #18 Type Kelas + Level (List #14) */}
+                {reg.role === "siswa" ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Type Kelas *
+                      </label>
+                      <select
+                        className="input"
+                        value={reg.class_type}
+                        onChange={(e) => setReg({ ...reg, class_type: e.target.value })}
+                      >
+                        {CLASS_TYPES.map((ct) => (
+                          <option key={ct} value={ct}>{ct}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Level *
+                      </label>
+                      <select
+                        className="input"
+                        value={reg.level}
+                        onChange={(e) => setReg({ ...reg, level: e.target.value })}
+                      >
+                        {COURSE_LEVELS.map((lv) => (
+                          <option key={lv} value={lv}>{lv}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  /* #19 Multi-Anak pada Pendaftaran Ortu */
+                  <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-brand-dark">
+                        Data Anak ({children.length}) · 1 Akses Email
+                      </span>
+                      <button
+                        type="button"
+                        onClick={addChildRow}
+                        className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-brand-dark via-brand to-sky-700 px-2.5 py-1 text-[11px] font-bold text-white"
+                      >
+                        <Plus size={12} /> Tambah Anak
+                      </button>
+                    </div>
+
+                    {children.map((child, idx) => (
+                      <div key={idx} className="space-y-2 rounded-xl border border-slate-200 bg-white p-2.5">
+                        <div className="flex items-center gap-2">
+                          <input
+                            required
+                            className="input !py-2 text-xs"
+                            placeholder={`Nama Lengkap Anak #${idx + 1} *`}
+                            value={child.name}
+                            onChange={(e) => updateChildRow(idx, { name: e.target.value })}
+                          />
+                          {children.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeChildRow(idx)}
+                              className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
+                              title="Hapus anak"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <select
+                            className="input !py-2 text-xs"
+                            value={child.class_type}
+                            onChange={(e) => updateChildRow(idx, { class_type: e.target.value })}
+                          >
+                            {CLASS_TYPES.map((ct) => (
+                              <option key={ct} value={ct}>Type: {ct}</option>
+                            ))}
+                          </select>
+                          <select
+                            className="input !py-2 text-xs"
+                            value={child.level}
+                            onChange={(e) => updateChildRow(idx, { level: e.target.value })}
+                          >
+                            {COURSE_LEVELS.map((lv) => (
+                              <option key={lv} value={lv}>{lv}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>

@@ -249,7 +249,7 @@ export default function BillsPage() {
           <p className="mb-2 font-medium">Hapus tagihan "{row.title}"?</p>
           <div className="flex gap-2">
             <button
-              className="btn-primary !bg-red-600 !px-3 !py-1"
+              className="btn-primary !bg-none !bg-red-600 !px-3 !py-1"
               onClick={async () => {
                 toast.dismiss(t.id);
                 await request(() => api.delete(API_ENDPOINTS.BILLS.DETAIL(row.id)), {
@@ -425,7 +425,7 @@ export default function BillsPage() {
                             <button
                               type="button"
                               onClick={() => openPay(r)}
-                              className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-bold text-white hover:bg-brand-dark"
+                              className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-brand-dark via-brand to-sky-700 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:brightness-110"
                             >
                               <CreditCard size={13} /> Bayar
                             </button>

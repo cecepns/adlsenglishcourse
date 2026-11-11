@@ -127,32 +127,39 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Halo, {user.name}</h1>
-          <p className="mt-0.5 text-sm font-medium text-slate-600">
-            {getOpeningGreeting(user)}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          {isHQ && stats?.branchOptions?.length > 0 && (
-            <div className="w-52">
-              <Select
-                options={branchOptions}
-                value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
-                onChange={(opt) => setBranchId(opt?.value || "")}
-                isSearchable
-                styles={{
-                  control: (base) => ({ ...base, borderRadius: "0.75rem", borderColor: "#cbd5e1", fontSize: "0.875rem", minHeight: 40 }),
-                  menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem" }),
-                }}
-              />
-            </div>
-          )}
-          <button onClick={loadStats} className="btn-ghost !py-2" disabled={loading}>
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            <span>Refresh</span>
-          </button>
+      <div className="rounded-2xl bg-gradient-to-r from-brand-dark via-brand to-sky-700 p-5 text-white shadow-md sm:p-6">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-sky-200">ADLS English Course · Dashboard Utama</p>
+            <h1 className="mt-1 text-2xl font-extrabold">Halo, {user.name}</h1>
+            <p className="mt-0.5 text-sm font-medium text-sky-100">
+              {getOpeningGreeting(user)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {isHQ && stats?.branchOptions?.length > 0 && (
+              <div className="w-52 text-slate-800">
+                <Select
+                  options={branchOptions}
+                  value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
+                  onChange={(opt) => setBranchId(opt?.value || "")}
+                  isSearchable
+                  styles={{
+                    control: (base) => ({ ...base, borderRadius: "0.75rem", borderColor: "rgba(255,255,255,0.3)", fontSize: "0.875rem", minHeight: 40, boxShadow: "none" }),
+                    menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem", color: "#1e293b" }),
+                  }}
+                />
+              </div>
+            )}
+            <button
+              onClick={loadStats}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-extrabold text-brand-dark shadow-sm transition hover:bg-sky-50 disabled:opacity-60"
+              disabled={loading}
+            >
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -398,7 +405,7 @@ export default function Dashboard() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-4 py-3 font-bold">Kelas</th>
+                  <th className="px-4 py-3 font-bold">Type Kelas</th>
                   <th className="px-4 py-3 font-bold">Level</th>
                   <th className="px-4 py-3 font-bold">Cabang</th>
                   <th className="px-4 py-3 font-bold">Jadwal</th>
@@ -409,7 +416,7 @@ export default function Dashboard() {
               <tbody className="divide-y divide-slate-100">
                 {classSummary.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-semibold text-slate-800">{c.name}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800">{c.class_type || c.name}</td>
                     <td className="px-4 py-3 text-slate-600">{c.level || "-"}</td>
                     <td className="px-4 py-3 text-slate-600">{c.branch_name || "-"}</td>
                     <td className="px-4 py-3 text-slate-600">{c.schedule || "-"}</td>

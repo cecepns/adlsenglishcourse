@@ -1,4 +1,4 @@
-import { Inbox, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, Pencil, Trash2 } from "lucide-react";
 import ProductImage from "./ProductImage";
 
 function renderCell(c, r) {
@@ -12,7 +12,7 @@ function renderCell(c, r) {
   return c.bold ? <span className="font-semibold text-slate-800">{content}</span> : content;
 }
 
-export default function DataTable({ columns, rows, loading, error, canEdit, onEdit, onDelete, onRetry }) {
+export default function DataTable({ columns, rows, loading, error, canEdit, sortKey, sortOrder, onSort, onEdit, onDelete, onRetry }) {
   if (error) return <div className="p-8 text-center text-red-600">{error} <button className="ml-2 underline" onClick={onRetry}>Coba lagi</button></div>;
   if (loading) return <div className="space-y-2.5 p-5">{[...Array(5)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}</div>;
   if (!rows.length) return <div className="flex flex-col items-center gap-2 p-12 text-slate-400"><Inbox size={40} /><span>Belum ada data</span></div>;
@@ -21,7 +21,32 @@ export default function DataTable({ columns, rows, loading, error, canEdit, onEd
       <table className="w-full text-left text-sm">
         <thead className="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wider text-slate-500">
           <tr>
-            {columns.map((c) => <th key={c.key} className="whitespace-nowrap px-4 py-3.5 font-bold">{c.label}</th>)}
+            {columns.map((c) => {
+              const isSorted = sortKey === c.key;
+              return (
+                <th key={c.key} className="whitespace-nowrap px-4 py-3.5 font-bold">
+                  {c.sortable && onSort ? (
+                    <button
+                      type="button"
+                      onClick={() => onSort(c.key)}
+                      className="inline-flex items-center gap-1.5 font-bold uppercase tracking-wider text-slate-600 transition hover:text-brand-dark"
+                      title={`Sortir berdasarkan ${c.label}`}
+                    >
+                      <span>{c.label}</span>
+                      <span className={`rounded p-0.5 ${isSorted ? "bg-brand-50 text-brand" : "text-slate-400"}`}>
+                        {isSorted ? (
+                          sortOrder === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />
+                        ) : (
+                          <ArrowUpDown size={13} />
+                        )}
+                      </span>
+                    </button>
+                  ) : (
+                    c.label
+                  )}
+                </th>
+              );
+            })}
             {canEdit && <th className="px-4 py-3.5 text-right font-bold">Aksi</th>}
           </tr>
         </thead>

@@ -194,7 +194,7 @@ export default function Achievements() {
                           </div>
                           <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                             <div
-                              className={`h-full rounded-full ${r.available_free_spp > 0 ? "bg-emerald-500" : "bg-brand"}`}
+                              className={`h-full rounded-full ${r.available_free_spp > 0 ? "bg-emerald-500" : "bg-gradient-to-r from-brand-dark via-brand to-sky-700"}`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
