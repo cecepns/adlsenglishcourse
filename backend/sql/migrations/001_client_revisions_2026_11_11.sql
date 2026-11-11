@@ -10,7 +10,8 @@
 --   - Menu kategori produk dinamis (`product_categories`)
 -- ============================================================================
 
-USE adls_english_course;
+-- Pilih database target terlebih dahulu di phpMyAdmin / client MySQL (mis. kinq6231_adls atau adls_english_course)
+-- USE kinq6231_adls;
 
 -- 1. Tabel relasi tutor multi-cabang
 CREATE TABLE IF NOT EXISTS tutor_branches (

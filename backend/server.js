@@ -9,7 +9,7 @@ const UPLOAD_DIR = path.join(__dirname, "uploads-adls-english-course");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use("/uploads", express.static(UPLOAD_DIR));
 
-const pool = mysql.createPool({ host: process.env.DB_HOST, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME, connectionLimit: 10, dateStrings: ["DATE"] });
+const pool = mysql.createPool({ host: process.env.DB_HOST, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME || "kinq6231_adls", connectionLimit: 10, dateStrings: ["DATE"] });
 const STAFF = ["owner", "admin_pusat", "admin_cabang"], ALL = [...STAFF, "tutor", "siswa", "ortu"], HQ = ["owner", "admin_pusat"];
 const BRANCH_USER_ROLES = ["tutor", "siswa", "ortu"];
 const BANK_INFO = {
@@ -44,7 +44,7 @@ const fail = (res, code, message) => res.status(code).json({ success: false, mes
 const clean = (v) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() || null : v === "" ? null : v);
 
 const auth = (req, res, next) => {
-  try { req.user = jwt.verify((req.headers.authorization || "").replace("Bearer ", ""), process.env.JWT_SECRET); next(); }
+  try { req.user = jwt.verify((req.headers.authorization || "").replace("Bearer ", ""), process.env.JWT_SECRET || "adls"); next(); }
   catch { fail(res, 401, "Sesi berakhir, silakan login ulang"); }
 };
 const can = (roles) => (req, res, next) => (roles.includes(req.user.role) ? next() : fail(res, 403, "Akses ditolak"));
@@ -179,7 +179,7 @@ app.post("/api/auth/register", wrap(async (req, res) => {
 
   const [[u]] = await pool.query("SELECT u.*, b.name AS branch_name FROM users u LEFT JOIN branches b ON b.id=u.branch_id WHERE u.id=?", [userId]);
   const user = { id: u.id, name: u.name, email: u.email, role: u.role, branch_id: u.branch_id, branch_name: u.branch_name || null };
-  res.status(201).json({ success: true, data: { token: jwt.sign(user, process.env.JWT_SECRET, { expiresIn: "12h" }), user } });
+  res.status(201).json({ success: true, data: { token: jwt.sign(user, process.env.JWT_SECRET || "adls", { expiresIn: "12h" }), user } });
 }));
 
 app.post("/api/auth/login", wrap(async (req, res) => {
@@ -187,7 +187,7 @@ app.post("/api/auth/login", wrap(async (req, res) => {
   if (!u || !(await bcrypt.compare(String(req.body.password || ""), u.password))) return fail(res, 401, "Email atau password salah");
   if (u.status === "inactive") return fail(res, 403, "Akun Anda sedang dinonaktifkan");
   const user = { id: u.id, name: u.name, email: u.email, role: u.role, branch_id: u.branch_id, branch_name: u.branch_name || null };
-  res.json({ success: true, data: { token: jwt.sign(user, process.env.JWT_SECRET, { expiresIn: "12h" }), user } });
+  res.json({ success: true, data: { token: jwt.sign(user, process.env.JWT_SECRET || "adls", { expiresIn: "12h" }), user } });
 }));
 app.get("/api/auth/profile", auth, (req, res) => res.json({ success: true, data: req.user }));
 
@@ -1481,7 +1481,7 @@ Object.entries(RESOURCES).forEach(([name, cfg]) => {
 app.use((err, req, res, next) => fail(res, err.status || 400, err.message || "Request tidak valid"));
 
 async function ensureCol(table, col, def) {
-  const [rows] = await pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?", [process.env.DB_NAME, table, col]);
+  const [rows] = await pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?", [process.env.DB_NAME || "kinq6231_adls", table, col]);
   if (!rows.length) await pool.query(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
 }
 
