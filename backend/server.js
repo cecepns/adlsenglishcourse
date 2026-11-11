@@ -224,16 +224,11 @@ app.get("/api/users", auth, can(STAFF), wrap(async (req, res) => {
   const [rows] = await pool.query(
     `SELECT u.id, u.name, u.email, u.role, u.branch_id, u.phone, u.hourly_rate, COALESCE(u.status,'active') AS status, u.created_at,
       b.name AS branch_name,
-      (SELECT GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', ')
+      (SELECT GROUP_CONCAT(CONCAT(cb.id, '::', cb.name) ORDER BY cb.id ASC SEPARATOR '|||')
        FROM branches cb
        WHERE cb.id = u.branch_id
           OR cb.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=u.id)
-          OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)) AS teaching_branches,
-      (SELECT GROUP_CONCAT(DISTINCT cb.id ORDER BY cb.id)
-       FROM branches cb
-       WHERE cb.id = u.branch_id
-          OR cb.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=u.id)
-          OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)) AS branch_ids_raw
+          OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)) AS branch_entries_raw
      FROM users u
      LEFT JOIN branches b ON b.id=u.branch_id
      ${w}
@@ -242,11 +237,38 @@ app.get("/api/users", auth, can(STAFF), wrap(async (req, res) => {
     [...args, limit, (page - 1) * limit]
   );
   const data = rows.map((r) => {
-    const branchIds = r.branch_ids_raw
-      ? String(r.branch_ids_raw).split(",").map(Number).filter(Boolean)
+    let branchList = [];
+    if (r.branch_entries_raw) {
+      branchList = String(r.branch_entries_raw)
+        .split("|||")
+        .map((entry) => {
+          const sep = entry.indexOf("::");
+          if (sep === -1) return null;
+          const id = Number(entry.slice(0, sep));
+          const name = entry.slice(sep + 2).trim();
+          return id && name ? { id, name } : null;
+        })
+        .filter(Boolean);
+    } else if (r.branch_ids_raw) {
+      const ids = String(r.branch_ids_raw).split(",").map(Number).filter(Boolean);
+      const names = r.teaching_branches ? String(r.teaching_branches).split(",").map((s) => s.trim()) : [];
+      branchList = ids.map((id, i) => ({ id, name: names[i] || (id === r.branch_id ? r.branch_name : `#${id}`) })).filter((x) => x.name);
+    } else if (r.branch_id && r.branch_name) {
+      branchList = [{ id: Number(r.branch_id), name: r.branch_name }];
+    }
+    const branchIds = branchList.length
+      ? branchList.map((b) => b.id)
       : (r.branch_id ? [Number(r.branch_id)] : []);
-    const { branch_ids_raw, ...rest } = r;
-    return { ...rest, branch_ids: branchIds };
+    const teachingBranches = branchList.length
+      ? branchList.map((b) => b.name).join(", ")
+      : (r.teaching_branches || r.branch_name || null);
+    const { branch_entries_raw, branch_ids_raw, ...rest } = r;
+    return {
+      ...rest,
+      teaching_branches: teachingBranches,
+      branch_ids: branchIds,
+      branch_list: branchList,
+    };
   });
   res.json({ success: true, data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
 }));

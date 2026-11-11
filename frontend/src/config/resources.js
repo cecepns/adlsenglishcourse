@@ -138,9 +138,9 @@ export const RESOURCES = {
       {
         key: "branch_name",
         label: "Cabang",
-        render: (v, r) => r.teaching_branches || v || (r.branch_id ? `#${r.branch_id}` : "Pusat / Multi-Cabang"),
+        type: "branch-badges",
       },
-      { key: "phone", label: "No. HP / WA" },
+      { key: "phone", label: "No. HP / WA", nowrap: true },
       {
         key: "status",
         label: "Status",

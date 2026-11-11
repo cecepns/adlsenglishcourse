@@ -1,12 +1,14 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, Pencil, Trash2 } from "lucide-react";
+import BranchBadges from "./BranchBadges";
 import ProductImage from "./ProductImage";
 
 function renderCell(c, r) {
   const val = r[c.key];
   if (c.type === "image") return <ProductImage src={val} alt={r.name} size="sm" />;
+  if (c.type === "branch-badges") return <BranchBadges row={r} />;
   if (c.type === "badge") {
     const cls = c.badgeMap?.[val] || "bg-slate-100 text-slate-700";
-    return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${cls}`}>{val || "-"}</span>;
+    return <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${cls}`}>{val || "-"}</span>;
   }
   const content = c.render ? c.render(val, r) : (val ?? "-");
   return c.bold ? <span className="font-semibold text-slate-800">{content}</span> : content;
@@ -54,7 +56,7 @@ export default function DataTable({ columns, rows, loading, error, canEdit, sort
           {rows.map((r) => (
             <tr key={r.id} className="transition hover:bg-slate-50/80">
               {columns.map((c) => (
-                <td key={c.key} className="px-4 py-3 text-slate-700">
+                <td key={c.key} className={`${c.nowrap ? "whitespace-nowrap " : ""}px-4 py-3 text-slate-700`}>
                   {renderCell(c, r)}
                 </td>
               ))}
