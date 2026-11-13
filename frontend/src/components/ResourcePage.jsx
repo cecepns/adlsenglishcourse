@@ -32,6 +32,7 @@ export default function ResourcePage({ resource: cfg }) {
   const [modal, setModal] = useState(null); // { row? }
   const [saving, setSaving] = useState(false);
   const [quickBusyId, setQuickBusyId] = useState(null);
+  const [decisionModal, setDecisionModal] = useState(null); // { row, status, notes }
 
   // Modal siapkan slot nilai kelas oleh Admin Cabang / HQ (#8)
   const [initModal, setInitModal] = useState(false);
@@ -117,6 +118,43 @@ export default function ResourcePage({ resource: cfg }) {
       refetch();
     } catch {
       /* toast sudah tampil */
+    } finally {
+      setQuickBusyId(null);
+    }
+  };
+
+  const onQuickDecisionClick = (row, status) => {
+    if (cfg.name === "leaves") {
+      setDecisionModal({ row, status, notes: row.approval_notes || "" });
+    } else {
+      handleQuickDecision(row, status);
+    }
+  };
+
+  const submitDecision = async (e) => {
+    e.preventDefault();
+    if (!decisionModal) return;
+    setQuickBusyId(decisionModal.row.id);
+    try {
+      await request(
+        () =>
+          api.put(cfg.endpoint.DETAIL(decisionModal.row.id), {
+            status: decisionModal.status,
+            approval_notes: decisionModal.notes,
+          }),
+        {
+          success: getClosingGreeting(
+            user.role,
+            decisionModal.status === "approved"
+              ? "Pengajuan cuti/izin berhasil di-ACC (Approved)."
+              : "Pengajuan cuti/izin telah ditolak (Rejected)."
+          ),
+        }
+      );
+      setDecisionModal(null);
+      refetch();
+    } catch {
+      /* toast */
     } finally {
       setQuickBusyId(null);
     }
@@ -332,7 +370,7 @@ export default function ResourcePage({ resource: cfg }) {
                       <button
                         type="button"
                         disabled={quickBusyId === row.id}
-                        onClick={() => handleQuickDecision(row, "approved")}
+                        onClick={() => onQuickDecisionClick(row, "approved")}
                         className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
                         title="ACC / Setujui"
                       >
@@ -341,7 +379,7 @@ export default function ResourcePage({ resource: cfg }) {
                       <button
                         type="button"
                         disabled={quickBusyId === row.id}
-                        onClick={() => handleQuickDecision(row, "rejected")}
+                        onClick={() => onQuickDecisionClick(row, "rejected")}
                         className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
                         title="Tolak"
                       >
@@ -416,6 +454,46 @@ export default function ResourcePage({ resource: cfg }) {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal Keputusan ACC / Tolak Cuti dengan Keterangan (#11) */}
+      <Modal
+        open={!!decisionModal}
+        title={`${decisionModal?.status === "approved" ? "ACC / Setujui" : "Tolak"} Pengajuan Cuti`}
+        onClose={() => setDecisionModal(null)}
+      >
+        {decisionModal && (
+          <form onSubmit={submitDecision} className="space-y-3.5">
+            <div className={`rounded-xl p-3 text-xs ${decisionModal.status === "approved" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>
+              Konfirmasi keputusan status <b>{decisionModal.status === "approved" ? "APPROVED (Disetujui)" : "REJECTED (Ditolak)"}</b> untuk pengajuan cuti/izin ini.
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-slate-700">
+                Keterangan / Alasan Keputusan
+              </label>
+              <textarea
+                rows={3}
+                className="input"
+                placeholder={decisionModal.status === "approved" ? "mis. Disetujui, jadwal kelas pengganti sudah dikoordinasikan." : "mis. Jadwal ujian siswa padat, mohon diajukan di tanggal lain."}
+                value={decisionModal.notes}
+                onChange={(e) => setDecisionModal({ ...decisionModal, notes: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="btn-ghost" onClick={() => setDecisionModal(null)}>
+                Batal
+              </button>
+              <button
+                className={`rounded-xl px-4 py-2 text-xs font-extrabold text-white shadow-sm transition ${
+                  decisionModal.status === "approved" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
+                }`}
+                disabled={quickBusyId === decisionModal.row.id}
+              >
+                {quickBusyId === decisionModal.row.id ? "Menyimpan..." : decisionModal.status === "approved" ? "ACC Pengajuan" : "Tolak Pengajuan"}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

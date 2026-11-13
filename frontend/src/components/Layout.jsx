@@ -7,6 +7,7 @@ import {
   CalendarCheck,
   CalendarOff,
   Clock,
+  FileText,
   Film,
   Gift,
   GraduationCap,
@@ -19,6 +20,7 @@ import {
   Receipt,
   School,
   ShoppingBag,
+  TableProperties,
   Trophy,
   UserCog,
   Video,
@@ -45,16 +47,18 @@ const NAV_ITEMS = [
   { to: "/tutor_attendance", label: "Riwayat Absensi Tutor", icon: Clock, roles: [...STAFF, "tutor"] },
   { to: "/attendance", label: "Absensi Siswa", icon: CalendarCheck, roles: ALL },
   { to: "/students", label: "Siswa", icon: GraduationCap, roles: [...STAFF, "tutor"] },
+  { to: "/students-database", label: "Database Siswa (Rekap)", icon: TableProperties, roles: [...STAFF, "tutor"] },
   { to: "/classes", label: "Kelas", icon: School, roles: ALL },
   { to: "/meetings", label: "Meeting Online", icon: Video, roles: [...STAFF, "tutor", "siswa"] },
   { to: "/audio", label: "Audio Listening", icon: Headphones, roles: ALL },
+  { to: "/lesson_materials", label: "Materi Pembelajaran", icon: FileText, roles: [...STAFF, "tutor"] },
   { to: "/learning_reports", label: "Laporan Belajar", icon: BookOpenCheck, roles: ALL },
   { to: "/videos", label: "Project Video", icon: Film, roles: ALL },
   { to: "/achievements", label: "Prestasi Nilai 100", icon: Trophy, roles: ALL },
   { to: "/bills", label: "Tagihan SPP", icon: Receipt, roles: ALL },
   { to: "/referrals", label: "Komisi Referral", icon: Gift, roles: [...STAFF, "siswa", "ortu"] },
   { to: "/products", label: "Katalog & Order", icon: ShoppingBag, roles: ALL },
-  { to: "/payroll", label: "Payroll Tutor", icon: Banknote, roles: [...STAFF, "tutor"] },
+  { to: "/payroll", label: "Payroll Tutor", icon: Banknote, roles: ["owner", "admin_pusat"] },
   { to: "/expenses", label: "Pengeluaran", icon: Wallet, roles: STAFF },
   { to: "/leaves", label: "Izin & Cuti", icon: CalendarOff, roles: ALL },
   { to: "/complaints", label: "Komplen", icon: MessageSquareWarning, roles: ALL },
@@ -162,6 +166,9 @@ export default function Layout() {
           <div className="mx-auto max-w-7xl">
             <Outlet />
           </div>
+          <footer className="mt-8 border-t border-slate-200/80 pt-4 text-center text-xs font-semibold text-slate-400">
+            PT. ADLS Solusi Indonesia
+          </footer>
         </main>
       </div>
     </div>

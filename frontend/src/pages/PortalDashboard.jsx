@@ -2,10 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
+  AlertTriangle,
   Award,
   BookOpenCheck,
   Building2,
+  Calendar,
   CalendarCheck,
+  CalendarClock,
   CalendarOff,
   CheckCircle2,
   CreditCard,
@@ -14,6 +17,7 @@ import {
   Film,
   GraduationCap,
   Headphones,
+  Info,
   Loader2,
   MapPin,
   Megaphone,
@@ -45,20 +49,35 @@ export default function PortalDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [branches, setBranches] = useState([]);
+  const [availableClasses, setAvailableClasses] = useState([]);
 
-  // Modal Tambah Anak (#19 1 Akun Ortu Multi-Anak)
+  // Modal Tambah Anak (#19 1 Akun Ortu Multi-Anak - Gambar 4)
   const [childModal, setChildModal] = useState(false);
   const [childForm, setChildForm] = useState({
     name: "",
     class_type: "Regular",
     level: COURSE_LEVELS[0],
     branch_id: user.branch_id ? String(user.branch_id) : "",
+    class_id: "",
   });
   const [savingChild, setSavingChild] = useState(false);
 
   // Modal E-Sertifikat (#16)
   const [certModal, setCertModal] = useState(null);
   const [certLoadingId, setCertLoadingId] = useState(null);
+
+  // Modal Reschedule Khusus Kelas Private (#7)
+  const [rescheduleModal, setRescheduleModal] = useState(null); // student object
+  const [rescheduleQuota, setRescheduleQuota] = useState(null);
+  const [loadingQuota, setLoadingQuota] = useState(false);
+  const [submittingReschedule, setSubmittingReschedule] = useState(false);
+  const [rescheduleForm, setRescheduleForm] = useState({
+    reschedule_date: "",
+    new_day: "Senin",
+    new_time_start: "14:00",
+    new_time_end: "15:30",
+    reason: "",
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,6 +105,16 @@ export default function PortalDashboard() {
       .catch(() => {});
   }, [isParent]);
 
+  // Load classes saat child modal dibuka
+  useEffect(() => {
+    if (childModal) {
+      api
+        .get(API_ENDPOINTS.CLASSES.LIST, { params: { limit: 100 } })
+        .then((r) => setAvailableClasses(r.data.data || []))
+        .catch(() => {});
+    }
+  }, [childModal]);
+
   const submitAddChild = async (e) => {
     e.preventDefault();
     if (!childForm.name.trim()) {
@@ -101,6 +130,7 @@ export default function PortalDashboard() {
             class_type: childForm.class_type,
             level: childForm.level,
             branch_id: childForm.branch_id ? Number(childForm.branch_id) : null,
+            class_id: childForm.class_id ? Number(childForm.class_id) : null,
           }),
         { success: getClosingGreeting(user.role, `Ananda ${childForm.name} berhasil ditambahkan ke akun Anda!`) }
       );
@@ -110,6 +140,7 @@ export default function PortalDashboard() {
         class_type: "Regular",
         level: COURSE_LEVELS[0],
         branch_id: user.branch_id ? String(user.branch_id) : "",
+        class_id: "",
       });
       load();
     } catch {
@@ -143,6 +174,59 @@ export default function PortalDashboard() {
     }
   };
 
+  // Reschedule handler (#7)
+  const openReschedule = async (student) => {
+    setRescheduleModal(student);
+    setLoadingQuota(true);
+    setRescheduleForm({
+      reschedule_date: "",
+      new_day: "Senin",
+      new_time_start: "14:00",
+      new_time_end: "15:30",
+      reason: "",
+    });
+    try {
+      const res = await api.get(API_ENDPOINTS.PORTAL_RESCHEDULE_QUOTA, {
+        params: { student_id: student.id },
+      });
+      setRescheduleQuota(res.data.data);
+    } catch {
+      setRescheduleQuota(null);
+    } finally {
+      setLoadingQuota(false);
+    }
+  };
+
+  const submitReschedule = async (e) => {
+    e.preventDefault();
+    if (!rescheduleModal) return;
+    if (!rescheduleForm.reschedule_date) {
+      toast.error("Pilih tanggal pengganti");
+      return;
+    }
+    setSubmittingReschedule(true);
+    try {
+      await request(
+        () =>
+          api.post(API_ENDPOINTS.PORTAL_RESCHEDULE, {
+            student_id: rescheduleModal.id,
+            reschedule_date: rescheduleForm.reschedule_date,
+            new_day: rescheduleForm.new_day,
+            new_time_start: rescheduleForm.new_time_start,
+            new_time_end: rescheduleForm.new_time_end,
+            reason: rescheduleForm.reason,
+          }),
+        { success: getClosingGreeting(user.role, "Sesi kelas private berhasil di-reschedule!") }
+      );
+      setRescheduleModal(null);
+      load();
+    } catch {
+      /* toast handled */
+    } finally {
+      setSubmittingReschedule(false);
+    }
+  };
+
   const downloadHtmlCert = (cert) => {
     const html = `<!doctype html>
 <html lang="id"><head><meta charset="utf-8" /><title>E-Sertifikat ADLS - ${cert.student_name}</title>
@@ -158,7 +242,7 @@ export default function PortalDashboard() {
 </style></head>
 <body>
   <div class="cert">
-    <div class="brand">PT ADLS English Course · Official E-Certificate</div>
+    <div class="brand">PT ADLS Solusi Indonesia · Official E-Certificate</div>
     <h1>CERTIFICATE OF COMPLETION</h1>
     <div class="sub">Diberikan dengan bangga kepada:</div>
     <div class="name">${cert.student_name}</div>
@@ -191,8 +275,39 @@ export default function PortalDashboard() {
   const announcements = data?.announcements || [];
   const pct = Math.min(100, Math.round((ach.progressToNext / 20) * 100));
 
+  // SPP Reminder: Pada / setelah tanggal 25 bila ada tagihan belum lunas
+  const isLateMonth = new Date().getDate() >= 25;
+  const showSppReminder = isLateMonth && bills.unpaidCount > 0;
+
   return (
     <div className="space-y-5">
+      {/* Banner Reminder Pembayaran SPP (Mulai tgl 25) */}
+      {showSppReminder && (
+        <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-200 text-amber-900">
+              <AlertTriangle size={22} />
+            </span>
+            <div>
+              <div className="text-sm font-extrabold text-amber-900">
+                Pengingat Pembayaran SPP (Periode Akhir Bulan)
+              </div>
+              <p className="text-xs text-amber-800">
+                Hari ini sudah memasuki tanggal 25 atau lebih. Anda memiliki <b>{bills.unpaidCount} tagihan SPP</b> belum lunas{" "}
+                (Total: <b>{rp(bills.unpaidAmount)}</b>). Mohon segera melakukan pembayaran sebelum batas tempo.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/bills"
+            className="inline-flex items-center gap-1 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-700"
+          >
+            <CreditCard size={14} /> Bayar Sekarang
+          </Link>
+        </div>
+      )}
+
+      {/* Header Banner */}
       <div className="rounded-2xl bg-gradient-to-r from-brand-dark via-brand to-sky-700 p-5 text-white shadow-md sm:p-6">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
@@ -203,7 +318,7 @@ export default function PortalDashboard() {
             <h1 className="mt-2.5 text-xl font-extrabold sm:text-2xl">{getOpeningGreeting(user)}</h1>
             {primary ? (
               <p className="mt-1 text-sm text-sky-100">
-                Siswa terhubung ({students.length}):{" "}
+                {isParent ? "Siswa terhubung" : "Data Siswa"} ({students.length}):{" "}
                 <span className="font-bold text-white">
                   {students.map((s) => `${s.name} (${s.level || "Reguler"})`).join(", ")}
                 </span>
@@ -271,7 +386,8 @@ export default function PortalDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* KPI Cards Row (Per #2: Hapus Nilai UAS 100 untuk Kelas Karyawan) */}
+      <div className={`grid grid-cols-2 gap-4 ${isParent ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         <div className="card p-4">
           <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
             <CalendarCheck size={16} className="text-emerald-600" /> Kehadiran
@@ -286,13 +402,16 @@ export default function PortalDashboard() {
           <div className="mt-2 text-2xl font-extrabold text-slate-900">{rp(bills.unpaidAmount)}</div>
           <div className="text-xs text-slate-500">{bills.unpaidCount} belum lunas · {bills.verifikasiCount} verifikasi</div>
         </div>
-        <div className="card p-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
-            <Trophy size={16} className="text-amber-600" /> Nilai UAS 100
+        {/* Tampilkan Nilai UAS 100 HANYA untuk Orang Tua (anak), tidak untuk kelas karyawan (#2) */}
+        {isParent && (
+          <div className="card p-4">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
+              <Trophy size={16} className="text-amber-600" /> Nilai UAS 100
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-slate-900">{ach.uas100Count}x</div>
+            <div className="text-xs text-slate-500">Progres Free SPP: {ach.progressToNext} / 20</div>
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-slate-900">{ach.uas100Count}x</div>
-          <div className="text-xs text-slate-500">Progres Free SPP: {ach.progressToNext} / 20</div>
-        </div>
+        )}
         <div className="card p-4">
           <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
             <Film size={16} className="text-indigo-600" /> Project Video
@@ -302,7 +421,7 @@ export default function PortalDashboard() {
         </div>
       </div>
 
-      {/* Quick Actions: #4 Sembunyikan Class Meeting Online dari Portal Ortu */}
+      {/* Quick Actions */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link to="/bills" className="card flex items-center gap-3 p-4 transition hover:border-brand">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600"><CreditCard size={20} /></span>
@@ -345,11 +464,14 @@ export default function PortalDashboard() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
+        {/* #2 Hapus kata "Anak" pada PR Siswa Mandiri/Karyawan */}
         <div className="card p-5">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">PR Anak & Hasil Ujian (Formatif / Sumatif)</h3>
-              <p className="text-xs text-slate-500">Laporan materi, PR rumah, dan nilai bulanan terbaru</p>
+              <h3 className="text-base font-extrabold text-slate-900">
+                {isParent ? "PR Anak & Hasil Ujian (Formatif / Sumatif)" : "PR & Hasil Ujian (Formatif / Sumatif)"}
+              </h3>
+              <p className="text-xs text-slate-500">Laporan materi, tugas, dan evaluasi bulanan</p>
             </div>
             <Link to="/learning_reports" className="text-xs font-bold text-brand hover:underline">Lihat Semua</Link>
           </div>
@@ -367,7 +489,7 @@ export default function PortalDashboard() {
                     <span className="text-slate-400">{r.class_name || "-"}</span>
                   </div>
                   <div className="mt-1 text-sm font-bold text-slate-800">{r.material || "Evaluasi Bulanan"}</div>
-                  {r.homework && <div className="mt-1 text-xs font-semibold text-amber-700">PR: {r.homework}</div>}
+                  {r.homework && <div className="mt-1 text-xs font-semibold text-amber-700">Tugas/PR: {r.homework}</div>}
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
                     <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700">
                       Formatif: <b>{r.formative_score ?? "-"}</b>
@@ -386,28 +508,31 @@ export default function PortalDashboard() {
         </div>
 
         <div className="space-y-5">
-          <div className="card p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Award size={20} className="text-amber-500" />
-                <h3 className="text-base font-extrabold text-slate-900">Progres Reward 20x Nilai UAS 100</h3>
+          {/* #2 Hapus informasi Reward 20x untuk Kelas Karyawan */}
+          {isParent && (
+            <div className="card p-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Award size={20} className="text-amber-500" />
+                  <h3 className="text-base font-extrabold text-slate-900">Progres Reward 20x Nilai UAS 100</h3>
+                </div>
+                <Link to="/achievements" className="text-xs font-bold text-brand hover:underline">Detail</Link>
               </div>
-              <Link to="/achievements" className="text-xs font-bold text-brand hover:underline">Detail</Link>
+              <p className="mt-1 text-xs text-slate-500">Kumpulkan 20x nilai Sumatif/UAS 100 untuk Gratis 1x SPP!</p>
+              <div className="mt-3">
+                <div className="mb-1 flex justify-between text-xs font-bold text-slate-700">
+                  <span>Progres siklus saat ini: {ach.progressToNext} / 20</span>
+                  <span>{pct}%</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-gradient-to-r from-brand-dark via-brand to-emerald-500" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  Total diperoleh: <b>{ach.freeSppEarned}x Free SPP</b> · Sudah diklaim: <b>{ach.claimedFreeSpp}x</b>
+                </div>
+              </div>
             </div>
-            <p className="mt-1 text-xs text-slate-500">Kumpulkan 20x nilai Sumatif/UAS 100 untuk Gratis 1x SPP!</p>
-            <div className="mt-3">
-              <div className="mb-1 flex justify-between text-xs font-bold text-slate-700">
-                <span>Progres siklus saat ini: {ach.progressToNext} / 20</span>
-                <span>{pct}%</span>
-              </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-gradient-to-r from-brand-dark via-brand to-emerald-500" style={{ width: `${pct}%` }} />
-              </div>
-              <div className="mt-2 text-xs text-slate-500">
-                Total diperoleh: <b>{ach.freeSppEarned}x Free SPP</b> · Sudah diklaim: <b>{ach.claimedFreeSpp}x</b>
-              </div>
-            </div>
-          </div>
+          )}
 
           <div className="card p-5">
             <div className="mb-3 flex items-center justify-between">
@@ -448,7 +573,7 @@ export default function PortalDashboard() {
         </div>
       </div>
 
-      {/* #4 Profil Siswa & Kelas (Ortu: Kelas, Level, Jadwal, Cabang, Tipe saja — tanpa tutor & link meeting) + #16 Sertifikat */}
+      {/* Profil Siswa & Jadwal Kelas + Fitur Reschedule Private (#7) + Sertifikat (#16) */}
       <div className="card p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -469,7 +594,14 @@ export default function PortalDashboard() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {students.map((s) => {
-              const completed = Number(s.course_completed) === 1;
+              // #16 Sertifikat tampil jika status selesai ATAU ada file sertifikat ATAU kode sertifikat
+              const completed =
+                Number(s.course_completed) === 1 || Boolean(s.certificate_url) || Boolean(s.certificate_code);
+              const isPrivate =
+                (s.class_type || "").toLowerCase().includes("private") ||
+                user.role === "siswa" ||
+                (s.class_name || "").toLowerCase().includes("private");
+
               return (
                 <div key={s.id} className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm">
                   <div>
@@ -487,10 +619,10 @@ export default function PortalDashboard() {
                       <div><span className="font-semibold text-slate-500">Cabang:</span> <b>{s.branch_name || "-"}</b></div>
                     </div>
 
-                    {/* Hanya tampil untuk Siswa mandiri (bukan Ortu per #4) */}
+                    {/* Sembunyikan Nama Tutor & Link Meeting dari Portal Ortu per #4 */}
                     {!isParent && s.tutor_name && (
-                      <div className="mt-1.5 text-xs text-slate-600">
-                        <span className="font-semibold text-slate-500">Tutor:</span> <b>{s.tutor_name}</b>
+                      <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                        <span><span className="font-semibold text-slate-500">Tutor:</span> <b>{s.tutor_name}</b></span>
                       </div>
                     )}
                     {!isParent && s.meeting_url && /^https?:\/\//i.test(s.meeting_url) && (
@@ -505,6 +637,25 @@ export default function PortalDashboard() {
                         </a>
                       </div>
                     )}
+
+                    {/* #7 Fitur Reschedule Khusus Kelas Private */}
+                    {isPrivate && (
+                      <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50/60 p-2.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sky-900">Reschedule Kelas Private:</span>
+                          <button
+                            type="button"
+                            onClick={() => openReschedule(s)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-brand-dark"
+                          >
+                            <CalendarClock size={13} /> Atur Jadwal Baru
+                          </button>
+                        </div>
+                        <p className="mt-1 text-[11px] text-sky-700">
+                          Jatah maks 2x/bulan (karyawan maks 6x/3 bln). Sistem otomatis mengecek ketersediaan jam kosong tutor.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* #16 Pilihan E-Sertifikat / Ambil di Admin Pusat (Dedaun) */}
@@ -513,7 +664,7 @@ export default function PortalDashboard() {
                       <div className="space-y-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700">
-                            <CheckCircle2 size={13} /> Course Selesai ({String(s.completed_at || "").slice(0, 10) || "Lulus"})
+                            <CheckCircle2 size={13} /> Course Selesai / Sertifikat Siap
                           </span>
                           {s.certificate_delivery && (
                             <span className="font-bold text-brand-dark">
@@ -550,7 +701,7 @@ export default function PortalDashboard() {
                     ) : (
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                         <Award size={14} className="shrink-0 text-slate-400" />
-                        <span>Course berjalan — opsi Download E-Sertifikat / Ambil di Admin Pusat (Dedaun) aktif otomatis saat course selesai.</span>
+                        <span>Course berjalan — opsi Download E-Sertifikat / Ambil di Admin Pusat (Dedaun) aktif otomatis saat kelulusan.</span>
                       </div>
                     )}
                   </div>
@@ -561,7 +712,7 @@ export default function PortalDashboard() {
         )}
       </div>
 
-      {/* Modal Tambah Anak (#19 Multi-Anak 1 Akun Ortu) */}
+      {/* Modal Tambah Anak (#19 Multi-Anak 1 Akun Ortu - Persis Gambar 4) */}
       <Modal open={childModal} title="Tambah Anak di Akun Orang Tua" onClose={() => setChildModal(false)}>
         <form onSubmit={submitAddChild} className="space-y-3.5">
           <div className="rounded-xl bg-brand-50/70 p-3 text-xs text-slate-700">
@@ -616,6 +767,25 @@ export default function PortalDashboard() {
               ))}
             </select>
           </div>
+          {availableClasses.length > 0 && (
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-slate-700">Pilih Kelas & Jadwal (Opsional)</label>
+              <select
+                className="input"
+                value={childForm.class_id}
+                onChange={(e) => setChildForm({ ...childForm, class_id: e.target.value })}
+              >
+                <option value="">-- Tentukan nanti oleh Admin --</option>
+                {availableClasses
+                  .filter((c) => !childForm.branch_id || String(c.branch_id) === String(childForm.branch_id))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {[c.class_type || c.name, c.level, c.schedule, c.branch_name].filter(Boolean).join(" · ")}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" className="btn-ghost" onClick={() => setChildModal(false)}>Batal</button>
             <button className="btn-primary" disabled={savingChild}>
@@ -626,13 +796,138 @@ export default function PortalDashboard() {
         </form>
       </Modal>
 
+      {/* #7 Modal Reschedule Khusus Kelas Private */}
+      <Modal
+        open={!!rescheduleModal}
+        title={`Reschedule Sesi Kelas Private: ${rescheduleModal?.name || ""}`}
+        onClose={() => setRescheduleModal(null)}
+      >
+        {rescheduleModal && (
+          <form onSubmit={submitReschedule} className="space-y-4">
+            {loadingQuota ? (
+              <div className="py-6 text-center text-sm text-slate-400">
+                <Loader2 size={24} className="mx-auto mb-2 animate-spin text-brand" /> Memuat kuota reschedule...
+              </div>
+            ) : (
+              <>
+                <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3.5 text-xs text-sky-900">
+                  <div className="font-bold">Ketentuan Reschedule Private ADLS:</div>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-sky-800">
+                    <li>Maksimal 2x reschedule dalam 1 bulan (jika tidak dipakai di bulan tsb, jatah hangus).</li>
+                    {user.role === "siswa" && (
+                      <li>Khusus Kelas Karyawan: Kuota maksimal 6x reschedule dalam 3 bulan.</li>
+                    )}
+                    <li>Sistem otomatis menolak bila jam bentrok dengan jadwal tutor yang lain.</li>
+                  </ul>
+                  {rescheduleQuota && (
+                    <div className="mt-2.5 flex flex-wrap gap-2 border-t border-sky-200/80 pt-2 font-bold text-slate-800">
+                      <span className="rounded bg-white px-2 py-0.5 shadow-sm">
+                        Terpakai Bulan Ini: {rescheduleQuota.monthUsed} / {rescheduleQuota.monthMax} kali
+                      </span>
+                      <span className="rounded bg-white px-2 py-0.5 shadow-sm">
+                        Sisa Kuota Bulan Ini: {rescheduleQuota.monthRemaining} kali
+                      </span>
+                      {rescheduleQuota.isEmployee && (
+                        <span className="rounded bg-white px-2 py-0.5 shadow-sm">
+                          Sisa 3 Bulan: {rescheduleQuota.threeMonthRemaining} / {rescheduleQuota.threeMonthMax} kali
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Tanggal Pengganti *</label>
+                    <input
+                      type="date"
+                      required
+                      className="input"
+                      value={rescheduleForm.reschedule_date}
+                      onChange={(e) => {
+                        const dt = e.target.value;
+                        const dayIdx = new Date(dt).getDay();
+                        const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+                        setRescheduleForm({
+                          ...rescheduleForm,
+                          reschedule_date: dt,
+                          new_day: dayNames[dayIdx] || "Senin",
+                        });
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Hari (Otomatis)</label>
+                    <input
+                      readOnly
+                      className="input bg-slate-100"
+                      value={rescheduleForm.new_day}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Jam Mulai *</label>
+                    <input
+                      type="time"
+                      required
+                      className="input"
+                      value={rescheduleForm.new_time_start}
+                      onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_time_start: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Jam Selesai *</label>
+                    <input
+                      type="time"
+                      required
+                      className="input"
+                      value={rescheduleForm.new_time_end}
+                      onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_time_end: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Alasan Reschedule</label>
+                  <textarea
+                    rows={2}
+                    className="input"
+                    placeholder="mis. Tugas kantor lembur mendadak / ada agenda dinas"
+                    value={rescheduleForm.reason}
+                    onChange={(e) => setRescheduleForm({ ...rescheduleForm, reason: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" className="btn-ghost" onClick={() => setRescheduleModal(null)}>
+                    Batal
+                  </button>
+                  <button
+                    className="btn-primary"
+                    disabled={
+                      submittingReschedule ||
+                      (rescheduleQuota && rescheduleQuota.monthRemaining <= 0)
+                    }
+                  >
+                    {submittingReschedule && <Loader2 size={15} className="animate-spin" />}
+                    Simpan Reschedule
+                  </button>
+                </div>
+              </>
+            )}
+          </form>
+        )}
+      </Modal>
+
       {/* Modal Preview & Download E-Sertifikat (#16) */}
       <Modal open={!!certModal} title="E-Sertifikat Kelulusan ADLS" onClose={() => setCertModal(null)}>
         {certModal && (
           <div className="space-y-4">
             <div className="rounded-2xl border-4 border-double border-brand-dark bg-gradient-to-br from-white via-sky-50/40 to-amber-50/40 p-6 text-center shadow-inner">
               <div className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-brand">
-                PT ADLS English Course · Official E-Certificate
+                PT ADLS Solusi Indonesia · Official E-Certificate
               </div>
               <h2 className="mt-2 font-serif text-2xl font-extrabold text-brand-dark">CERTIFICATE OF COMPLETION</h2>
               <p className="mt-2 text-xs text-slate-500">Diberikan kepada siswa berprestasi:</p>

@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   CalendarOff,
   Clock,
+  FileText,
   GraduationCap,
   Megaphone,
   MessageSquareWarning,
@@ -29,6 +30,25 @@ export const COURSE_LEVELS = [
   "Intermediate (A2)",
   "Advance (B1 - B2)",
   "Umum / Karyawan",
+];
+export const DAYS_OF_WEEK = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+export const MARKETING_SOURCES = [
+  "WhatsApp",
+  "Teman",
+  "Facebook",
+  "TikTok",
+  "Instagram",
+  "Banner",
+  "Google Maps",
+  "Iklan",
+  "Lainnya",
+];
+export const STOP_REASONS = [
+  "Pindah tempat tinggal",
+  "Kendala biaya",
+  "Jadwal tidak sesuai",
+  "Tidak melanjutkan",
+  "Alasan lainnya",
 ];
 
 const studentField = (onSelect) => ({
@@ -244,7 +264,8 @@ export const RESOURCES = {
     branchFilter: true,
     defaultDateKey: "joined_at",
     columns: [
-      { key: "name", label: "Nama", bold: true },
+      { key: "name", label: "Nama Siswa", bold: true },
+      { key: "nickname", label: "Panggilan" },
       { key: "parent_name", label: "Orang Tua" },
       { key: "parent_phone", label: "WhatsApp" },
       { key: "class_name", label: "Type Kelas", render: (v, r) => v || r.class_type || (r.class_id ? `#${r.class_id}` : "-") },
@@ -254,7 +275,7 @@ export const RESOURCES = {
         key: "course_completed",
         label: "Sertifikat / Kelulusan",
         render: (v, r) => {
-          if (!Number(v)) return "Berjalan";
+          if (!Number(v) && !r.certificate_url && !r.certificate_code) return "Berjalan";
           if (r.certificate_delivery === "pickup_pusat") return "Selesai · Ambil Dedaun";
           if (r.certificate_delivery === "download") return "Selesai · E-Sertifikat";
           return "Selesai Course";
@@ -263,9 +284,25 @@ export const RESOURCES = {
       { key: "status", label: "Status", type: "badge", badgeMap: { active: "bg-emerald-100 text-emerald-700", inactive: "bg-slate-200 text-slate-600" } },
     ],
     fields: [
-      { key: "name", label: "Nama Siswa", required: true },
-      { key: "parent_name", label: "Nama Orang Tua" },
-      { key: "parent_phone", label: "No. WhatsApp Orang Tua / Siswa" },
+      { key: "name", label: "Nama Lengkap Siswa", required: true },
+      { key: "nickname", label: "Nama Panggilan" },
+      { key: "gender", label: "Jenis Kelamin", type: "select", options: ["Laki-laki", "Perempuan"] },
+      { key: "birth_place", label: "Tempat Lahir" },
+      { key: "birth_date", label: "Tanggal Lahir", type: "date" },
+      { key: "school_origin", label: "Asal Sekolah" },
+      { key: "school_grade", label: "Kelas di Sekolah" },
+      { key: "religion", label: "Agama" },
+      { key: "housing_complex", label: "Asal Perumahan / Wilayah" },
+      { key: "address", label: "Alamat Lengkap", type: "textarea" },
+      { key: "student_wa", label: "No. WhatsApp Siswa" },
+      { key: "parent_name", label: "Nama Orang Tua / Wali" },
+      { key: "parent_phone", label: "No. WhatsApp Orang Tua" },
+      { key: "parent_father_name", label: "Nama Ayah" },
+      { key: "parent_father_job", label: "Pekerjaan Ayah" },
+      { key: "parent_mother_name", label: "Nama Ibu" },
+      { key: "parent_mother_job", label: "Pekerjaan Ibu" },
+      { key: "marketing_source", label: "Mengetahui ADLS Dari Mana", type: "select", options: MARKETING_SOURCES },
+      { key: "reason_choosing", label: "Alasan Memilih ADLS", type: "textarea" },
       { key: "class_type", label: "Type Kelas", type: "select", options: CLASS_TYPES },
       { key: "level", label: "Level", type: "select", options: COURSE_LEVELS, required: true },
       classField(false, (opt, prev) => {
@@ -283,7 +320,8 @@ export const RESOURCES = {
       accountField("user_id", "Akun Login Siswa (mandiri / Kelas Karyawan)", "student_account_name", "siswa"),
       accountField("parent_user_id", "Akun Login Orang Tua (1 email bisa untuk 3+ anak)", "parent_account_name", "ortu"),
       { key: "joined_at", label: "Tanggal Bergabung", type: "date" },
-      { key: "left_at", label: "Tanggal Keluar (jika nonaktif)", type: "date" },
+      { key: "left_at", label: "Tanggal Keluar (jika berhenti/out)", type: "date" },
+      { key: "stop_reason", label: "Alasan Berhenti / Out (wajib diisi jika keluar)", type: "select", options: STOP_REASONS },
       {
         key: "course_completed",
         label: "Kelulusan Course (Aktifkan Menu Sertifikat)",
@@ -295,7 +333,7 @@ export const RESOURCES = {
       },
       { key: "completed_at", label: "Tanggal Selesai Course", type: "date" },
       { key: "certificate_url", label: "Upload File E-Sertifikat Khusus (opsional PDF/Gambar)", type: "pdf-or-image" },
-      { key: "status", label: "Status", type: "select", options: status },
+      { key: "status", label: "Status Siswa", type: "select", options: status },
     ],
   },
   classes: {
@@ -311,7 +349,9 @@ export const RESOURCES = {
       return [
         { key: "name", label: "Type Kelas", bold: true, render: (v, r) => r.class_type || v || "-" },
         { key: "level", label: "Level" },
-        { key: "schedule", label: "Jadwal" },
+        { key: "day_1", label: "Hari 1", render: (v) => v || "-" },
+        { key: "day_2", label: "Hari 2", render: (v) => v || "-" },
+        { key: "time_start", label: "Waktu", render: (_, r) => r.time_start && r.time_end ? `${r.time_start} - ${r.time_end}` : r.schedule || "-" },
         { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "-") },
         ...(isParent ? [] : [{ key: "tutor_name", label: "Tutor", render: (v, r) => v || (r.tutor_id ? `#${r.tutor_id}` : "-") }]),
         { key: "type", label: "Tipe", type: "badge", badgeMap: { online: "bg-sky-100 text-sky-700", offline: "bg-indigo-100 text-indigo-700" } },
@@ -321,7 +361,12 @@ export const RESOURCES = {
     fields: [
       { key: "name", label: "Type Kelas", type: "select", options: CLASS_TYPES, required: true },
       { key: "level", label: "Level", type: "select", options: COURSE_LEVELS, required: true },
-      { key: "schedule", label: "Jadwal (mis. Senin & Rabu 14:00)" },
+      { key: "day_1", label: "Jadwal Hari Ke-1", type: "select", options: DAYS_OF_WEEK, required: true },
+      { key: "day_2", label: "Jadwal Hari Ke-2 (opsional)", type: "select", options: ["", ...DAYS_OF_WEEK] },
+      { key: "day_3", label: "Jadwal Hari Ke-3 (opsional)", type: "select", options: ["", ...DAYS_OF_WEEK] },
+      { key: "time_start", label: "Jam Mulai (mis. 17:00 atau 5:00 PM)", required: true },
+      { key: "time_end", label: "Jam Selesai (mis. 18:30 atau 6:30 PM)", required: true },
+      { key: "schedule", label: "Jadwal Lengkap (otomatis tersinkron)" },
       { key: "type", label: "Tipe", type: "select", options: ["offline", "online"] },
       { key: "meeting_url", label: "Link Meeting Online" },
       tutorField(false, (opt, prev) =>
@@ -599,6 +644,7 @@ export const RESOURCES = {
       { key: "requester_name", label: "Pemohon", bold: true },
       { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "-") },
       { key: "reason", label: "Alasan" },
+      { key: "approval_notes", label: "Catatan Keputusan (ACC/Tolak)", render: (v) => v || "-" },
       { key: "start_date", label: "Mulai", render: (v) => String(v || "").slice(0, 10) || "-" },
       { key: "end_date", label: "Selesai", render: (v) => String(v || "").slice(0, 10) || "-" },
       { key: "status", label: "Status", type: "badge", badgeMap: { approved: "bg-emerald-100 text-emerald-700", pending: "bg-amber-100 text-amber-700", rejected: "bg-red-100 text-red-700" } },
@@ -617,10 +663,54 @@ export const RESOURCES = {
         { key: "reason", label: "Alasan / Keterangan Sakit", required: true },
         { key: "start_date", label: "Tanggal Mulai", type: "date", required: true },
         { key: "end_date", label: "Tanggal Selesai", type: "date" },
+        { key: "approval_notes", label: "Keterangan / Alasan Keputusan (Wajib jika Tolak / ACC)", type: "textarea", approveOnly: true },
         { key: "status", label: "Keputusan Admin Pusat / Owner", type: "select", options: ["pending", "approved", "rejected"], approveOnly: true },
         ...(isStudentSide || isTutor ? [] : [branchField("Cabang", false)]),
       ];
     },
+  },
+  lesson_materials: {
+    title: "Materi Pembelajaran",
+    icon: FileText,
+    endpoint: E.LESSON_MATERIALS,
+    r: [...STAFF, "tutor"],
+    c: ["owner"], // #5 HANYA Owner yang boleh mengunggah materi pembelajaran
+    u: ["owner"],
+    branchFilter: true,
+    columns: [
+      { key: "title", label: "Judul Materi", bold: true },
+      {
+        key: "category",
+        label: "Kategori",
+        type: "badge",
+        badgeMap: {
+          "Lesson Plan": "bg-indigo-100 text-indigo-700",
+          "Modul Belajar (PDF)": "bg-sky-100 text-sky-700",
+          "Slide Presentasi (PPT)": "bg-amber-100 text-amber-700",
+          Worksheet: "bg-emerald-100 text-emerald-700",
+        },
+      },
+      { key: "level", label: "Level" },
+      { key: "file_type", label: "Format", render: (v) => String(v || "pdf").toUpperCase() },
+      { key: "author_name", label: "Uploader", render: (v) => v || "Owner ADLS" },
+      { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "Semua Cabang") },
+      { key: "created_at", label: "Tanggal", render: (v) => String(v || "").slice(0, 10) || "-" },
+    ],
+    fields: [
+      { key: "title", label: "Judul Materi / Lesson Plan", required: true },
+      {
+        key: "category",
+        label: "Kategori Materi",
+        type: "select",
+        options: ["Lesson Plan", "Modul Belajar (PDF)", "Slide Presentasi (PPT)", "Worksheet"],
+        required: true,
+      },
+      { key: "level", label: "Level Kelas", type: "select", options: COURSE_LEVELS, required: true },
+      { key: "file_type", label: "Tipe File", type: "select", options: ["pdf", "ppt", "pptx", "doc"], required: true },
+      { key: "file_url", label: "File Dokumen (PDF / PPT / PPTX)", type: "pdf-or-image", required: true },
+      { key: "description", label: "Petunjuk Belajar / Deskripsi Materi", type: "textarea" },
+      branchField("Cabang (Kosongkan jika berlaku umum)", false),
+    ],
   },
   complaints: {
     title: "Komplen",

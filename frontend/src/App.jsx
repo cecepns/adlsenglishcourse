@@ -8,11 +8,13 @@ import AudioListening from "@/pages/AudioListening";
 import BillsPage from "@/pages/BillsPage";
 import CatalogShop from "@/pages/CatalogShop";
 import Dashboard from "@/pages/Dashboard";
+import LessonMaterials from "@/pages/LessonMaterials";
 import Login from "@/pages/Login";
 import Meetings from "@/pages/Meetings";
 import Payroll from "@/pages/Payroll";
 import PortalDashboard from "@/pages/PortalDashboard";
 import Referrals from "@/pages/Referrals";
+import StudentsDatabase from "@/pages/StudentsDatabase";
 import TutorDashboard from "@/pages/TutorDashboard";
 import VideoProjects from "@/pages/VideoProjects";
 
@@ -26,7 +28,7 @@ function Protected({ children }) {
 export default function App() {
   const { user } = useAuth();
   const isStaff = STAFF.includes(user?.role);
-  const isPayrollAllowed = [...STAFF, "tutor"].includes(user?.role);
+  const isPayrollAllowed = ["owner", "admin_pusat"].includes(user?.role);
   const isReferralAllowed = [...STAFF, "siswa", "ortu"].includes(user?.role);
 
   const home = isStaff ? (
@@ -37,7 +39,7 @@ export default function App() {
     <PortalDashboard />
   );
 
-  const genericResources = Object.entries(RESOURCES).filter(([key]) => !["bills", "products"].includes(key));
+  const genericResources = Object.entries(RESOURCES).filter(([key]) => !["bills", "products", "lesson_materials"].includes(key));
 
   return (
     <Routes>
@@ -48,6 +50,8 @@ export default function App() {
         <Route path="tutor-portal" element={user?.role === "tutor" ? <TutorDashboard /> : <Navigate to="/" replace />} />
         <Route path="meetings" element={user?.role === "ortu" ? <Navigate to="/" replace /> : <Meetings />} />
         <Route path="audio" element={<AudioListening />} />
+        <Route path="lesson_materials" element={<LessonMaterials />} />
+        <Route path="students-database" element={<StudentsDatabase />} />
         <Route path="videos" element={<VideoProjects />} />
         <Route path="achievements" element={<Achievements />} />
         <Route path="bills" element={<BillsPage />} />
