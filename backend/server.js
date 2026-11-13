@@ -1640,17 +1640,17 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
   // #13 Breakdown Paid & Unpaid per Branch
   const [branchPaidUnpaidRows] = await pool.query(
     `SELECT b.id AS branch_id, b.name AS branch_name,
-            COUNT(DISTINCT s.id) AS total_students,
+            (SELECT COUNT(*) FROM students s WHERE s.branch_id=b.id AND s.status='active') AS total_students,
             COALESCE(SUM(bl.status='paid'), 0) AS paid_count,
             COALESCE(SUM(bl.status='paid' AND (bl.is_cash=1 OR bl.payment_method='Cash')), 0) AS cash_count,
             COALESCE(SUM(CASE WHEN bl.status='paid' AND (bl.is_cash=1 OR bl.payment_method='Cash') THEN GREATEST(0, bl.amount - COALESCE(bl.discount,0)) ELSE 0 END), 0) AS cash_amount,
             COALESCE(SUM(bl.status='paid' AND COALESCE(bl.is_cash,0)=0 AND COALESCE(bl.payment_method,'')<>'Cash'), 0) AS transfer_count,
             COALESCE(SUM(CASE WHEN bl.status='paid' AND COALESCE(bl.is_cash,0)=0 AND COALESCE(bl.payment_method,'')<>'Cash' THEN GREATEST(0, bl.amount - COALESCE(bl.discount,0)) ELSE 0 END), 0) AS transfer_amount,
-            COALESCE(SUM(bl.status<>'paid'), 0) AS unpaid_count,
-            COALESCE(SUM(CASE WHEN bl.status<>'paid' THEN GREATEST(0, bl.amount - COALESCE(bl.discount,0)) ELSE 0 END), 0) AS unpaid_amount
+            COALESCE(SUM(bl.status<>'paid' AND bl.id IS NOT NULL), 0) AS unpaid_count,
+            COALESCE(SUM(CASE WHEN bl.status<>'paid' AND bl.id IS NOT NULL THEN GREATEST(0, bl.amount - COALESCE(bl.discount,0)) ELSE 0 END), 0) AS unpaid_amount
      FROM branches b
-     LEFT JOIN students s ON s.branch_id=b.id AND s.status='active'
-     LEFT JOIN bills bl ON bl.student_id=s.id AND (bl.month=? OR DATE_FORMAT(COALESCE(bl.paid_at, bl.due_date), '%Y-%m')=?)
+     LEFT JOIN bills bl ON (bl.branch_id=b.id OR bl.student_id IN (SELECT id FROM students WHERE branch_id=b.id))
+       AND (bl.month=? OR DATE_FORMAT(COALESCE(bl.paid_at, bl.due_date, bl.created_at), '%Y-%m')=?)
      WHERE b.status='active' ${branchId ? "AND b.id=?" : ""}
      GROUP BY b.id, b.name
      ORDER BY b.id ASC`,
@@ -1770,18 +1770,34 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
       count: Number(monthBillRow.unpaidStudentCount || 0),
       amount: Number(monthBillRow.unpaidMonthAmount || 0),
     },
-    branchPaidUnpaid: branchPaidUnpaidRows.map((r) => ({
-      branch_id: r.branch_id,
-      branch_name: r.branch_name,
-      total_students: Number(r.total_students || 0),
-      paid_count: Number(r.paid_count || 0),
-      cash_count: Number(r.cash_count || 0),
-      cash_amount: Number(r.cash_amount || 0),
-      transfer_count: Number(r.transfer_count || 0),
-      transfer_amount: Number(r.transfer_amount || 0),
-      unpaid_count: Number(r.unpaid_count || 0),
-      unpaid_amount: Number(r.unpaid_amount || 0),
-    })),
+    branchPaidUnpaid: branchPaidUnpaidRows.map((r) => {
+      const cCount = Number(r.cash_count || 0);
+      const cAmt = Number(r.cash_amount || 0);
+      const tCount = Number(r.transfer_count || 0);
+      const tAmt = Number(r.transfer_amount || 0);
+      const pCount = Number(r.paid_count || (cCount + tCount) || 0);
+      const uCount = Number(r.unpaid_count || 0);
+      const uAmt = Number(r.unpaid_amount || 0);
+      return {
+        branch_id: r.branch_id,
+        branch_name: r.branch_name,
+        total_students: Number(r.total_students || 0),
+        paid_count: pCount,
+        paid_students: pCount,
+        total_paid: pCount,
+        cash_count: cCount,
+        paid_cash_count: cCount,
+        cash_amount: cAmt,
+        paid_cash_amount: cAmt,
+        transfer_count: tCount,
+        paid_transfer_count: tCount,
+        transfer_amount: tAmt,
+        paid_transfer_amount: tAmt,
+        unpaid_count: uCount,
+        unpaid_students: uCount,
+        unpaid_amount: uAmt,
+      };
+    }),
     branchGrowth: {
       weekly: branchWeeklyGrowth,
       monthly: branchMonthlyGrowth,
