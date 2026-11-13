@@ -150,8 +150,20 @@ export default function Dashboard() {
   const billMonths = stats?.billsByMonth || [];
   const topTutors = stats?.topTutors || [];
   const topExpenses = stats?.topExpenses || [];
-  const paidStudents = stats?.paidStudents || { cashCount: 0, cashAmount: 0, transferCount: 0, transferAmount: 0, totalCount: 0, totalAmount: 0 };
-  const unpaidStudents = stats?.unpaidStudents || { count: 0, amount: 0 };
+  const paidStudents = stats?.paidStudents || {};
+  const paidCashCount = Number(paidStudents.cashCount || 0);
+  const paidCashAmount = Number(paidStudents.cashAmount || 0);
+  const paidTransferCount = Number(paidStudents.transferCount || 0);
+  const paidTransferAmount = Number(paidStudents.transferAmount || 0);
+  const paidTotalCount =
+    Number(paidStudents.totalCount ?? paidStudents.total ?? (paidCashCount + paidTransferCount));
+  const paidTotalAmount =
+    Number(paidStudents.totalAmount ?? (paidCashAmount + paidTransferAmount));
+
+  const unpaidStudents = stats?.unpaidStudents || {};
+  const unpaidCount = Number(unpaidStudents.count ?? unpaidStudents.total ?? 0);
+  const unpaidAmount = Number(unpaidStudents.amount ?? 0);
+
   const branchPaidUnpaid = stats?.branchPaidUnpaid || [];
   const marketingSources = stats?.marketingSources || [];
   const stopReasons = stats?.stopReasons || [];
@@ -281,25 +293,25 @@ export default function Dashboard() {
           color="emerald"
         />
 
-        {/* #13 Paid Students: Cash vs Transfer */}
+        {/* Paid Students: Cash vs Transfer */}
         <KpiCard
           icon={UserCheck}
           label="Siswa Lunas (Paid)"
-          value={stats ? `${paidStudents.totalCount} Siswa` : "…"}
+          value={stats ? `${paidTotalCount} Siswa` : "…"}
           sub={
             stats
-              ? `Cash: ${paidStudents.cashCount} · Transfer: ${paidStudents.transferCount} (${rp(paidStudents.totalAmount)})`
+              ? `Cash: ${paidCashCount} · Transfer: ${paidTransferCount} (${rp(paidTotalAmount)})`
               : ""
           }
           color="emerald"
         />
 
-        {/* #13 Unpaid Students */}
+        {/* Unpaid Students */}
         <KpiCard
           icon={UserX}
           label="Siswa Belum Bayar"
-          value={stats ? `${unpaidStudents.count} Siswa` : "…"}
-          sub={stats ? `Tunggakan: ${rp(unpaidStudents.amount)}` : ""}
+          value={stats ? `${unpaidCount} Siswa` : "…"}
+          sub={stats ? `Tunggakan: ${rp(unpaidAmount)}` : ""}
           color="rose"
         />
 
@@ -380,8 +392,8 @@ export default function Dashboard() {
               <span className="text-xs font-bold uppercase tracking-wide text-emerald-800">Siswa Lunas (Cash)</span>
               <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-900">Tunai</span>
             </div>
-            <div className="mt-2 text-2xl font-extrabold text-emerald-900">{paidStudents.cashCount} Siswa</div>
-            <div className="mt-1 text-xs font-semibold text-emerald-700">{rp(paidStudents.cashAmount)}</div>
+            <div className="mt-2 text-2xl font-extrabold text-emerald-900">{paidCashCount} Siswa</div>
+            <div className="mt-1 text-xs font-semibold text-emerald-700">{rp(paidCashAmount)}</div>
           </div>
 
           <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
@@ -389,8 +401,8 @@ export default function Dashboard() {
               <span className="text-xs font-bold uppercase tracking-wide text-blue-800">Siswa Lunas (Transfer)</span>
               <span className="rounded-full bg-blue-200 px-2 py-0.5 text-xs font-bold text-blue-900">Transfer</span>
             </div>
-            <div className="mt-2 text-2xl font-extrabold text-blue-900">{paidStudents.transferCount} Siswa</div>
-            <div className="mt-1 text-xs font-semibold text-blue-700">{rp(paidStudents.transferAmount)}</div>
+            <div className="mt-2 text-2xl font-extrabold text-blue-900">{paidTransferCount} Siswa</div>
+            <div className="mt-1 text-xs font-semibold text-blue-700">{rp(paidTransferAmount)}</div>
           </div>
 
           <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4">
@@ -398,8 +410,8 @@ export default function Dashboard() {
               <span className="text-xs font-bold uppercase tracking-wide text-rose-800">Siswa Belum Bayar (Unpaid)</span>
               <span className="rounded-full bg-rose-200 px-2 py-0.5 text-xs font-bold text-rose-900">Pending</span>
             </div>
-            <div className="mt-2 text-2xl font-extrabold text-rose-900">{unpaidStudents.count} Siswa</div>
-            <div className="mt-1 text-xs font-semibold text-rose-700">Tunggakan {rp(unpaidStudents.amount)}</div>
+            <div className="mt-2 text-2xl font-extrabold text-rose-900">{unpaidCount} Siswa</div>
+            <div className="mt-1 text-xs font-semibold text-rose-700">Tunggakan {rp(unpaidAmount)}</div>
           </div>
         </div>
 

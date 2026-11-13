@@ -51,7 +51,7 @@ export default function PortalDashboard() {
   const [branches, setBranches] = useState([]);
   const [availableClasses, setAvailableClasses] = useState([]);
 
-  // Modal Tambah Anak (#19 1 Akun Ortu Multi-Anak - Gambar 4)
+  // Modal Tambah Anak (1 Akun Ortu Multi-Anak)
   const [childModal, setChildModal] = useState(false);
   const [childForm, setChildForm] = useState({
     name: "",
@@ -712,7 +712,7 @@ export default function PortalDashboard() {
         )}
       </div>
 
-      {/* Modal Tambah Anak (#19 Multi-Anak 1 Akun Ortu - Persis Gambar 4) */}
+      {/* Modal Tambah Anak (Multi-Anak 1 Akun Ortu) */}
       <Modal open={childModal} title="Tambah Anak di Akun Orang Tua" onClose={() => setChildModal(false)}>
         <form onSubmit={submitAddChild} className="space-y-3.5">
           <div className="rounded-xl bg-brand-50/70 p-3 text-xs text-slate-700">

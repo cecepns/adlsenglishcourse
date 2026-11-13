@@ -122,7 +122,7 @@ export default function StudentsDatabase() {
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-amber-200">
-              <FileSpreadsheet size={14} /> Format Rekap Owner (Gambar 2)
+              <FileSpreadsheet size={14} /> Database Rekapitulasi Siswa
             </div>
             <h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Rekap Database Siswa ADLS</h1>
             <p className="mt-1 text-sm text-sky-100 max-w-2xl">
@@ -189,7 +189,7 @@ export default function StudentsDatabase() {
         </div>
       </div>
 
-      {/* Excel Table Layout (Gambar 2) */}
+      {/* Excel Table Layout */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-xs">

@@ -198,10 +198,10 @@ export default function Login() {
         </div>
       </header>
 
-      {/* Main Content: Left Hero & Right Card (Strictly Matching Gambar 1) */}
+      {/* Main Content: Left Hero & Right Card */}
       <main className="flex flex-1 items-center justify-center p-4 sm:p-6 lg:p-12">
         <div className="grid w-full max-w-6xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-2xl lg:grid-cols-12">
-          {/* Left Hero Panel (Gambar 1) */}
+          {/* Left Hero Panel */}
           <div className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1e4b85] via-[#245899] to-[#0284c7] p-8 text-white lg:col-span-7 lg:p-12 xl:p-14">
             {/* Background Light Graphic Waves */}
             <div className="pointer-events-none absolute -left-20 -top-20 h-96 w-96 rounded-full bg-sky-300/20 blur-3xl" />
@@ -229,7 +229,7 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Hero Main Catchphrase (Gambar 1) */}
+            {/* Hero Main Catchphrase */}
             <div className="relative z-10 my-auto py-10 lg:py-14">
               <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl text-white">
                 {t.heroTitle1}
@@ -245,7 +245,7 @@ export default function Login() {
               </p>
             </div>
 
-            {/* 3 Bottom Badges (Gambar 1) */}
+            {/* 3 Bottom Badges */}
             <div className="relative z-10 grid grid-cols-3 gap-3 border-t border-white/20 pt-6 text-center text-xs">
               <div className="flex flex-col items-center gap-2 rounded-xl bg-white/10 p-3 backdrop-blur-sm">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white">
@@ -270,7 +270,7 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Right Auth Panel (Gambar 1) */}
+          {/* Right Auth Panel */}
           <div className="flex flex-col justify-center p-6 sm:p-8 lg:col-span-5 lg:p-10 bg-white">
             <div className="mx-auto w-full max-w-md space-y-5">
               {/* Top Tag Pill */}
@@ -313,7 +313,7 @@ export default function Login() {
               </div>
 
               {mode === "login" ? (
-                /* LOGIN FORM (Gambar 1) */
+                /* LOGIN FORM */
                 <form onSubmit={submitLogin} className="space-y-4">
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
@@ -431,7 +431,7 @@ export default function Login() {
                   </div>
                 </form>
               ) : (
-                /* REGISTRATION FORM (Gambar 3 Fields) */
+                /* REGISTRATION FORM */
                 <form onSubmit={submitRegister} className="space-y-3.5 max-h-[72vh] overflow-y-auto pr-1">
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
@@ -490,7 +490,7 @@ export default function Login() {
                     /* Siswa Mandiri Data */
                     <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
                       <div className="text-xs font-extrabold uppercase tracking-wide text-brand-dark">
-                        Identitas Lengkap Siswa (Gambar 3)
+                        Identitas Lengkap Siswa
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
                         <input
@@ -643,7 +643,7 @@ export default function Login() {
                     </div>
                   )}
 
-                  {/* Sumber Marketing & Alasan Memilih (Point 9) */}
+                  {/* Sumber Marketing & Alasan Memilih */}
                   <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
                     <label className="block text-xs font-bold uppercase tracking-wide text-slate-600">
                       Mengetahui ADLS Dari Mana? (Sumber Informasi)
@@ -719,7 +719,7 @@ export default function Login() {
         </div>
       </main>
 
-      {/* Footer (Point 4) */}
+      {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs font-semibold text-slate-500">
         {t.footerText}
       </footer>

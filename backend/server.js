@@ -1758,7 +1758,9 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
     branchOptions,
     // Ekstensi #13, #14, #15, #16
     paidStudents: {
-      total: Number(monthBillRow.paidStudentCount || 0),
+      total: Number(monthBillRow.paidStudentCount || 0) || (Number(monthBillRow.cashCount || 0) + Number(monthBillRow.transferCount || 0)),
+      totalCount: Number(monthBillRow.paidStudentCount || 0) || (Number(monthBillRow.cashCount || 0) + Number(monthBillRow.transferCount || 0)),
+      totalAmount: Number(monthBillRow.cashAmount || 0) + Number(monthBillRow.transferAmount || 0),
       cashCount: Number(monthBillRow.cashCount || 0),
       cashAmount: Number(monthBillRow.cashAmount || 0),
       transferCount: Number(monthBillRow.transferCount || 0),
