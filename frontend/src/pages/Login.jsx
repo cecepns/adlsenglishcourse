@@ -69,7 +69,7 @@ export default function Login() {
     api
       .get(API_ENDPOINTS.PUBLIC_BRANCHES)
       .then((r) => setBranches(r.data.data || []))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   if (user) return <Navigate to="/" replace />;
@@ -181,18 +181,16 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setLang("id")}
-              className={`rounded-lg px-2.5 py-1 transition ${
-                lang === "id" ? "bg-white text-brand-dark shadow-sm" : "text-slate-500 hover:text-slate-900"
-              }`}
+              className={`rounded-lg px-2.5 py-1 transition ${lang === "id" ? "bg-white text-brand-dark shadow-sm" : "text-slate-500 hover:text-slate-900"
+                }`}
             >
               🇮🇩 ID
             </button>
             <button
               type="button"
               onClick={() => setLang("en")}
-              className={`rounded-lg px-2.5 py-1 transition ${
-                lang === "en" ? "bg-white text-brand-dark shadow-sm" : "text-slate-500 hover:text-slate-900"
-              }`}
+              className={`rounded-lg px-2.5 py-1 transition ${lang === "en" ? "bg-white text-brand-dark shadow-sm" : "text-slate-500 hover:text-slate-900"
+                }`}
             >
               🇬🇧 EN
             </button>
@@ -226,7 +224,7 @@ export default function Login() {
                 <img src="/logo.png" alt="ADLS English Course" className="h-10 w-10 object-contain" />
               </div>
               <div>
-                <div className="text-lg font-black tracking-tight text-white">ADLS | ADLS English Course</div>
+                <div className="text-lg font-black tracking-tight text-white">ADLS English Course</div>
                 <div className="text-xs font-semibold text-sky-200">PT. ADLS Solusi Indonesia</div>
               </div>
             </div>
@@ -295,22 +293,20 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setMode("login")}
-                  className={`rounded-lg py-2 transition ${
-                    mode === "login"
+                  className={`rounded-lg py-2 transition ${mode === "login"
                       ? "bg-brand text-white shadow-sm"
                       : "text-slate-600 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <LogIn size={13} className="inline mr-1" /> {lang === "en" ? "Sign In" : "Masuk"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode("register")}
-                  className={`rounded-lg py-2 transition ${
-                    mode === "register"
+                  className={`rounded-lg py-2 transition ${mode === "register"
                       ? "bg-brand text-white shadow-sm"
                       : "text-slate-600 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <UserPlus size={13} className="inline mr-1" /> {lang === "en" ? "Register" : "Daftar di Sini"}
                 </button>
