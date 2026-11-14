@@ -5,17 +5,21 @@ import {
   Award,
   CalendarCheck,
   CalendarClock,
+  CalendarDays,
   CalendarOff,
   CheckCircle2,
   ChevronRight,
   Clock,
+  Coffee,
   CreditCard,
   GraduationCap,
+  Grid,
   HelpCircle,
   MessageSquareWarning,
   Receipt,
   RefreshCw,
   School,
+  Table,
   TrendingDown,
   TrendingUp,
   UserCheck,
@@ -102,10 +106,17 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Ketersediaan Tutor state
+  // Ketersediaan Tutor state (Poin #20 & #6 - Matrix Jadwal Timetable PDF Hal 2)
   const [tutorAvail, setTutorAvail] = useState([]);
+  const [timetableData, setTimetableData] = useState(null);
   const [loadingTutorAvail, setLoadingTutorAvail] = useState(false);
   const [availModalTutor, setAvailModalTutor] = useState(null);
+  const [availViewMode, setAvailViewMode] = useState("matrix"); // "matrix" | "table"
+  const [selectedTimetableDay, setSelectedTimetableDay] = useState(() => {
+    const daysIndo = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+    const today = daysIndo[new Date().getDay()];
+    return today === "Minggu" ? "Senin" : today;
+  });
 
   // Grafik Pertumbuhan state
   const [growthView, setGrowthView] = useState("monthly"); // "weekly" | "monthly"
@@ -131,8 +142,17 @@ export default function Dashboard() {
     setLoadingTutorAvail(true);
     api
       .get(API_ENDPOINTS.TUTORS_AVAILABILITY, { params: branchId ? { branch_id: branchId } : {} })
-      .then((r) => setTutorAvail(r.data.data?.tutors || []))
-      .catch(() => setTutorAvail([]))
+      .then((r) => {
+        const payload = r.data.data;
+        const tutorsList = Array.isArray(payload) ? payload : (payload?.tutors || r.data.tutors || []);
+        const tt = r.data.timetable || payload?.timetable || null;
+        setTutorAvail(tutorsList);
+        setTimetableData(tt);
+      })
+      .catch(() => {
+        setTutorAvail([]);
+        setTimetableData(null);
+      })
       .finally(() => setLoadingTutorAvail(false));
   }, [branchId]);
 
@@ -693,82 +713,232 @@ export default function Dashboard() {
         </ChartCard>
       </div>
 
-      {/* #20 & #6 Ketersediaan Jadwal Kosong Tutor (Menggantikan Ringkasan Kelas) */}
+      {/* #20 & #6 Ketersediaan Jadwal Kosong Tutor (Menggantikan Ringkasan Kelas & Format Matrix Timetable PDF Hal 2) */}
       <ChartCard
         title="Ketersediaan Jadwal Kosong Tutor"
-        subtitle="Sistem real-time pemantauan slot mengajar kosong dan bentrok jadwal tutor"
+        subtitle="Sistem real-time pemantauan slot mengajar kosong, jadwal per cabang & sesi, serta deteksi bentrok"
         right={
-          <button
-            type="button"
-            onClick={loadTutorAvail}
-            className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline"
-          >
-            <RefreshCw size={13} className={loadingTutorAvail ? "animate-spin" : ""} /> Refresh Jadwal
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+              <button
+                type="button"
+                onClick={() => setAvailViewMode("matrix")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold transition ${
+                  availViewMode === "matrix"
+                    ? "bg-white text-brand-dark shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Grid size={13} /> Timetable Matrix (Format ADLS)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAvailViewMode("table")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold transition ${
+                  availViewMode === "table"
+                    ? "bg-white text-brand-dark shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Table size={13} /> Ringkasan Tutor
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={loadTutorAvail}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCw size={13} className={loadingTutorAvail ? "animate-spin" : ""} /> Refresh
+            </button>
+          </div>
         }
       >
-        {tutorAvail.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500">
-                <tr>
-                  <th className="px-3.5 py-3 font-bold">Nama Tutor</th>
-                  <th className="px-3.5 py-3 font-bold">Cabang</th>
-                  <th className="px-3.5 py-3 text-center font-bold">Kelas Aktif</th>
-                  <th className="px-3.5 py-3 text-center font-bold">Slot Terisi (Busy)</th>
-                  <th className="px-3.5 py-3 text-center font-bold">Slot Kosong</th>
-                  <th className="px-3.5 py-3 font-bold">Ringkasan Waktu Kosong</th>
-                  <th className="px-3.5 py-3 text-right font-bold">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {tutorAvail.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="px-3.5 py-3 font-bold text-slate-900">{t.name}</td>
-                    <td className="px-3.5 py-3 text-slate-600">{t.branch_name}</td>
-                    <td className="px-3.5 py-3 text-center font-bold text-brand-dark">{t.active_classes}</td>
-                    <td className="px-3.5 py-3 text-center">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-bold text-slate-700">
-                        {t.busy_slots_count} slot
-                      </span>
-                    </td>
-                    <td className="px-3.5 py-3 text-center">
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">
-                        {t.empty_slots_count} slot kosong
-                      </span>
-                    </td>
-                    <td className="max-w-xs truncate px-3.5 py-3 text-slate-600">
-                      {t.free_summary?.length ? (
-                        <div className="flex flex-wrap gap-1">
-                          {t.free_summary.slice(0, 3).map((s, i) => (
-                            <span key={i} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px]">
-                              {s}
-                            </span>
-                          ))}
-                          {t.free_summary.length > 3 && (
-                            <span className="text-[10px] text-slate-400">+{t.free_summary.length - 3} lagi</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400">Penuh / Tidak ada slot</span>
-                      )}
-                    </td>
-                    <td className="px-3.5 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setAvailModalTutor(t)}
-                        className="btn-ghost !px-2.5 !py-1 text-xs"
-                      >
-                        Lihat Slot
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {availViewMode === "matrix" ? (
+          <div className="space-y-4">
+            {/* Day Selector Pills */}
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                <CalendarDays size={14} className="text-brand" />
+                <span>Pilih Hari:</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(timetableData?.days || ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]).map((day) => {
+                  const isSelected = selectedTimetableDay === day;
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setSelectedTimetableDay(day)}
+                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+                        isSelected
+                          ? "bg-brand text-white shadow-sm ring-2 ring-brand/20"
+                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Matrix Table */}
+            {timetableData ? (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full min-w-[760px] border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-100 text-slate-700 font-bold">
+                      <th className="w-36 border-r border-slate-200 px-3 py-3 uppercase tracking-wider text-[11px]">
+                        Sesi / Waktu
+                      </th>
+                      {(timetableData.branches || []).map((b) => (
+                        <th key={b.id} className="border-r border-slate-200 px-3 py-3 font-bold text-center last:border-r-0">
+                          <div className="text-slate-900 text-xs font-bold">{b.name}</div>
+                          {b.city && <div className="text-[10px] text-slate-500 font-normal">{b.city}</div>}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {(timetableData.slots || []).map((slot, idx) => {
+                      const isAfterLunchBreak = slot.session === 3;
+                      const branches = timetableData.branches || [];
+
+                      return (
+                        <tr key={slot.session} className="hover:bg-slate-50/50">
+                          {/* Sesi / Jam */}
+                          <td className="border-r border-slate-200 bg-slate-50/80 px-3 py-2.5 align-top">
+                            <div className="font-bold text-slate-800">Sesi {slot.session}</div>
+                            <div className="text-[11px] font-medium text-slate-500">{slot.label}</div>
+                          </td>
+
+                          {/* Branches columns */}
+                          {branches.map((b) => {
+                            const busyItems = timetableData.matrix?.[selectedTimetableDay]?.[slot.session]?.[b.id] || [];
+                            const freeForBranch = tutorAvail.filter(
+                              (t) =>
+                                (t.branch_name === b.name || t.branch_name === "-" || !t.branch_name) &&
+                                t.empty_slots?.some((s) => s.day === selectedTimetableDay && s.session === slot.session)
+                            );
+
+                            return (
+                              <td
+                                key={b.id}
+                                className="border-r border-slate-200 p-2 align-top last:border-r-0"
+                              >
+                                {busyItems.length > 0 ? (
+                                  <div className="space-y-1.5">
+                                    {busyItems.map((bi, biIdx) => (
+                                      <div
+                                        key={biIdx}
+                                        className="rounded-lg border border-blue-200 bg-blue-50/80 p-2 text-left shadow-2xs"
+                                      >
+                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                          <span className="text-[11px] font-bold text-slate-900 truncate">
+                                            {bi.tutor_name}
+                                          </span>
+                                          <span className="rounded bg-brand px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">
+                                            Terisi
+                                          </span>
+                                        </div>
+                                        <div className="text-[11px] font-semibold text-brand-dark truncate">
+                                          {bi.class_name}
+                                        </div>
+                                        {bi.level && (
+                                          <div className="text-[10px] text-slate-500 truncate">{bi.level}</div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/30 p-2 text-center">
+                                    <div className="text-[11px] font-bold text-emerald-800">
+                                      ✨ KOSONG
+                                    </div>
+                                    <div className="text-[10px] font-medium text-emerald-600 mt-0.5">
+                                      {freeForBranch.length ? `${freeForBranch.length} Tutor Tersedia` : "Slot Siap Diisi"}
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-sm text-slate-400">Memuat matriks ketersediaan tutor...</div>
+            )}
           </div>
         ) : (
-          <div className="py-8 text-center text-sm text-slate-400">Belum ada data ketersediaan tutor</div>
+          <div>
+            {tutorAvail.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3.5 py-3 font-bold">Nama Tutor</th>
+                      <th className="px-3.5 py-3 font-bold">Cabang</th>
+                      <th className="px-3.5 py-3 text-center font-bold">Kelas Aktif</th>
+                      <th className="px-3.5 py-3 text-center font-bold">Slot Terisi (Busy)</th>
+                      <th className="px-3.5 py-3 text-center font-bold">Slot Kosong</th>
+                      <th className="px-3.5 py-3 font-bold">Ringkasan Waktu Kosong</th>
+                      <th className="px-3.5 py-3 text-right font-bold">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {tutorAvail.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50">
+                        <td className="px-3.5 py-3 font-bold text-slate-900">{t.name}</td>
+                        <td className="px-3.5 py-3 text-slate-600">{t.branch_name}</td>
+                        <td className="px-3.5 py-3 text-center font-bold text-brand-dark">{t.active_classes}</td>
+                        <td className="px-3.5 py-3 text-center">
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-bold text-slate-700">
+                            {t.busy_slots_count} slot
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-3 text-center">
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">
+                            {t.empty_slots_count} slot kosong
+                          </span>
+                        </td>
+                        <td className="max-w-xs truncate px-3.5 py-3 text-slate-600">
+                          {t.free_summary?.length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {t.free_summary.slice(0, 3).map((s, i) => (
+                                <span key={i} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px]">
+                                  {s}
+                                </span>
+                              ))}
+                              {t.free_summary.length > 3 && (
+                                <span className="text-[10px] text-slate-400">+{t.free_summary.length - 3} lagi</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Penuh / Tidak ada slot</span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setAvailModalTutor(t)}
+                            className="btn-ghost !px-2.5 !py-1 text-xs"
+                          >
+                            Lihat Slot
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-sm text-slate-400">Belum ada data ketersediaan tutor</div>
+            )}
+          </div>
         )}
       </ChartCard>
 

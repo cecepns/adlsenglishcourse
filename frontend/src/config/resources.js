@@ -478,7 +478,7 @@ export const RESOURCES = {
       { key: "student_name", label: "Siswa", bold: true, render: (v, r) => v || (r.student_id ? `#${r.student_id}` : "-") },
       { key: "class_name", label: "Type Kelas", render: (v) => v || "-" },
       { key: "material", label: "Materi Pertemuan", render: (v) => v || "Menunggu input tutor" },
-      { key: "homework", label: "PR Anak", render: (v) => v || "-" },
+      { key: "homework", label: "PR (Pekerjaan Rumah)", render: (v) => v || "-" },
       { key: "formative_score", label: "Formatif", render: (v) => (v !== null && v !== undefined ? `${v}` : "-") },
       {
         key: "summative_score",
@@ -509,7 +509,7 @@ export const RESOURCES = {
         { key: "report_month", label: "Bulan Laporan (YYYY-MM)", required: true },
         { key: "report_date", label: "Tanggal Pertemuan", type: "date", required: true },
         { key: "material", label: isStaff ? "Materi (opsional - dapat diisi Tutor)" : "Materi yang Dipelajari", required: !isStaff },
-        { key: "homework", label: "PR Anak (Pekerjaan Rumah)" },
+        { key: "homework", label: "PR (Pekerjaan Rumah)" },
         { key: "formative_score", label: "Nilai Ujian Formatif (0-100)", type: "number" },
         { key: "summative_score", label: "Nilai Ujian Sumatif / UAS (0-100)", type: "number" },
         { key: "speaking_score", label: "Nilai Speaking Progress (0-100)", type: "number" },

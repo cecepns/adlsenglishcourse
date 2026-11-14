@@ -36,6 +36,8 @@ export default function VideoProjects() {
   const [reviewModal, setReviewModal] = useState(null);
   const [reviewForm, setReviewForm] = useState({ score: "", feedback: "", status: "reviewed" });
   const [saving, setSaving] = useState(false);
+  const [classFilter, setClassFilter] = useState("");
+  const [sortOrder, setSortOrder] = useState("desc"); // "desc" (Terbaru) | "asc" (Terlama)
 
   const isReviewer = [...STAFF, "tutor"].includes(user.role);
   const isStudentSide = ["siswa", "ortu"].includes(user.role);
@@ -53,6 +55,19 @@ export default function VideoProjects() {
       setLoading(false);
     }
   };
+
+  const classOptions = Array.from(new Set(rows.map((r) => r.class_name).filter(Boolean))).sort();
+
+  const filteredRows = rows
+    .filter((r) => {
+      if (classFilter && r.class_name !== classFilter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.created_at || a.month || 0).getTime();
+      const timeB = new Date(b.created_at || b.month || 0).getTime();
+      return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
+    });
 
   useEffect(() => {
     load();
@@ -154,11 +169,35 @@ export default function VideoProjects() {
           <p className="text-sm text-slate-500">Pengumpulan tugas video Speaking/Project bulanan oleh siswa dan apresiasi tutor</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-60">
+          {classOptions.length > 0 && (
+            <select
+              className="input !w-auto text-xs font-semibold"
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+            >
+              <option value="">Semua Kelas ({rows.length})</option>
+              {classOptions.map((cls) => (
+                <option key={cls} value={cls}>
+                  Kelas: {cls}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <select
+            className="input !w-auto text-xs font-semibold"
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          >
+            <option value="desc">Urutkan: Terbaru</option>
+            <option value="asc">Urutkan: Terlama</option>
+          </select>
+
+          <div className="relative w-56">
             <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
             <input
               className="input !pl-10"
-              placeholder="Cari siswa / judul / bulan..."
+              placeholder="Cari siswa / judul..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -175,15 +214,15 @@ export default function VideoProjects() {
             <div key={i} className="card h-52 animate-pulse bg-slate-100" />
           ))}
         </div>
-      ) : rows.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <div className="card flex flex-col items-center justify-center p-12 text-center text-slate-400">
           <Film size={42} className="mb-2" />
-          <p className="text-sm font-semibold">Belum ada project video yang dikumpulkan</p>
-          <p className="mt-1 text-xs">Klik "Kumpulkan Video" untuk mengunggah video (.mp4/.webm/.mov) atau menempelkan tautan video bulanan.</p>
+          <p className="text-sm font-semibold">Tidak ada project video yang cocok dengan filter</p>
+          <p className="mt-1 text-xs">Ubah pilihan filter kelas atau pencarian Anda.</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {rows.map((v) => {
+          {filteredRows.map((v) => {
             const url = resolveAssetUrl(v.video_url);
             const isDirectVideo = url && /\.(mp4|webm|mov)(\?|$)/i.test(url);
             return (

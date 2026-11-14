@@ -27,7 +27,7 @@ const CATEGORIES = ["Lesson Plan", "Modul Belajar (PDF)", "Slide Presentasi (PPT
 
 export default function LessonMaterials() {
   const { user } = useAuth();
-  const isOwner = user?.role === "owner";
+  const canUpload = ["owner", "admin_pusat"].includes(user?.role);
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDoc, setSelectedDoc] = useState(null);
@@ -150,13 +150,13 @@ export default function LessonMaterials() {
             </p>
           </div>
 
-          {isOwner && (
+          {canUpload && (
             <button
               onClick={() => setUploadModal(true)}
               className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-brand-dark shadow-sm transition hover:bg-sky-50"
             >
               <Plus size={16} />
-              <span>Unggah Materi (Owner)</span>
+              <span>Tambah / Unggah Materi</span>
             </button>
           )}
         </div>
@@ -295,73 +295,93 @@ export default function LessonMaterials() {
         />
       )}
 
-      {/* Owner Upload Modal */}
-      {uploadModal && (
-        <Modal title="Unggah Materi Pembelajaran (Khusus Owner)" onClose={() => setUploadModal(false)}>
-          <form onSubmit={handleSaveMaterial} className="space-y-4">
+      {/* Upload Materi Modal */}
+      <Modal open={uploadModal} title="Unggah Materi Pembelajaran" onClose={() => setUploadModal(false)}>
+        <form onSubmit={handleSaveMaterial} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
+              Judul Materi / Lesson Plan *
+            </label>
+            <input
+              required
+              className="input"
+              placeholder="mis. Lesson Plan Super Basic Unit 1 - Greetings"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
-                Judul Materi / Lesson Plan *
+                Kategori *
               </label>
-              <input
-                required
+              <select
                 className="input"
-                placeholder="mis. Lesson Plan Super Basic Unit 1 - Greetings"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
-                  Kategori *
-                </label>
-                <select
-                  className="input"
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
-                  Level Kelas *
-                </label>
-                <select
-                  className="input"
-                  value={form.level}
-                  onChange={(e) => setForm({ ...form, level: e.target.value })}
-                >
-                  {COURSE_LEVELS.map((lv) => (
-                    <option key={lv} value={lv}>{lv}</option>
-                  ))}
-                </select>
-              </div>
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
-                Pilih File (PDF atau PPT/PPTX) *
+                Level Kelas *
+              </label>
+              <select
+                className="input"
+                value={form.level}
+                onChange={(e) => setForm({ ...form, level: e.target.value })}
+              >
+                {COURSE_LEVELS.map((lv) => (
+                  <option key={lv} value={lv}>{lv}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
+              Pilih File Dokumen (PDF atau PPT/PPTX) *
+            </label>
+            <input
+              type="file"
+              accept=".pdf,.ppt,.pptx,.doc,.docx"
+              className="input !py-1.5 text-xs"
+              onChange={handleFileUpload}
+            />
+            {uploading && <div className="mt-1 text-xs text-brand font-semibold">Mengunggah file...</div>}
+
+            <div className="mt-2.5">
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">
+                Atau tempel URL Link Dokumen Langsung (Google Drive / Link Cloud):
               </label>
               <input
-                type="file"
-                accept=".pdf,.ppt,.pptx,.doc,.docx"
                 className="input !py-1.5 text-xs"
-                onChange={handleFileUpload}
+                placeholder="https://..."
+                value={form.file_url}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const ext = val.split(".").pop()?.split(/[?#]/)[0]?.toLowerCase();
+                  setForm((prev) => ({
+                    ...prev,
+                    file_url: val,
+                    file_type: ["ppt", "pptx", "doc", "docx", "pdf"].includes(ext) ? ext : prev.file_type || "pdf",
+                  }));
+                }}
               />
-              {uploading && <div className="mt-1 text-xs text-brand font-semibold">Mengunggah file...</div>}
-              {form.file_url && (
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                  <Lock size={13} />
-                  <span>File tersimpan: {form.file_url}</span>
-                </div>
-              )}
             </div>
+
+            {form.file_url && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                <Lock size={13} />
+                <span>File tersimpan: {form.file_url}</span>
+              </div>
+            )}
+          </div>
 
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
@@ -394,7 +414,6 @@ export default function LessonMaterials() {
             </div>
           </form>
         </Modal>
-      )}
     </div>
   );
 }

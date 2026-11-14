@@ -10,13 +10,16 @@ import {
   CalendarCheck,
   CalendarClock,
   CalendarOff,
+  Camera,
+  Check,
   CheckCircle2,
   CreditCard,
   Download,
   ExternalLink,
+  Eye,
   Film,
   GraduationCap,
-  Headphones,
+  Image as ImageIcon,
   Info,
   Loader2,
   MapPin,
@@ -27,6 +30,7 @@ import {
   RefreshCw,
   ShoppingBag,
   Sparkles,
+  Star,
   Trophy,
   Users,
   Video,
@@ -50,6 +54,7 @@ export default function PortalDashboard() {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [branches, setBranches] = useState([]);
   const [availableClasses, setAvailableClasses] = useState([]);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   // Modal Tambah Anak (1 Akun Ortu Multi-Anak)
   const [childModal, setChildModal] = useState(false);
@@ -463,13 +468,158 @@ export default function PortalDashboard() {
         </Link>
       </div>
 
+      {/* Learning Journey Roadmap (Peta Perjalanan Belajar dengan Bintang Emas di Ujung - PDF Hal 2) */}
+      <div className="card overflow-hidden border border-brand/20 bg-gradient-to-br from-white via-sky-50/20 to-brand-50/30 p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3.5">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                <Star size={18} className="fill-amber-400 text-amber-500" />
+              </span>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Learning Journey Roadmap · Perjalanan Belajar Siswa
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Tahapan progres pembelajaran intensif ADLS hingga kelulusan level dan sertifikat resmi
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-bold text-slate-700 shadow-sm">
+            <span>Level: <b className="text-brand">{primary?.level || "Basic"}</b></span>
+            <span>· Status: <b className="text-emerald-700">{primary?.course_completed ? "Tuntas Lulus ⭐" : "Sedang Berjalan"}</b></span>
+          </div>
+        </div>
+
+        {/* Visual Roadmap Stepper with Golden Star Finish */}
+        <div className="mt-6 px-2 sm:px-6">
+          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 md:gap-2">
+            {/* Connecting Line */}
+            <div className="hidden md:block absolute left-8 right-8 top-5 h-1 bg-gradient-to-r from-emerald-500 via-sky-500 to-amber-400 z-0 rounded-full" />
+
+            {/* Steps */}
+            {[
+              { step: 1, title: "Level Placement", sub: "Pendaftaran & Kelas", done: true, icon: CheckCircle2 },
+              { step: 2, title: "Active Attendance", sub: `${att.rate}% Kehadiran`, done: att.rate >= 50, icon: CalendarCheck },
+              { step: 3, title: "Speaking Practice", sub: `${recentReports.length} Laporan Belajar`, done: recentReports.length > 0, icon: BookOpenCheck },
+              { step: 4, title: "Monthly Video", sub: `${data?.videoCount ?? 0} Project Video`, done: (data?.videoCount ?? 0) > 0, icon: Film },
+              { step: 5, title: "Sumatif & UAS", sub: "Evaluasi Akhir", done: Boolean(primary?.course_completed || (recentReports.some(r => r.summative_score))), icon: Award },
+              { step: 6, title: "Graduation Star", sub: primary?.course_completed ? "Selesai & Lulus!" : "Target Kelulusan", done: Boolean(primary?.course_completed), isStar: true },
+            ].map((node, i) => (
+              <div key={i} className="relative z-10 flex md:flex-col items-center gap-3 md:gap-2 text-left md:text-center flex-1">
+                <div
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-sm transition duration-300 ${
+                    node.isStar
+                      ? node.done
+                        ? "bg-amber-400 text-amber-900 ring-4 ring-amber-300/50 scale-110 animate-bounce"
+                        : "bg-amber-100 text-amber-600 border-2 border-dashed border-amber-400"
+                      : node.done
+                      ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
+                      : "bg-white text-slate-400 border-2 border-slate-300"
+                  }`}
+                >
+                  {node.isStar ? (
+                    <Star size={22} className="fill-amber-400 text-amber-800" />
+                  ) : node.done ? (
+                    <Check size={20} className="stroke-[2.5]" />
+                  ) : (
+                    <span className="text-xs font-black">{node.step}</span>
+                  )}
+                </div>
+                <div>
+                  <div className={`text-xs font-extrabold ${node.done ? "text-slate-900" : "text-slate-600"}`}>
+                    {node.title}
+                  </div>
+                  <div className="text-[11px] text-slate-600 font-medium">
+                    {node.sub}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Dokumentasi Foto Aktivitas Kelas Terkini (Laporan Nyata untuk Orang Tua) */}
+      <div className="card overflow-hidden">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-brand-50/40 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <Camera size={18} className="text-brand" />
+              <h3 className="text-base font-extrabold text-slate-900">
+                Dokumentasi Foto Aktivitas Kelas Terkini
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Foto dokumentasi langsung dari tutor di kelas setiap pertemuan. Memastikan siswa hadir & aktif belajar secara nyata.
+            </p>
+          </div>
+          <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-800 self-start">
+            ✓ Verifikasi Tutor
+          </span>
+        </div>
+
+        <div className="p-4 sm:p-5">
+          {(!data?.activityPhotos || data.activityPhotos.length === 0) ? (
+            <div className="flex flex-col items-center justify-center p-8 text-center text-slate-400">
+              <ImageIcon size={36} className="mb-2 text-slate-300" />
+              <p className="text-xs font-semibold text-slate-600">Belum ada dokumentasi foto kegiatan kelas</p>
+              <p className="text-[11px] text-slate-400">Foto dokumentasi yang dikirim oleh tutor saat sesi belajar akan muncul otomatis di sini.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {data.activityPhotos.map((photo) => (
+                <div key={photo.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
+                  <div className="relative aspect-video w-full overflow-hidden bg-slate-100 cursor-pointer" onClick={() => setPreviewPhoto(photo)}>
+                    <img
+                      src={resolveAssetUrl(photo.photo_url)}
+                      alt="Dokumentasi Kelas"
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-3">
+                      <span className="text-xs font-bold text-white flex items-center gap-1">
+                        <Eye size={13} /> Lihat Foto Penuh
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-3.5 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between gap-1 text-[11px] text-slate-500">
+                      <span className="font-bold text-slate-700">{photo.session_date}</span>
+                      <span>{photo.session_time || "Sesi Kelas"}</span>
+                    </div>
+                    <div className="font-extrabold text-slate-900 truncate">
+                      {photo.class_name} · <span className="text-brand font-semibold">{photo.branch_name || "ADLS"}</span>
+                    </div>
+                    {photo.attendance_summary && (
+                      <div className="rounded-lg bg-emerald-50 px-2 py-1 font-bold text-emerald-800 text-[11px]">
+                        {photo.attendance_summary}
+                      </div>
+                    )}
+                    {photo.material && (
+                      <div className="text-slate-600 line-clamp-1">
+                        <span className="font-semibold">Materi:</span> {photo.material}
+                      </div>
+                    )}
+                    {photo.notes && (
+                      <div className="text-[11px] text-slate-500 line-clamp-2 italic">
+                        "{photo.notes}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* #2 Hapus kata "Anak" pada PR Siswa Mandiri/Karyawan */}
         <div className="card p-5">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h3 className="text-base font-extrabold text-slate-900">
-                {isParent ? "PR Anak & Hasil Ujian (Formatif / Sumatif)" : "PR & Hasil Ujian (Formatif / Sumatif)"}
+                PR & Hasil Ujian (Formatif / Sumatif)
               </h3>
               <p className="text-xs text-slate-500">Laporan materi, tugas, dan evaluasi bulanan</p>
             </div>
@@ -957,6 +1107,50 @@ export default function PortalDashboard() {
               </button>
               <button type="button" onClick={() => downloadHtmlCert(certModal)} className="btn-primary">
                 <Download size={15} /> Download E-Sertifikat
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Preview Foto Kegiatan Belajar */}
+      <Modal open={!!previewPhoto} title="Dokumentasi Pertemuan Kelas" onClose={() => setPreviewPhoto(null)}>
+        {previewPhoto && (
+          <div className="space-y-3.5">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
+              <img
+                src={resolveAssetUrl(previewPhoto.photo_url)}
+                alt="Dokumentasi Kelas"
+                className="max-h-[65vh] w-full object-contain mx-auto"
+              />
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3.5 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-slate-900 text-sm">{previewPhoto.class_name}</span>
+                <span className="font-bold text-brand">{previewPhoto.branch_name || "ADLS"}</span>
+              </div>
+              <div className="text-slate-600">
+                Sesi: <b>{previewPhoto.session_date}</b> {previewPhoto.session_time && `· ${previewPhoto.session_time}`}
+              </div>
+              {previewPhoto.attendance_summary && (
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 font-bold text-emerald-800">
+                  {previewPhoto.attendance_summary}
+                </div>
+              )}
+              {previewPhoto.material && (
+                <div className="text-slate-700">
+                  <span className="font-semibold text-slate-900">Materi:</span> {previewPhoto.material}
+                </div>
+              )}
+              {previewPhoto.notes && (
+                <div className="text-slate-600 italic">
+                  "{previewPhoto.notes}"
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button type="button" className="btn-ghost" onClick={() => setPreviewPhoto(null)}>
+                Tutup
               </button>
             </div>
           </div>

@@ -4,10 +4,12 @@ import toast from "react-hot-toast";
 import {
   BookOpenCheck,
   Building2,
+  Camera,
   CheckCircle2,
   Clock,
   ExternalLink,
   Headphones,
+  Image as ImageIcon,
   Loader2,
   RefreshCw,
   Save,
@@ -16,11 +18,12 @@ import {
   Users,
   Video,
 } from "lucide-react";
-import { api } from "@/utils/api";
+import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting, getOpeningGreeting } from "@/utils/greetings";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
+import ImageUploadField from "@/components/ImageUploadField";
 
 const ATT_OPTIONS = [
   { value: "hadir", label: "Hadir", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -44,6 +47,29 @@ export default function TutorDashboard() {
   const [sharedMaterial, setSharedMaterial] = useState("");
   const [sharedHomework, setSharedHomework] = useState("");
   const [rows, setRows] = useState([]);
+
+  // Day Filter Tabs (PDF Hal 1 Item 2)
+  const [dayFilter, setDayFilter] = useState("Hari Ini");
+
+  // Classroom Activity Photos (Dokumentasi Foto Belajar ke Orang Tua)
+  const [activityPhotos, setActivityPhotos] = useState([]);
+  const [photoForm, setPhotoForm] = useState({
+    photo_url: "",
+    session_time: "",
+    attendance_summary: "",
+    notes: "",
+  });
+  const [submittingPhoto, setSubmittingPhoto] = useState(false);
+
+  const loadPhotos = useCallback(async (clsId) => {
+    if (!clsId) return setActivityPhotos([]);
+    try {
+      const { data } = await api.get(API_ENDPOINTS.CLASS_ACTIVITY_PHOTOS, { params: { class_id: clsId } });
+      setActivityPhotos(data.data || []);
+    } catch {
+      setActivityPhotos([]);
+    }
+  }, []);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -96,8 +122,9 @@ export default function TutorDashboard() {
   useEffect(() => {
     if (selectedClassId) {
       loadClassDetail(selectedClassId, sessionDate);
+      loadPhotos(selectedClassId);
     }
-  }, [selectedClassId, sessionDate, loadClassDetail]);
+  }, [selectedClassId, sessionDate, loadClassDetail, loadPhotos]);
 
   const handleClockIn = async (cls) => {
     setCheckingInId(cls.id);
@@ -121,6 +148,47 @@ export default function TutorDashboard() {
 
   const markAllPresent = () => {
     setRows((prev) => prev.map((r) => ({ ...r, attendance_status: "hadir" })));
+  };
+
+  const calcAttSummary = () => {
+    if (!rows.length) return "";
+    const hadir = rows.filter((r) => r.attendance_status === "hadir").length;
+    const izin = rows.filter((r) => r.attendance_status === "izin" || r.attendance_status === "sakit").length;
+    const alpha = rows.filter((r) => r.attendance_status === "alpha").length;
+    return `Hadir: ${hadir} siswa dari ${rows.length} siswa · Izin: ${izin} · Alpha: ${alpha}`;
+  };
+
+  const handleSavePhoto = async (e) => {
+    e.preventDefault();
+    if (!photoForm.photo_url) {
+      toast.error("Foto dokumentasi kegiatan wajib diunggah");
+      return;
+    }
+    setSubmittingPhoto(true);
+    const summary = photoForm.attendance_summary || calcAttSummary();
+    const time = photoForm.session_time || (classDetail?.class?.schedule || "16.00-17.30");
+    try {
+      await request(
+        () =>
+          api.post(API_ENDPOINTS.CLASS_ACTIVITY_PHOTOS, {
+            class_id: selectedClassId,
+            session_date: sessionDate,
+            session_time: time,
+            photo_url: photoForm.photo_url,
+            attendance_summary: summary,
+            material: sharedMaterial,
+            homework: sharedHomework,
+            notes: photoForm.notes,
+          }),
+        { success: getClosingGreeting("tutor", "Foto kegiatan kelas berhasil dikirim & terhubung ke orang tua!") }
+      );
+      setPhotoForm({ photo_url: "", session_time: "", attendance_summary: "", notes: "" });
+      loadPhotos(selectedClassId);
+    } catch {
+      /* toast handled */
+    } finally {
+      setSubmittingPhoto(false);
+    }
   };
 
   const saveSession = async (e) => {
@@ -153,6 +221,18 @@ export default function TutorDashboard() {
 
   const classes = overview?.classes || [];
   const branches = overview?.branches || [];
+
+  const todayDayName = new Date().toLocaleDateString("id-ID", { weekday: "long" }); // "Senin", "Selasa", dll.
+  const filteredClasses = classes.filter((c) => {
+    if (dayFilter === "Semua Hari") return true;
+    if (c.is_backup) return true;
+    const targetDay = dayFilter === "Hari Ini" ? todayDayName : dayFilter;
+    const targetLower = targetDay.toLowerCase();
+    const days = [c.day_1, c.day_2, c.day_3].filter(Boolean).map((d) => String(d).trim().toLowerCase());
+    if (days.some((d) => d === targetLower || d.includes(targetLower))) return true;
+    if (c.schedule && c.schedule.toLowerCase().includes(targetLower)) return true;
+    return false;
+  });
 
   return (
     <div className="space-y-5">
@@ -210,19 +290,38 @@ export default function TutorDashboard() {
           )}
         </div>
 
+        {/* Day Filter Tabs (PDF Hal 1 Item 2) */}
+        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+          {["Hari Ini", "Semua Hari", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"].map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => setDayFilter(day)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                dayFilter === day
+                  ? "bg-brand text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {day}
+              {day === "Hari Ini" && ` (${todayDayName})`}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[...Array(3)].map((_, i) => <div key={i} className="card h-44 animate-pulse bg-slate-100" />)}
           </div>
-        ) : classes.length === 0 ? (
+        ) : filteredClasses.length === 0 ? (
           <div className="card flex flex-col items-center justify-center p-10 text-center text-slate-400">
             <School size={40} className="mb-2" />
-            <p className="text-sm font-bold text-slate-600">Belum ada kelas yang ditugaskan kepada Anda</p>
-            <p className="mt-1 text-xs">Admin Cabang atau Admin Pusat dapat menugaskan kelas ke akun Anda di menu Kelas.</p>
+            <p className="text-sm font-bold text-slate-600">Tidak ada jadwal mengajar untuk {dayFilter}</p>
+            <p className="mt-1 text-xs">Pilih tab "Semua Hari" untuk melihat seluruh jadwal kelas Anda minggu ini.</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {classes.map((c) => {
+            {filteredClasses.map((c) => {
               const selected = c.id === selectedClassId;
               const checkedIn = Boolean(c.today_att_id);
               const isLate = Number(c.today_late_minutes || 0) > 0;
@@ -234,6 +333,11 @@ export default function TutorDashboard() {
                   }`}
                 >
                   <div onClick={() => setSelectedClassId(c.id)} className="cursor-pointer">
+                    {Boolean(c.is_backup) && (
+                      <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-800">
+                        <Sparkles size={11} className="text-amber-600" /> Kelas Pengganti (Backup: Tutor {c.original_tutor_name || "Lain"})
+                      </div>
+                    )}
                     <div className="flex items-start justify-between gap-2">
                       <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700">
                         <Building2 size={11} /> {c.branch_name || "Pusat"}
@@ -309,6 +413,119 @@ export default function TutorDashboard() {
         )}
       </div>
 
+      {/* Dokumentasi Foto Kegiatan Belajar ke Orang Tua (Laporan Nyata) */}
+      {selectedClassId && (
+        <div className="card overflow-hidden border border-brand/20 bg-gradient-to-br from-white via-sky-50/30 to-indigo-50/20 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3.5">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand/10 text-brand">
+                  <Camera size={18} />
+                </span>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Dokumentasi Foto Kegiatan Kelas (Terkirim ke Ortu)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Kirim foto kegiatan per pertemuan ke Portal Orang Tua agar mereka dapat melihat bukti kehadiran & aktivitas belajar putra-putrinya secara nyata.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleSavePhoto} className="mt-4 space-y-3.5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Foto Kegiatan Belajar di Kelas *
+                </label>
+                <ImageUploadField
+                  allowPdf={false}
+                  value={photoForm.photo_url}
+                  onChange={(url) => setPhotoForm({ ...photoForm, photo_url: url })}
+                  placeholder="Unggah foto suasana kelas / murid belajar..."
+                />
+              </div>
+
+              <div className="space-y-2.5">
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Jam / Sesi Pertemuan
+                  </label>
+                  <input
+                    className="input !py-2 text-xs"
+                    placeholder="mis. 16.00 - 17.30 WIB"
+                    value={photoForm.session_time || classDetail?.class?.schedule || ""}
+                    onChange={(e) => setPhotoForm({ ...photoForm, session_time: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Ringkasan Kehadiran
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setPhotoForm({ ...photoForm, attendance_summary: calcAttSummary() })}
+                      className="text-[11px] font-bold text-brand hover:underline"
+                    >
+                      Hitung Otomatis dari Tabel
+                    </button>
+                  </div>
+                  <input
+                    className="input !py-2 text-xs"
+                    placeholder="mis. Hadir: 8 siswa dari 9 siswa · Izin: 1 · Alpha: 0"
+                    value={photoForm.attendance_summary || calcAttSummary()}
+                    onChange={(e) => setPhotoForm({ ...photoForm, attendance_summary: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+              <input
+                className="input !py-2 text-xs flex-1"
+                placeholder="Catatan tambahan untuk orang tua (mis. Siswa sangat aktif saat praktik percakapan)..."
+                value={photoForm.notes}
+                onChange={(e) => setPhotoForm({ ...photoForm, notes: e.target.value })}
+              />
+              <button
+                type="submit"
+                disabled={submittingPhoto || !photoForm.photo_url}
+                className="btn-primary shrink-0 !py-2 text-xs"
+              >
+                {submittingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                Kirim Foto Dokumentasi ke Ortu
+              </button>
+            </div>
+          </form>
+
+          {/* Galeri Riwayat Foto Sesi Kelas Ini */}
+          {activityPhotos.length > 0 && (
+            <div className="mt-4 border-t border-slate-200/80 pt-3">
+              <div className="mb-2 text-xs font-bold text-slate-700">
+                Dokumentasi Pertemuan Sebelumnya ({activityPhotos.length} foto):
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto pb-1">
+                {activityPhotos.map((p) => (
+                  <div key={p.id} className="relative group shrink-0 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+                    <img
+                      src={resolveAssetUrl(p.photo_url)}
+                      alt="Kegiatan Kelas"
+                      className="h-24 w-full rounded-lg object-cover"
+                    />
+                    <div className="mt-1 text-[11px] font-bold text-slate-800 truncate">{p.session_date}</div>
+                    <div className="text-[10px] text-slate-500 truncate">{p.session_time || p.attendance_summary || "Sesi Selesai"}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Auto Class Roster: Input Materi + Absensi Siswa + Nilai Laporan Belajar (#8 & #9) */}
       {selectedClassId && (
         <div className="card overflow-hidden">
@@ -354,7 +571,7 @@ export default function TutorDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase text-slate-600">PR Anak (Pekerjaan Rumah - opsional)</label>
+                  <label className="mb-1 block text-xs font-bold uppercase text-slate-600">PR (Pekerjaan Rumah - opsional)</label>
                   <input
                     className="input"
                     placeholder="mis. Latihan hal. 15-16 di Workbook"

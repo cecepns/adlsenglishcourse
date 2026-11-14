@@ -81,7 +81,7 @@ export default function Login() {
     badge1: "Speak Confidently",
     badge2: "Learn Effectively",
     badge3: "Achieve More",
-    portalTag: "ADLS Learning Portal",
+    portalTag: "Learning Portal",
     welcome: lang === "en" ? "Welcome Back!" : "Welcome Back!",
     welcomeSub:
       lang === "en"
@@ -202,12 +202,12 @@ export default function Login() {
       <main className="flex flex-1 items-center justify-center p-4 sm:p-6 lg:p-12">
         <div className="grid w-full max-w-6xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-2xl lg:grid-cols-12">
           {/* Left Hero Panel */}
-          <div className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1e4b85] via-[#245899] to-[#0284c7] p-8 text-white lg:col-span-7 lg:p-12 xl:p-14">
+          <div className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#071326] via-[#0d2140] to-[#162d55] p-8 text-white lg:col-span-7 lg:p-12 xl:p-14">
             {/* Background Light Graphic Waves */}
-            <div className="pointer-events-none absolute -left-20 -top-20 h-96 w-96 rounded-full bg-sky-300/20 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-24 -right-16 h-96 w-96 rounded-full bg-blue-300/25 blur-3xl" />
+            <div className="pointer-events-none absolute -left-20 -top-20 h-96 w-96 rounded-full bg-sky-400/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-24 -right-16 h-96 w-96 rounded-full bg-blue-400/15 blur-3xl" />
             <svg
-              className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 w-full opacity-15"
+              className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 w-full opacity-10"
               viewBox="0 0 1440 320"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -240,9 +240,19 @@ export default function Login() {
               {/* Accent Line */}
               <div className="mt-4 h-1.5 w-24 rounded-full bg-amber-400" />
 
-              <p className="mt-6 text-base font-medium leading-relaxed text-sky-100 sm:text-lg max-w-lg">
+              <p className="mt-5 text-base font-medium leading-relaxed text-sky-100 sm:text-lg max-w-lg">
                 {t.heroSub}
               </p>
+
+              {/* Tagline Tambahan: ENGLISH LEARNING FOR ALL AGES */}
+              <div className="mt-5 max-w-lg rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+                <div className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-amber-300">
+                  ENGLISH LEARNING FOR ALL AGES
+                </div>
+                <div className="mt-0.5 text-xs sm:text-sm font-medium text-sky-100">
+                  Preschool • Kids • Teens • Adults • Professionals
+                </div>
+              </div>
             </div>
 
             {/* 3 Bottom Badges */}
@@ -646,7 +656,7 @@ export default function Login() {
                   {/* Sumber Marketing & Alasan Memilih */}
                   <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
                     <label className="block text-xs font-bold uppercase tracking-wide text-slate-600">
-                      Mengetahui ADLS Dari Mana? (Sumber Informasi)
+                      Mengetahui ADLS Dari Mana?
                     </label>
                     <select
                       className="input !py-2 text-xs"

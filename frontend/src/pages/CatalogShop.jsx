@@ -2,17 +2,27 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Building2,
+  Calendar,
+  Check,
+  CheckSquare,
   ClipboardList,
   Copy,
+  CreditCard,
+  DollarSign,
   FolderPlus,
   Loader2,
   PackageCheck,
   Pencil,
+  Percent,
   Plus,
+  Receipt,
   Search,
   ShoppingBag,
   ShoppingCart,
+  Square,
+  Tag,
   Trash2,
+  User,
 } from "lucide-react";
 import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
@@ -31,11 +41,21 @@ const rp = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
 
 const ORDER_BADGE = {
   pending: "bg-amber-100 text-amber-700",
-  paid: "bg-sky-100 text-sky-700",
-  shipped: "bg-indigo-100 text-indigo-700",
+  paid: "bg-emerald-100 text-emerald-700",
   completed: "bg-emerald-100 text-emerald-700",
+  shipped: "bg-indigo-100 text-indigo-700",
+  belum_lunas: "bg-orange-100 text-orange-800 border border-orange-200",
+  belum_bayar: "bg-rose-100 text-rose-800 border border-rose-200",
   cancelled: "bg-red-100 text-red-700",
 };
+
+const ORDER_STATUS_TABS = [
+  { id: "Semua", label: "Semua Status" },
+  { id: "completed", label: "Selesai (Lunas)" },
+  { id: "belum_lunas", label: "Belum Lunas" },
+  { id: "belum_bayar", label: "Belum Bayar" },
+  { id: "cancelled", label: "Dibatalkan" },
+];
 
 export default function CatalogShop() {
   const { user } = useAuth();
@@ -58,7 +78,7 @@ export default function CatalogShop() {
   const [newCatName, setNewCatName] = useState("");
   const [savingCat, setSavingCat] = useState(false);
 
-  // Checkout Modal
+  // Checkout Modal (Kas Mini POS)
   const [orderModal, setOrderModal] = useState(null);
   const [orderForm, setOrderForm] = useState({
     qty: 1,
@@ -68,7 +88,27 @@ export default function CatalogShop() {
     branch_name: user.branch_name || "",
     payment_proof: "",
     notes: "",
+    transaction_date: new Date().toISOString().slice(0, 16),
+    cashier_name: user.name || "Pegawai Kasir",
+    is_direct_payment: true,
+    amount_paid: "",
+    payment_method: "Cash",
+    discount_type: "rupiah",
+    discount_val: 0,
+    tax_percent: 0,
+    extra_fee: 0,
   });
+
+  // Modal Biaya Tambahan (PPN & Ongkir / Ekstra)
+  const [feeModal, setFeeModal] = useState(false);
+
+  // Status Filter Pesanan
+  const [orderStatusFilter, setOrderStatusFilter] = useState("Semua");
+
+  // Modal Pelunasan Piutang / Belum Lunas
+  const [settleModal, setSettleModal] = useState(null);
+  const [settleForm, setSettleForm] = useState({ amount: "", payment_method: "Cash" });
+  const [settling, setSettling] = useState(false);
 
   // Master Product CRUD Modal (Staff only)
   const [prodModal, setProdModal] = useState(null);
@@ -116,7 +156,11 @@ export default function CatalogShop() {
     setLoading(true);
     try {
       const { data } = await api.get(API_ENDPOINTS.PRODUCT_ORDERS, {
-        params: { limit: 100, search: debounced || undefined },
+        params: {
+          limit: 100,
+          search: debounced || undefined,
+          status: orderStatusFilter === "Semua" ? undefined : orderStatusFilter,
+        },
       });
       setOrders(data.data || []);
     } catch {
@@ -138,42 +182,25 @@ export default function CatalogShop() {
     if (tab === "catalog") loadProducts();
     else loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, ageGroup, category, debounced]);
+  }, [tab, ageGroup, category, debounced, orderStatusFilter]);
 
-  const addCategory = async (e) => {
-    e.preventDefault();
-    if (!newCatName.trim()) {
-      toast.error("Nama kategori wajib diisi");
-      return;
+  const calcSubtotal = (prod, qty) => (Number(qty) || 1) * Number(prod?.price || 0);
+  const calcDiscount = (subtotal, form) => {
+    if (form.discount_type === "persen") {
+      return (subtotal * (Number(form.discount_val) || 0)) / 100;
     }
-    setSavingCat(true);
-    try {
-      const res = await request(
-        () => api.post(API_ENDPOINTS.PRODUCT_CATEGORIES.LIST, { name: newCatName.trim() }),
-        { success: getClosingGreeting(user.role, `Kategori "${newCatName.trim()}" berhasil ditambahkan!`) }
-      );
-      setNewCatName("");
-      await loadCategories();
-      if (prodModal && res?.data?.name) {
-        setProdForm((prev) => ({ ...prev, category: res.data.name }));
-      }
-    } catch {
-      /* toast handled */
-    } finally {
-      setSavingCat(false);
-    }
+    return Number(form.discount_val) || 0;
   };
-
-  const deleteCategory = async (catRow) => {
-    try {
-      await request(() => api.delete(API_ENDPOINTS.PRODUCT_CATEGORIES.DETAIL(catRow.id)), {
-        success: `Kategori "${catRow.name}" dihapus.`,
-      });
-      if (category === catRow.name) setCategory("Semua");
-      loadCategories();
-    } catch {
-      /* toast handled */
-    }
+  const calcTax = (subtotalAfterDisc, taxPercent) => {
+    return (subtotalAfterDisc * (Number(taxPercent) || 0)) / 100;
+  };
+  const calcTotal = (prod, form) => {
+    const sub = calcSubtotal(prod, form.qty);
+    const disc = Math.min(sub, calcDiscount(sub, form));
+    const afterDisc = Math.max(0, sub - disc);
+    const tax = calcTax(afterDisc, form.tax_percent);
+    const fee = Number(form.extra_fee) || 0;
+    return Math.max(0, afterDisc + tax + fee);
   };
 
   const openOrder = (product) => {
@@ -186,12 +213,30 @@ export default function CatalogShop() {
       branch_name: user.branch_name || "",
       payment_proof: "",
       notes: "",
+      transaction_date: new Date().toISOString().slice(0, 16),
+      cashier_name: user.name || "Pegawai Kasir",
+      is_direct_payment: true,
+      amount_paid: "",
+      payment_method: "Cash",
+      discount_type: "rupiah",
+      discount_val: 0,
+      tax_percent: 0,
+      extra_fee: 0,
     });
   };
 
   const submitOrder = async (e) => {
     e.preventDefault();
     setSaving(true);
+    const subtotal = calcSubtotal(orderModal, orderForm.qty);
+    const disc = Math.min(subtotal, calcDiscount(subtotal, orderForm));
+    const tax = calcTax(Math.max(0, subtotal - disc), orderForm.tax_percent);
+    const fee = Number(orderForm.extra_fee) || 0;
+    const finalTotal = Math.max(0, subtotal - disc + tax + fee);
+    const amtPaid = orderForm.is_direct_payment
+      ? finalTotal
+      : (orderForm.amount_paid !== "" ? Number(orderForm.amount_paid) : 0);
+
     try {
       await request(
         () =>
@@ -203,15 +248,55 @@ export default function CatalogShop() {
             branch_id: orderForm.branch_id || null,
             payment_proof: orderForm.payment_proof,
             notes: orderForm.notes,
+            transaction_date: orderForm.transaction_date,
+            cashier_name: orderForm.cashier_name,
+            is_direct_payment: orderForm.is_direct_payment ? 1 : 0,
+            amount_paid: amtPaid,
+            payment_method: orderForm.payment_method,
+            discount_amount: disc,
+            tax_amount: tax,
+            extra_fee: fee,
           }),
-        { success: getClosingGreeting(user.role, `Pesanan ${orderModal.name} berhasil dikirim!`) }
+        { success: getClosingGreeting(user.role, `Pesanan Kas Mini ${orderModal.name} berhasil diproses!`) }
       );
       setOrderModal(null);
       loadProducts();
+      if (tab === "orders") loadOrders();
     } catch {
       /* toast handled */
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openSettleModal = (order) => {
+    const remaining = Math.max(0, Number(order.total_price || 0) - Number(order.amount_paid || 0));
+    setSettleModal(order);
+    setSettleForm({
+      amount: remaining,
+      payment_method: order.payment_method || "Cash",
+    });
+  };
+
+  const submitSettle = async (e) => {
+    e.preventDefault();
+    if (!settleModal) return;
+    setSettling(true);
+    try {
+      await request(
+        () =>
+          api.post(API_ENDPOINTS.PRODUCT_ORDERS_SETTLE(settleModal.id), {
+            amount: Number(settleForm.amount) || 0,
+            payment_method: settleForm.payment_method,
+          }),
+        { success: getClosingGreeting(user.role, "Pembayaran pesanan berhasil dicatat!") }
+      );
+      setSettleModal(null);
+      loadOrders();
+    } catch {
+      /* toast handled */
+    } finally {
+      setSettling(false);
     }
   };
 
@@ -485,85 +570,131 @@ export default function CatalogShop() {
           </div>
         )
       ) : (
-        <div className="card overflow-hidden">
-          {loading ? (
-            <div className="space-y-2.5 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
-          ) : orders.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 p-12 text-slate-400">
-              <PackageCheck size={40} />
-              <span>Belum ada pesanan produk</span>
+        <div className="space-y-3">
+          {/* Status Filter Tabs (Selesai, Belum Lunas, Belum Bayar, Dibatalkan) */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white p-1">
+              {ORDER_STATUS_TABS.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => setOrderStatusFilter(st.id)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    orderStatusFilter === st.id
+                      ? "bg-brand text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 font-bold">Produk</th>
-                    <th className="px-4 py-3 font-bold">Pemesan</th>
-                    <th className="px-4 py-3 font-bold">Cabang</th>
-                    <th className="px-4 py-3 font-bold">Qty & Total</th>
-                    <th className="px-4 py-3 font-bold">Bukti</th>
-                    <th className="px-4 py-3 font-bold">Status</th>
-                    {isStaff && <th className="px-4 py-3 text-right font-bold">Ubah Status</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {orders.map((o) => {
-                    const proofUrl = resolveAssetUrl(o.payment_proof);
-                    return (
-                      <tr key={o.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <ProductImage src={o.product_image} alt={o.product_name} size="sm" />
-                            <div>
-                              <div className="font-bold text-slate-800">{o.product_name || `Produk #${o.product_id}`}</div>
-                              <div className="text-xs text-slate-400">{o.notes || "-"}</div>
+            <div className="text-xs font-bold text-slate-500">
+              Total: {orders.length} transaksi
+            </div>
+          </div>
+
+          <div className="card overflow-hidden">
+            {loading ? (
+              <div className="space-y-2.5 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
+            ) : orders.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 p-12 text-slate-400">
+                <PackageCheck size={40} />
+                <span>Tidak ada pesanan produk dengan filter ini</span>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">Produk</th>
+                      <th className="px-4 py-3 font-bold">Pemesan & Kasir</th>
+                      <th className="px-4 py-3 font-bold">Cabang</th>
+                      <th className="px-4 py-3 font-bold">Rincian Pembayaran</th>
+                      <th className="px-4 py-3 font-bold">Bukti</th>
+                      <th className="px-4 py-3 font-bold">Status</th>
+                      <th className="px-4 py-3 text-right font-bold">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {orders.map((o) => {
+                      const proofUrl = resolveAssetUrl(o.payment_proof);
+                      const isUnpaid = o.status === "belum_lunas" || o.status === "belum_bayar";
+                      const sisa = Math.max(0, Number(o.total_price || 0) - Number(o.amount_paid || 0));
+                      return (
+                        <tr key={o.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <ProductImage src={o.product_image} alt={o.product_name} size="sm" />
+                              <div>
+                                <div className="font-bold text-slate-800">{o.product_name || `Produk #${o.product_id}`}</div>
+                                <div className="text-xs text-slate-400">{o.notes || "-"}</div>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-800">{o.buyer_name}</div>
-                          <div className="text-xs text-slate-500">{o.buyer_phone || "-"}</div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{o.branch_name || "Pusat"}</td>
-                        <td className="px-4 py-3">
-                          <div className="font-bold text-brand-dark">{rp(o.total_price)}</div>
-                          <div className="text-xs text-slate-500">{o.qty} pcs × {rp(o.unit_price)}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {proofUrl ? (
-                            <a href={proofUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-brand hover:underline">
-                              Lihat Bukti
-                            </a>
-                          ) : (
-                            <span className="text-xs text-slate-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold capitalize ${ORDER_BADGE[o.status] || "bg-slate-100 text-slate-700"}`}>
-                            {o.status}
-                          </span>
-                        </td>
-                        {isStaff && (
-                          <td className="px-4 py-3 text-right">
-                            <select
-                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700"
-                              value={o.status}
-                              onChange={(e) => updateOrderStatus(o.id, e.target.value)}
-                            >
-                              {["pending", "paid", "shipped", "completed", "cancelled"].map((st) => (
-                                <option key={st} value={st}>{st}</option>
-                              ))}
-                            </select>
                           </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-slate-800">{o.buyer_name}</div>
+                            <div className="text-xs text-slate-500">{o.buyer_phone || "-"}</div>
+                            {o.cashier_name && (
+                              <div className="mt-0.5 text-[11px] text-slate-400">Kasir: {o.cashier_name}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{o.branch_name || "Pusat"}</td>
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-brand-dark">{rp(o.total_price)}</div>
+                            <div className="text-xs text-slate-500">{o.qty} pcs · {o.payment_method || "Cash"}</div>
+                            {isUnpaid && (
+                              <div className="mt-0.5 text-xs font-bold text-rose-600">
+                                Dibayar: {rp(o.amount_paid || 0)} · Sisa: {rp(sisa)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {proofUrl ? (
+                              <a href={proofUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-brand hover:underline">
+                                Lihat Bukti
+                              </a>
+                            ) : (
+                              <span className="text-xs text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold capitalize ${ORDER_BADGE[o.status] || "bg-slate-100 text-slate-700"}`}>
+                              {o.status === "completed" ? "Selesai" : o.status === "belum_lunas" ? "Belum Lunas" : o.status === "belum_bayar" ? "Belum Bayar" : o.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isStaff && isUnpaid && (
+                                <button
+                                  type="button"
+                                  onClick={() => openSettleModal(o)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
+                                >
+                                  <CreditCard size={12} /> Lunasi
+                                </button>
+                              )}
+                              {isStaff && (
+                                <select
+                                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                                  value={o.status}
+                                  onChange={(e) => updateOrderStatus(o.id, e.target.value)}
+                                >
+                                  {["pending", "paid", "shipped", "completed", "belum_lunas", "belum_bayar", "cancelled"].map((st) => (
+                                    <option key={st} value={st}>{st}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -609,94 +740,370 @@ export default function CatalogShop() {
         </div>
       </Modal>
 
-      <Modal open={!!orderModal} title={`Order Produk: ${orderModal?.name || ""}`} onClose={() => setOrderModal(null)}>
-        {orderModal && (
-          <form onSubmit={submitOrder} className="space-y-3.5">
-            <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-              <ProductImage src={orderModal.image} alt={orderModal.name} size="sm" />
-              <div className="flex-1">
-                <div className="text-sm font-bold text-slate-900">{orderModal.name}</div>
-                <div className="text-xs text-slate-500">{rp(orderModal.price)} / pcs · Stok: {orderModal.stock}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-[11px] font-bold uppercase text-slate-400">Total</div>
-                <div className="text-base font-extrabold text-brand-dark">{rp((Number(orderForm.qty) || 1) * Number(orderModal.price || 0))}</div>
-              </div>
-            </div>
+      {/* Modal Checkout Kas Mini POS (Matching Screenshot ca2283b3.jpg & 52e4c05a.jpg) */}
+      <Modal open={!!orderModal} title="Checkout · Kas Mini ADLS" onClose={() => setOrderModal(null)}>
+        {orderModal && (() => {
+          const subtotal = calcSubtotal(orderModal, orderForm.qty);
+          const disc = Math.min(subtotal, calcDiscount(subtotal, orderForm));
+          const afterDisc = Math.max(0, subtotal - disc);
+          const tax = calcTax(afterDisc, orderForm.tax_percent);
+          const fee = Number(orderForm.extra_fee) || 0;
+          const finalTotal = Math.max(0, afterDisc + tax + fee);
 
-            {bankInfo?.accounts && (
-              <div className="rounded-xl border border-brand-light/40 bg-brand-50/70 p-3 text-xs">
-                <div className="mb-1.5 flex items-center gap-1.5 font-extrabold text-brand-dark">
-                  <Building2 size={14} /> Transfer Pembayaran ke Rekening {bankInfo.company}
+          return (
+            <form onSubmit={submitOrder} className="space-y-4">
+              {/* Info Pelanggan & Produk */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
+                    <User size={22} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <input
+                      required
+                      className="input !py-1 text-sm font-bold text-slate-900 bg-white"
+                      placeholder="Nama Pelanggan / Siswa (mis. Mrs. Martha)"
+                      value={orderForm.buyer_name}
+                      onChange={(e) => setOrderForm({ ...orderForm, buyer_name: e.target.value })}
+                    />
+                    <input
+                      className="input !py-0.5 mt-1 text-xs text-slate-600 bg-white"
+                      placeholder="Nomor WhatsApp Pelanggan (08...)"
+                      value={orderForm.buyer_phone}
+                      onChange={(e) => setOrderForm({ ...orderForm, buyer_phone: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  {bankInfo.accounts.map((a) => (
-                    <div key={a.number} className="flex items-center justify-between">
-                      <span><b>{a.bank}</b> {a.number} ({a.holder})</span>
-                      <button type="button" onClick={() => copyAcc(a.number)} className="inline-flex items-center gap-1 font-bold text-brand hover:underline">
-                        <Copy size={12} /> Salin
-                      </button>
+
+                <div className="flex items-center justify-between gap-3 border-t border-slate-200/80 pt-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ProductImage src={orderModal.image} alt={orderModal.name} size="sm" />
+                    <div className="truncate">
+                      <div className="text-xs font-bold text-slate-800 truncate">{orderModal.name}</div>
+                      <div className="text-[11px] text-slate-500">{rp(orderModal.price)} / pcs</div>
                     </div>
-                  ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <label className="text-xs font-semibold text-slate-600">Qty:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max={orderModal.stock || 1}
+                      required
+                      className="input !w-16 !py-1 text-center font-bold"
+                      value={orderForm.qty}
+                      onChange={(e) => setOrderForm({ ...orderForm, qty: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
-            )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Keterangan */}
               <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700">Jumlah (Qty) *</label>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Keterangan
+                </label>
                 <input
-                  type="number"
-                  min="1"
-                  max={orderModal.stock || 1}
-                  required
-                  className="input"
-                  value={orderForm.qty}
-                  onChange={(e) => setOrderForm({ ...orderForm, qty: e.target.value })}
+                  className="input !py-2 text-xs"
+                  placeholder="Catatan pesanan / ukuran / instruksi khusus..."
+                  value={orderForm.notes}
+                  onChange={(e) => setOrderForm({ ...orderForm, notes: e.target.value })}
                 />
               </div>
+
+              {/* Tanggal Transaksi & Pegawai */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-xs font-bold text-slate-600">
+                    <Calendar size={13} className="text-brand" /> Tanggal Transaksi
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="input !py-1.5 text-xs"
+                    value={orderForm.transaction_date}
+                    onChange={(e) => setOrderForm({ ...orderForm, transaction_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-xs font-bold text-slate-600">
+                    <User size={13} className="text-brand" /> Pegawai / Kasir
+                  </label>
+                  <input
+                    className="input !py-1.5 text-xs"
+                    value={orderForm.cashier_name}
+                    onChange={(e) => setOrderForm({ ...orderForm, cashier_name: e.target.value })}
+                    placeholder="Nama Kasir"
+                  />
+                </div>
+              </div>
+
+              {/* Toggle Langsung Bayar & Tombol Tambah Biaya Tambahan */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                <button
+                  type="button"
+                  onClick={() => setOrderForm((prev) => ({ ...prev, is_direct_payment: !prev.is_direct_payment }))}
+                  className={`inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                    orderForm.is_direct_payment
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "bg-white text-slate-700 border border-slate-300"
+                  }`}
+                >
+                  {orderForm.is_direct_payment ? <CheckSquare size={16} /> : <Square size={16} />}
+                  <span>{orderForm.is_direct_payment ? "✓ Langsung bayar (Lunas)" : "Tidak Langsung Bayar (Belum Lunas)"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFeeModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-brand/40 bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand hover:bg-brand-100/70"
+                >
+                  <Plus size={14} /> Tambah Biaya Tambahan
+                  {(orderForm.tax_percent > 0 || orderForm.extra_fee > 0) && (
+                    <span className="rounded-full bg-brand px-1.5 py-0.2 text-[10px] text-white">
+                      Aktif
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Jika TIDAK Langsung Bayar: input uang muka */}
+              {!orderForm.is_direct_payment && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                    <span>Uang Muka / Dibayar Sekarang (Rp)</span>
+                    <span className="text-[11px] text-amber-700 font-normal">Kosongkan jika Belum Bayar sama sekali (Rp 0)</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max={finalTotal}
+                    className="input !py-1.5 text-xs bg-white"
+                    placeholder="mis. 20000 (Sisa akan dicatat sebagai Belum Lunas)"
+                    value={orderForm.amount_paid}
+                    onChange={(e) => setOrderForm({ ...orderForm, amount_paid: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {/* Metode Bayar */}
               <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700">No. WhatsApp Pemesan</label>
-                <input
-                  className="input"
-                  placeholder="08..."
-                  value={orderForm.buyer_phone}
-                  onChange={(e) => setOrderForm({ ...orderForm, buyer_phone: e.target.value })}
-                />
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Metode Bayar
+                </label>
+                <select
+                  className="input !py-2 text-xs"
+                  value={orderForm.payment_method}
+                  onChange={(e) => setOrderForm({ ...orderForm, payment_method: e.target.value })}
+                >
+                  <option value="Cash">Cash (Tunai)</option>
+                  <option value="Transfer BCA">Transfer Bank BCA</option>
+                  <option value="Transfer Mandiri">Transfer Bank Mandiri</option>
+                  <option value="QRIS">QRIS / E-Wallet</option>
+                </select>
+              </div>
+
+              {/* Diskon (Rupiah Rp / Persen %) */}
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Diskon Promo
+                  </label>
+                  <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setOrderForm({ ...orderForm, discount_type: "rupiah" })}
+                      className={`rounded px-2.5 py-0.5 ${
+                        orderForm.discount_type === "rupiah" ? "bg-slate-800 text-white" : "text-slate-600"
+                      }`}
+                    >
+                      {orderForm.discount_type === "rupiah" && "✓ "}Rupiah Rp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderForm({ ...orderForm, discount_type: "persen" })}
+                      className={`rounded px-2.5 py-0.5 ${
+                        orderForm.discount_type === "persen" ? "bg-slate-800 text-white" : "text-slate-600"
+                      }`}
+                    >
+                      {orderForm.discount_type === "persen" && "✓ "}Persen %
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    className="input !py-1.5 text-xs"
+                    placeholder={orderForm.discount_type === "persen" ? "mis. 10%" : "mis. 5000"}
+                    value={orderForm.discount_val || ""}
+                    onChange={(e) => setOrderForm({ ...orderForm, discount_val: e.target.value })}
+                  />
+                  <div className="pointer-events-none absolute right-3 top-2 text-xs font-bold text-slate-400">
+                    {orderForm.discount_type === "persen" ? "%" : "Rp"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rincian Ringkasan Harga */}
+              <div className="space-y-1 rounded-xl bg-slate-50 p-3 text-xs">
+                <div className="flex justify-between text-slate-600">
+                  <span>Subtotal ({orderForm.qty} pcs)</span>
+                  <span className="font-semibold">{rp(subtotal)}</span>
+                </div>
+                {disc > 0 && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Diskon</span>
+                    <span className="font-semibold">- {rp(disc)}</span>
+                  </div>
+                )}
+                {tax > 0 && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>PPN ({orderForm.tax_percent}%)</span>
+                    <span className="font-semibold">+ {rp(tax)}</span>
+                  </div>
+                )}
+                {fee > 0 && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>Biaya Tambahan / Ongkir</span>
+                    <span className="font-semibold">+ {rp(fee)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Sticky Action Bar */}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+                <div>
+                  <div className="text-[11px] font-bold uppercase text-slate-400">Total Harga</div>
+                  <div className="text-xl font-extrabold text-slate-900">{rp(finalTotal)}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" className="btn-ghost !px-3" onClick={() => setOrderModal(null)}>
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-extrabold text-white shadow-md transition hover:bg-emerald-700"
+                  >
+                    {saving && <Loader2 size={16} className="animate-spin" />}
+                    <span>Bayar</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          );
+        })()}
+      </Modal>
+
+      {/* Modal Tambah Biaya Tambahan (PPN & Ongkir) */}
+      <Modal open={feeModal} title="Tambah Biaya Tambahan" onClose={() => setFeeModal(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              PPN (%)
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                className="input !py-2 text-xs"
+                placeholder="mis. 11"
+                value={orderForm.tax_percent || ""}
+                onChange={(e) => setOrderForm({ ...orderForm, tax_percent: Number(e.target.value) || 0 })}
+              />
+              <span className="pointer-events-none absolute right-3 top-2.5 text-xs font-bold text-slate-400">%</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Biaya Tambahan / Ongkir (Rp)
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                className="input !py-2 text-xs"
+                placeholder="mis. 10000"
+                value={orderForm.extra_fee || ""}
+                onChange={(e) => setOrderForm({ ...orderForm, extra_fee: Number(e.target.value) || 0 })}
+              />
+              <span className="pointer-events-none absolute right-3 top-2.5 text-xs font-bold text-slate-400">Rp</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              className="btn-primary w-full"
+              onClick={() => setFeeModal(false)}
+            >
+              Simpan Biaya Tambahan
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Lunasi Pembayaran Pesanan */}
+      <Modal open={!!settleModal} title="Lunasi Pembayaran Pesanan" onClose={() => setSettleModal(null)}>
+        {settleModal && (
+          <form onSubmit={submitSettle} className="space-y-4">
+            <div className="rounded-xl bg-slate-50 p-3.5 space-y-1.5 text-xs">
+              <div className="font-bold text-slate-900">{settleModal.product_name || `Produk #${settleModal.product_id}`}</div>
+              <div className="text-slate-600">Pemesan: <b>{settleModal.buyer_name}</b></div>
+              <div className="flex justify-between border-t border-slate-200/80 pt-1.5">
+                <span>Total Harga:</span>
+                <span className="font-bold text-slate-900">{rp(settleModal.total_price)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Sudah Dibayar:</span>
+                <span className="font-bold text-emerald-700">{rp(settleModal.amount_paid || 0)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-rose-600">
+                <span>Sisa Tunggakan:</span>
+                <span>{rp(Math.max(0, Number(settleModal.total_price || 0) - Number(settleModal.amount_paid || 0)))}</span>
               </div>
             </div>
+
             <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Nama Pemesan / Siswa *</label>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                Jumlah Pembayaran Sekarang (Rp) *
+              </label>
               <input
+                type="number"
+                min="1"
                 required
                 className="input"
-                value={orderForm.buyer_name}
-                onChange={(e) => setOrderForm({ ...orderForm, buyer_name: e.target.value })}
+                value={settleForm.amount}
+                onChange={(e) => setSettleForm({ ...settleForm, amount: e.target.value })}
               />
             </div>
+
             <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Cabang Pengambilan</label>
-              <AsyncResourceSelect
-                endpoint={API_ENDPOINTS.PUBLIC_BRANCHES}
-                value={orderForm.branch_id}
-                initialLabel={orderForm.branch_name}
-                isClearable
-                onChange={(opt) => setOrderForm({ ...orderForm, branch_id: opt ? opt.value : null, branch_name: opt ? opt.label : "" })}
-              />
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                Metode Pembayaran
+              </label>
+              <select
+                className="input"
+                value={settleForm.payment_method}
+                onChange={(e) => setSettleForm({ ...settleForm, payment_method: e.target.value })}
+              >
+                <option value="Cash">Cash (Tunai)</option>
+                <option value="Transfer BCA">Transfer BCA</option>
+                <option value="Transfer Mandiri">Transfer Mandiri</option>
+                <option value="QRIS">QRIS</option>
+              </select>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Upload Bukti Transfer PT ADLS (opsional saat checkout)</label>
-              <ImageUploadField allowPdf value={orderForm.payment_proof} onChange={(url) => setOrderForm({ ...orderForm, payment_proof: url })} />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Catatan (Ukuran Kaos / Varian)</label>
-              <input className="input" placeholder="mis. Ukuran L" value={orderForm.notes} onChange={(e) => setOrderForm({ ...orderForm, notes: e.target.value })} />
-            </div>
+
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className="btn-ghost" onClick={() => setOrderModal(null)}>Batal</button>
-              <button className="btn-primary" disabled={saving}>
-                {saving && <Loader2 size={15} className="animate-spin" />}
-                Konfirmasi Order
+              <button type="button" className="btn-ghost" onClick={() => setSettleModal(null)}>
+                Batal
+              </button>
+              <button className="btn-primary" disabled={settling}>
+                {settling && <Loader2 size={15} className="animate-spin" />}
+                Catat Pelunasan
               </button>
             </div>
           </form>

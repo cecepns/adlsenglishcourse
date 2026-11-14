@@ -32,7 +32,7 @@ const RESOURCES = {
   expenses: { fields: ["title", "category", "amount", "expense_date", "branch_id", "notes"], search: ["t.title", "t.category", "b.name", "t.notes"], select: "t.*, b.name AS branch_name", join: "LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, r: STAFF, c: STAFF, u: STAFF },
   learning_reports: { fields: ["student_id", "class_id", "tutor_id", "branch_id", "report_month", "report_date", "material", "homework", "formative_score", "summative_score", "speaking_score", "notes"], search: ["s.name", "c.name", "u.name", "t.material", "t.homework", "t.report_month"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, u.name AS tutor_name, b.name AS branch_name", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN users u ON u.id=t.tutor_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, tutorAutoId: true, tutorReportScoped: true, studentLinkScoped: true, r: ALL, c: [...STAFF, "tutor"], u: [...STAFF, "tutor"] },
   audio_materials: { fields: ["title", "level", "module_name", "audio_url", "description", "branch_id"], search: ["t.title", "t.level", "t.module_name", "t.description"], select: "t.*, b.name AS branch_name, u.name AS author_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN users u ON u.id=t.created_by", setCreatedBy: true, r: ALL, c: [...STAFF, "tutor"], u: [...STAFF, "tutor"] },
-  lesson_materials: { fields: ["title", "category", "level", "file_url", "file_type", "description", "branch_id"], search: ["t.title", "t.category", "t.level", "t.description", "b.name"], select: "t.*, b.name AS branch_name, u.name AS author_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN users u ON u.id=t.created_by", setCreatedBy: true, r: [...STAFF, "tutor"], c: ["owner"], u: ["owner"] },
+  lesson_materials: { fields: ["title", "category", "level", "file_url", "file_type", "description", "branch_id"], search: ["t.title", "t.category", "t.level", "t.description", "b.name"], select: "t.*, b.name AS branch_name, u.name AS author_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN users u ON u.id=t.created_by", setCreatedBy: true, r: [...STAFF, "tutor"], c: HQ, u: HQ },
   video_projects: { fields: ["student_id", "class_id", "branch_id", "month", "title", "video_url", "description", "score", "feedback", "status"], search: ["t.title", "t.month", "s.name", "c.name", "b.name"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, b.name AS branch_name", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, studentLinkOrUserScoped: true, tutorVideoScoped: true, setUserIdOnCreate: true, reviewByStaffTutor: true, r: ALL, c: ALL, u: [...STAFF, "tutor"] },
   referrals: { fields: ["referrer_name", "referred_student_name", "referred_phone", "branch_id", "commission_amount", "status", "applied_bill_id", "notes"], search: ["t.referrer_name", "t.referred_student_name", "b.name"], select: "t.*, b.name AS branch_name, bl.title AS applied_bill_title", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN bills bl ON bl.id=t.applied_bill_id", scoped: true, referrerScoped: true, setReferrerUserId: true, approve: STAFF, r: ALL, c: ALL, u: STAFF },
   leaves: { fields: ["type", "requester_name", "reason", "start_date", "end_date", "status", "branch_id", "approval_notes"], search: ["t.requester_name", "t.reason", "b.name", "t.approval_notes"], select: "t.*, b.name AS branch_name", join: "LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, approve: HQ, ownUserScoped: true, setUserIdOnCreate: true, r: ALL, c: ALL, u: HQ },
@@ -622,6 +622,25 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
     claimedFreeSpp = Number(clm.n || 0);
     videoCount = Number(vid.n || 0);
   }
+
+  // Foto Dokumentasi Kegiatan Kelas Terkini (Laporan Nyata untuk Orang Tua)
+  let activityPhotos = [];
+  const classIds = students.map((s) => s.class_id).filter(Boolean);
+  if (classIds.length) {
+    const cph = classIds.map(() => "?").join(",");
+    const [photos] = await pool.query(
+      `SELECT cap.*, COALESCE(c.class_type, c.name) AS class_name, b.name AS branch_name, u.name AS tutor_name
+       FROM class_activity_photos cap
+       LEFT JOIN classes c ON c.id=cap.class_id
+       LEFT JOIN branches b ON b.id=cap.branch_id
+       LEFT JOIN users u ON u.id=cap.tutor_id
+       WHERE cap.class_id IN (${cph})
+       ORDER BY cap.session_date DESC, cap.id DESC LIMIT 12`,
+      classIds
+    );
+    activityPhotos = photos;
+  }
+
   const [announcements] = await pool.query("SELECT t.*, b.name AS branch_name FROM announcements t LEFT JOIN branches b ON b.id=t.branch_id ORDER BY t.id DESC LIMIT 4");
   res.json({
     success: true,
@@ -633,6 +652,7 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
       recentReports,
       achievements: { uas100Count, freeSppEarned: Math.floor(uas100Count / 20), claimedFreeSpp, progressToNext: uas100Count % 20 },
       videoCount,
+      activityPhotos,
       announcements,
       bankInfo: BANK_INFO,
     },
@@ -901,7 +921,8 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
       ta.id AS today_att_id,
       ta.check_in AS today_check_in,
       ta.late_minutes AS today_late_minutes,
-      ta.status AS today_status
+      ta.status AS today_status,
+      0 AS is_backup
      FROM classes c
      LEFT JOIN branches b ON b.id=c.branch_id
      LEFT JOIN tutor_attendance ta ON ta.tutor_id=? AND ta.class_id=c.id AND ta.date=?
@@ -909,6 +930,32 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
      ORDER BY b.name ASC, c.schedule ASC, c.id ASC`,
     [req.user.id, now.date, req.user.id]
   );
+
+  // Kelas Pengganti (Backup Tutor) hari ini
+  const [backupClasses] = await pool.query(
+    `SELECT c.*,
+      COALESCE(c.class_type, c.name) AS class_type,
+      b.name AS branch_name,
+      b.city AS branch_city,
+      (SELECT COUNT(*) FROM students s WHERE s.class_id=c.id AND s.status='active') AS student_count,
+      ta.id AS today_att_id,
+      ta.check_in AS today_check_in,
+      ta.late_minutes AS today_late_minutes,
+      ta.status AS today_status,
+      1 AS is_backup,
+      orig.name AS original_tutor_name,
+      ts.reason AS backup_reason
+     FROM tutor_substitutes ts
+     JOIN classes c ON c.id=ts.class_id
+     LEFT JOIN branches b ON b.id=c.branch_id
+     LEFT JOIN users orig ON orig.id=ts.original_tutor_id
+     LEFT JOIN tutor_attendance ta ON ta.tutor_id=? AND ta.class_id=c.id AND ta.date=?
+     WHERE ts.backup_tutor_id=? AND ts.substitute_date=? AND ts.status != 'cancelled'
+     ORDER BY b.name ASC, c.schedule ASC`,
+    [req.user.id, now.date, req.user.id, now.date]
+  );
+
+  const allClasses = [...classes, ...backupClasses];
 
   const [assignedBranches] = await pool.query(
     `SELECT DISTINCT b.id AS branch_id, b.name AS branch_name
@@ -921,7 +968,7 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
   assignedBranches.forEach((b) => {
     if (b.branch_id) branchMap.set(b.branch_id, { branch_id: b.branch_id, branch_name: b.branch_name, class_count: 0 });
   });
-  classes.forEach((c) => {
+  allClasses.forEach((c) => {
     const key = c.branch_id || 0;
     if (!branchMap.has(key)) {
       branchMap.set(key, { branch_id: c.branch_id, branch_name: c.branch_name || "Pusat / Umum", class_count: 0 });
@@ -935,7 +982,7 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
       server_date: now.date,
       server_time: now.time,
       branches: Array.from(branchMap.values()),
-      classes,
+      classes: allClasses,
     },
   });
 }));
@@ -986,7 +1033,20 @@ app.get("/api/tutor-portal/class/:id", auth, can(["tutor"]), wrap(async (req, re
     [classId]
   );
   if (!cls) return fail(res, 404, "Kelas tidak ditemukan");
-  if (Number(cls.tutor_id) !== req.user.id) return fail(res, 403, "Anda hanya dapat mengakses kelas Anda sendiri");
+  const isOwner = Number(cls.tutor_id) === req.user.id;
+  let isBackup = false;
+  let backupInfo = null;
+  if (!isOwner) {
+    const [[sub]] = await pool.query(
+      "SELECT ts.*, orig.name AS original_tutor_name FROM tutor_substitutes ts LEFT JOIN users orig ON orig.id=ts.original_tutor_id WHERE ts.class_id=? AND ts.backup_tutor_id=? AND ts.substitute_date=? AND ts.status!='cancelled' LIMIT 1",
+      [classId, req.user.id, date]
+    );
+    if (sub) {
+      isBackup = true;
+      backupInfo = sub;
+    }
+  }
+  if (!isOwner && !isBackup) return fail(res, 403, "Anda hanya dapat mengakses kelas Anda sendiri atau kelas pengganti yang ditugaskan");
 
   const [[todayAtt]] = await pool.query(
     "SELECT * FROM tutor_attendance WHERE tutor_id=? AND class_id=? AND date=? ORDER BY id DESC LIMIT 1",
@@ -1044,6 +1104,8 @@ app.get("/api/tutor-portal/class/:id", auth, can(["tutor"]), wrap(async (req, re
       class: cls,
       today_attendance: todayAtt || null,
       students: hydratedStudents,
+      is_backup: isBackup,
+      backup_info: backupInfo,
     },
   });
 }));
@@ -1168,6 +1230,132 @@ app.post("/api/learning_reports/init-class", auth, can(STAFF), wrap(async (req, 
       ? `${created} kolom laporan/nilai siswa disiapkan & otomatis tampil di Portal Tutor!`
       : `Seluruh (${students.length}) siswa di kelas ini sudah memiliki kolom laporan untuk periode ${reportMonth}.`,
   });
+}));
+
+// Class Activity Photos (Dokumentasi Foto Belajar ke Orang Tua)
+app.get("/api/class-activity-photos", auth, can(ALL), wrap(async (req, res) => {
+  const where = [], args = [];
+  if (req.query.class_id) { where.push("cap.class_id=?"); args.push(Number(req.query.class_id)); }
+  if (req.query.branch_id) { where.push("cap.branch_id=?"); args.push(Number(req.query.branch_id)); }
+  if (req.query.session_date) { where.push("cap.session_date=?"); args.push(req.query.session_date); }
+  if (req.user.role === "tutor") {
+    where.push("(cap.tutor_id=? OR EXISTS (SELECT 1 FROM tutor_substitutes ts WHERE ts.backup_tutor_id=? AND ts.class_id=cap.class_id))");
+    args.push(req.user.id, req.user.id);
+  } else if (req.user.role === "admin_cabang") {
+    where.push("cap.branch_id=?");
+    args.push(req.user.branch_id);
+  } else if (["siswa", "ortu"].includes(req.user.role)) {
+    where.push("EXISTS (SELECT 1 FROM students s WHERE s.class_id=cap.class_id AND (s.user_id=? OR s.parent_user_id=?))");
+    args.push(req.user.id, req.user.id);
+  }
+  const w = where.length ? "WHERE " + where.join(" AND ") : "";
+  const [rows] = await pool.query(
+    `SELECT cap.*, COALESCE(c.class_type, c.name) AS class_name, b.name AS branch_name, u.name AS tutor_name
+     FROM class_activity_photos cap
+     LEFT JOIN classes c ON c.id=cap.class_id
+     LEFT JOIN branches b ON b.id=cap.branch_id
+     LEFT JOIN users u ON u.id=cap.tutor_id
+     ${w}
+     ORDER BY cap.session_date DESC, cap.id DESC LIMIT 100`,
+    args
+  );
+  res.json({ success: true, data: rows });
+}));
+
+app.post("/api/class-activity-photos", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const classId = Number(req.body.class_id);
+  const photoUrl = clean(req.body.photo_url);
+  if (!classId) return fail(res, 400, "Kelas wajib dipilih");
+  if (!photoUrl) return fail(res, 400, "Foto dokumentasi wajib diunggah");
+
+  const [[cls]] = await pool.query("SELECT * FROM classes WHERE id=?", [classId]);
+  if (!cls) return fail(res, 404, "Kelas tidak ditemukan");
+
+  const sessionDate = clean(req.body.session_date) || getServerNowParts().date;
+  const sessionTime = clean(req.body.session_time) || (cls.time_start && cls.time_end ? `${cls.time_start}-${cls.time_end}` : null);
+  const attendanceSummary = clean(req.body.attendance_summary);
+  const material = clean(req.body.material);
+  const homework = clean(req.body.homework);
+  const notes = clean(req.body.notes);
+  const branchId = cls.branch_id || req.user.branch_id || null;
+  const tutorId = req.user.id;
+
+  const [r] = await pool.query(
+    "INSERT INTO class_activity_photos(class_id,branch_id,tutor_id,session_date,session_time,photo_url,attendance_summary,material,homework,notes) VALUES(?,?,?,?,?,?,?,?,?,?)",
+    [classId, branchId, tutorId, sessionDate, sessionTime, photoUrl, attendanceSummary, material, homework, notes]
+  );
+  res.status(201).json({
+    success: true,
+    data: { id: r.insertId },
+    message: "Foto dokumentasi kegiatan kelas berhasil disimpan & terhubung ke portal orang tua!"
+  });
+}));
+
+// Backup Tutor / Tutor Substitutes
+app.get("/api/tutor-substitutes", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const where = [], args = [];
+  if (req.user.role === "tutor") {
+    where.push("(ts.backup_tutor_id=? OR ts.original_tutor_id=?)");
+    args.push(req.user.id, req.user.id);
+  } else if (req.user.role === "admin_cabang") {
+    where.push("ts.branch_id=?");
+    args.push(req.user.branch_id);
+  }
+  if (req.query.substitute_date) {
+    where.push("ts.substitute_date=?");
+    args.push(req.query.substitute_date);
+  }
+  const w = where.length ? "WHERE " + where.join(" AND ") : "";
+  const [rows] = await pool.query(
+    `SELECT ts.*, COALESCE(c.class_type, c.name) AS class_name, c.schedule, b.name AS branch_name,
+            orig.name AS original_tutor_name, bak.name AS backup_tutor_name
+     FROM tutor_substitutes ts
+     LEFT JOIN classes c ON c.id=ts.class_id
+     LEFT JOIN branches b ON b.id=ts.branch_id
+     LEFT JOIN users orig ON orig.id=ts.original_tutor_id
+     LEFT JOIN users bak ON bak.id=ts.backup_tutor_id
+     ${w}
+     ORDER BY ts.substitute_date DESC, ts.id DESC`,
+    args
+  );
+  res.json({ success: true, data: rows });
+}));
+
+app.post("/api/tutor-substitutes", auth, can(STAFF), wrap(async (req, res) => {
+  const classId = Number(req.body.class_id);
+  const backupTutorId = Number(req.body.backup_tutor_id);
+  const substituteDate = clean(req.body.substitute_date);
+  const reason = clean(req.body.reason);
+  const notes = clean(req.body.notes);
+
+  if (!classId || !backupTutorId || !substituteDate) {
+    return fail(res, 400, "Kelas, Tutor Pengganti, dan Tanggal Izin wajib diisi");
+  }
+
+  const [[cls]] = await pool.query("SELECT * FROM classes WHERE id=?", [classId]);
+  if (!cls) return fail(res, 404, "Kelas tidak ditemukan");
+  const originalTutorId = cls.tutor_id;
+
+  const [r] = await pool.query(
+    "INSERT INTO tutor_substitutes(class_id,branch_id,original_tutor_id,backup_tutor_id,substitute_date,reason,status,notes,created_by) VALUES(?,?,?,?,?,?,'scheduled',?,?)",
+    [classId, cls.branch_id, originalTutorId, backupTutorId, substituteDate, reason, notes, req.user.id]
+  );
+  res.status(201).json({
+    success: true,
+    data: { id: r.insertId },
+    message: "Tutor pengganti (backup) berhasil ditugaskan untuk kelas tersebut!"
+  });
+}));
+
+app.put("/api/tutor-substitutes/:id", auth, can(STAFF), wrap(async (req, res) => {
+  const subId = Number(req.params.id);
+  const [[sub]] = await pool.query("SELECT * FROM tutor_substitutes WHERE id=?", [subId]);
+  if (!sub) return fail(res, 404, "Data tutor pengganti tidak ditemukan");
+  const status = clean(req.body.status) || sub.status;
+  const notes = req.body.notes !== undefined ? clean(req.body.notes) : sub.notes;
+
+  await pool.query("UPDATE tutor_substitutes SET status=?, notes=? WHERE id=?", [status, notes, subId]);
+  res.json({ success: true, message: "Status penugasan tutor pengganti diperbarui" });
 }));
 
 // Achievements 20x UAS 100 = Free 1x SPP
@@ -1345,7 +1533,14 @@ app.get("/api/product_orders", auth, wrap(async (req, res) => {
   const q = req.query, page = Math.max(+q.page || 1, 1), limit = [10, 25, 50, 100].includes(+q.limit) ? +q.limit : 10;
   const where = [], args = [];
   if (q.search) { where.push("(o.buyer_name LIKE ? OR p.name LIKE ? OR b.name LIKE ?)"); args.push(`%${q.search}%`, `%${q.search}%`, `%${q.search}%`); }
-  if (q.status) { where.push("o.status=?"); args.push(q.status); }
+  if (q.status && q.status !== "semua") {
+    if (q.status === "completed" || q.status === "selesai") {
+      where.push("o.status IN ('completed', 'paid')");
+    } else {
+      where.push("o.status=?");
+      args.push(q.status);
+    }
+  }
   if (!STAFF.includes(req.user.role)) {
     where.push("o.user_id=?");
     args.push(req.user.id);
@@ -1376,13 +1571,67 @@ app.post("/api/product_orders", auth, wrap(async (req, res) => {
   if (Number(prod.stock || 0) < qty) return fail(res, 400, `Stok tidak mencukupi (tersisa ${prod.stock || 0})`);
 
   const unitPrice = Number(prod.price || 0);
-  const totalPrice = unitPrice * qty;
+  const discountAmount = Number(req.body.discount_amount || 0);
+  const taxAmount = Number(req.body.tax_amount || 0);
+  const extraFee = Number(req.body.extra_fee || 0);
+  const subtotal = unitPrice * qty;
+  const totalPrice = Math.max(0, subtotal - discountAmount + taxAmount + extraFee);
+
+  const isDirectPayment = req.body.is_direct_payment !== undefined ? (Boolean(req.body.is_direct_payment) ? 1 : 0) : 1;
+  const paymentMethod = clean(req.body.payment_method) || "Cash";
+  const cashierName = clean(req.body.cashier_name) || (STAFF.includes(req.user.role) ? req.user.name : null);
+  const transactionDate = req.body.transaction_date ? new Date(req.body.transaction_date) : new Date();
+
+  let amountPaid = Number(req.body.amount_paid ?? (isDirectPayment ? totalPrice : 0));
+  let status = clean(req.body.status) || "pending";
+
+  if (STAFF.includes(req.user.role)) {
+    if (isDirectPayment) {
+      status = "completed";
+      amountPaid = totalPrice;
+    } else {
+      if (amountPaid >= totalPrice && totalPrice > 0) {
+        status = "completed";
+      } else if (amountPaid > 0) {
+        status = "belum_lunas";
+      } else {
+        status = "belum_bayar";
+      }
+    }
+  }
+
   const [r] = await pool.query(
-    "INSERT INTO product_orders(user_id,buyer_name,buyer_phone,branch_id,product_id,qty,unit_price,total_price,payment_proof,status,notes) VALUES(?,?,?,?,?,?,?,?,?, 'pending', ?)",
-    [req.user.id, buyerName, buyerPhone, branchId, productId, qty, unitPrice, totalPrice, paymentProof, notes]
+    "INSERT INTO product_orders(user_id,buyer_name,buyer_phone,branch_id,product_id,qty,unit_price,total_price,payment_proof,status,notes,is_direct_payment,amount_paid,payment_method,cashier_name,tax_amount,extra_fee,discount_amount,transaction_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    [req.user.id, buyerName, buyerPhone, branchId, productId, qty, unitPrice, totalPrice, paymentProof, status, notes, isDirectPayment, amountPaid, paymentMethod, cashierName, taxAmount, extraFee, discountAmount, transactionDate]
   );
   await pool.query("UPDATE products SET stock = GREATEST(0, COALESCE(stock,0) - ?) WHERE id=?", [qty, productId]);
-  res.status(201).json({ success: true, data: { id: r.insertId, total_price: totalPrice }, message: "Pesanan produk berhasil dibuat!" });
+  res.status(201).json({
+    success: true,
+    data: { id: r.insertId, total_price: totalPrice, amount_paid: amountPaid, status },
+    message: status === "completed" ? "Pesanan & pembayaran Kas Mini berhasil dicatat!" : "Pesanan berhasil dibuat (menunggu pelunasan)!"
+  });
+}));
+
+app.post("/api/product_orders/:id/pay-settle", auth, can(STAFF), wrap(async (req, res) => {
+  const [[ord]] = await pool.query("SELECT * FROM product_orders WHERE id=?", [req.params.id]);
+  if (!ord) return fail(res, 404, "Pesanan tidak ditemukan");
+  if (req.user.role === "admin_cabang" && ord.branch_id !== req.user.branch_id) return fail(res, 403, "Akses ditolak");
+
+  const additionalPay = Number(req.body.amount || 0);
+  const method = clean(req.body.payment_method) || ord.payment_method || "Cash";
+  const newAmountPaid = Number(ord.amount_paid || 0) + additionalPay;
+  const totalPrice = Number(ord.total_price || 0);
+  const newStatus = newAmountPaid >= totalPrice ? "completed" : "belum_lunas";
+
+  await pool.query(
+    "UPDATE product_orders SET amount_paid=?, status=?, payment_method=?, is_direct_payment=1 WHERE id=?",
+    [newAmountPaid, newStatus, method, req.params.id]
+  );
+  res.json({
+    success: true,
+    data: { id: ord.id, amount_paid: newAmountPaid, status: newStatus },
+    message: newStatus === "completed" ? "Pembayaran berhasil dilunasi (Selesai)" : `Pembayaran cicilan Rp ${additionalPay.toLocaleString("id-ID")} dicatat (Belum Lunas)`
+  });
 }));
 
 app.put("/api/product_orders/:id", auth, can(STAFF), wrap(async (req, res) => {
@@ -1908,21 +2157,74 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
     });
 
     results.push({
+      id: tut.id,
       tutor_id: tut.id,
+      name: tut.name,
       tutor_name: tut.name,
       email: tut.email,
       phone: tut.phone,
       branch_name: tut.branch_name || "-",
+      active_classes: tutClasses.length,
       total_classes: tutClasses.length,
+      busy_slots_count: Object.keys(busyMap).length,
       busy_count: Object.keys(busyMap).length,
+      empty_slots_count: emptySlots.length,
       empty_count: emptySlots.length,
+      free_summary: Array.from(availableDaysSet).map(d => `${d} (${emptySlots.filter(s => s.day === d).length} slot)`),
       available_days: Array.from(availableDaysSet),
       empty_slots: emptySlots,
       busy_slots: busyList,
     });
   }
 
-  res.json({ success: true, data: results });
+  const [branchesList] = await pool.query("SELECT id, name, city FROM branches ORDER BY id ASC");
+  const timetableMatrix = {};
+  DAYS.forEach((d) => {
+    timetableMatrix[d] = {};
+    STANDARD_SLOTS.forEach((s) => {
+      timetableMatrix[d][s.session] = {};
+      branchesList.forEach((b) => {
+        timetableMatrix[d][s.session][b.id] = [];
+      });
+    });
+  });
+
+  results.forEach((tut) => {
+    (tut.busy_slots || []).forEach((bs) => {
+      const matchedBranch = branchesList.find((b) => b.name === bs.branch_name);
+      const bId = matchedBranch ? matchedBranch.id : branchesList[0]?.id;
+      if (bId && timetableMatrix[bs.day]?.[bs.session]) {
+        if (!timetableMatrix[bs.day][bs.session][bId]) {
+          timetableMatrix[bs.day][bs.session][bId] = [];
+        }
+        timetableMatrix[bs.day][bs.session][bId].push({
+          tutor_id: tut.tutor_id,
+          tutor_name: tut.tutor_name,
+          class_id: bs.class_id,
+          class_name: bs.class_name,
+          level: bs.level,
+          is_busy: true,
+        });
+      }
+    });
+  });
+
+  const timetablePayload = {
+    days: DAYS,
+    slots: STANDARD_SLOTS,
+    branches: branchesList,
+    matrix: timetableMatrix,
+  };
+
+  res.json({
+    success: true,
+    data: {
+      tutors: results,
+      timetable: timetablePayload,
+    },
+    tutors: results,
+    timetable: timetablePayload,
+  });
 }));
 
 // #10 Rekap Database Siswa Format Lengkap (Gambar 2 & 3)
@@ -2328,6 +2630,8 @@ async function ensureSchema() {
   await pool.query("CREATE TABLE IF NOT EXISTS product_orders(id INT AUTO_INCREMENT PRIMARY KEY,user_id INT NOT NULL,buyer_name VARCHAR(100) NOT NULL,buyer_phone VARCHAR(30) NULL,branch_id INT NULL,product_id INT NOT NULL,qty INT NOT NULL DEFAULT 1,unit_price DECIMAL(12,2) NOT NULL DEFAULT 0,total_price DECIMAL(12,2) NOT NULL DEFAULT 0,payment_proof VARCHAR(255) NULL,status VARCHAR(20) DEFAULT 'pending',notes VARCHAR(255) NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS payroll_rules(id INT AUTO_INCREMENT PRIMARY KEY,base_rate DECIMAL(12,2) NOT NULL DEFAULT 100000,transport_allowance DECIMAL(12,2) NOT NULL DEFAULT 15000,late_penalty DECIMAL(12,2) NOT NULL DEFAULT 10000,ontime_bonus DECIMAL(12,2) NOT NULL DEFAULT 150000,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS payroll_payments(id INT AUTO_INCREMENT PRIMARY KEY,tutor_id INT NOT NULL,month VARCHAR(7) NOT NULL,branch_id INT NULL,sessions_count INT DEFAULT 0,ontime_count INT DEFAULT 0,late_count INT DEFAULT 0,base_pay DECIMAL(12,2) DEFAULT 0,transport_pay DECIMAL(12,2) DEFAULT 0,penalty_amount DECIMAL(12,2) DEFAULT 0,bonus_amount DECIMAL(12,2) DEFAULT 0,total_amount DECIMAL(12,2) DEFAULT 0,status VARCHAR(20) DEFAULT 'paid',paid_at DATE NULL,notes VARCHAR(255) NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+  await pool.query("CREATE TABLE IF NOT EXISTS class_activity_photos (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL, branch_id INT NULL, tutor_id INT NOT NULL, session_date DATE NOT NULL, session_time VARCHAR(30) NULL, photo_url VARCHAR(255) NOT NULL, attendance_summary VARCHAR(150) NULL, material VARCHAR(255) NULL, homework VARCHAR(255) NULL, notes TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+  await pool.query("CREATE TABLE IF NOT EXISTS tutor_substitutes (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL, branch_id INT NULL, original_tutor_id INT NOT NULL, backup_tutor_id INT NOT NULL, substitute_date DATE NOT NULL, reason VARCHAR(255) NULL, status VARCHAR(20) DEFAULT 'scheduled', notes TEXT NULL, created_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
 
   await ensureCol("users", "phone", "VARCHAR(30) NULL");
   await ensureCol("users", "hourly_rate", "DECIMAL(12,2) NULL");
@@ -2387,6 +2691,15 @@ async function ensureSchema() {
   await ensureCol("announcements", "info_type", "VARCHAR(30) DEFAULT 'Pengumuman'");
   await ensureCol("announcements", "letter_no", "VARCHAR(80) NULL");
   await ensureCol("announcements", "event_date", "DATE NULL");
+
+  await ensureCol("product_orders", "is_direct_payment", "TINYINT(1) DEFAULT 1");
+  await ensureCol("product_orders", "amount_paid", "DECIMAL(12,2) DEFAULT 0");
+  await ensureCol("product_orders", "payment_method", "VARCHAR(50) DEFAULT 'Cash'");
+  await ensureCol("product_orders", "cashier_name", "VARCHAR(100) NULL");
+  await ensureCol("product_orders", "tax_amount", "DECIMAL(12,2) DEFAULT 0");
+  await ensureCol("product_orders", "extra_fee", "DECIMAL(12,2) DEFAULT 0");
+  await ensureCol("product_orders", "discount_amount", "DECIMAL(12,2) DEFAULT 0");
+  await ensureCol("product_orders", "transaction_date", "DATETIME NULL");
 
   // Izinkan learning_reports.material NULL agar Admin Cabang dapat menyiapkan slot kolom nilai kosong untuk tutor (#8)
   await pool.query("ALTER TABLE learning_reports MODIFY COLUMN material VARCHAR(255) NULL").catch(() => {});

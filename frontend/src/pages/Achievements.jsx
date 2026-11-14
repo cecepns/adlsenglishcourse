@@ -19,6 +19,8 @@ export default function Achievements() {
   const [branchId, setBranchId] = useState("");
   const [branches, setBranches] = useState([]);
   const [claimingId, setClaimingId] = useState(null);
+  const [classFilter, setClassFilter] = useState("");
+  const [sortBy, setSortBy] = useState("uas"); // "uas" | "formatif" | "name"
   const debounced = useDebounce(search, 300);
 
   const isHQ = ["owner", "admin_pusat"].includes(user.role);
@@ -50,6 +52,19 @@ export default function Achievements() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced, branchId]);
+
+  const classOptions = Array.from(new Set(rows.map((r) => r.class_name).filter(Boolean))).sort();
+
+  const filteredRows = rows
+    .filter((r) => {
+      if (classFilter && r.class_name !== classFilter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "name") return (a.student_name || "").localeCompare(b.student_name || "");
+      if (sortBy === "formatif") return (b.formatif_100_count || 0) - (a.formatif_100_count || 0);
+      return (b.uas_100_count || 0) - (a.uas_100_count || 0);
+    });
 
   const claimFreeSpp = async (row) => {
     toast(
@@ -101,7 +116,7 @@ export default function Achievements() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isHQ && branches.length > 0 && (
-            <div className="w-48">
+            <div className="w-44">
               <Select
                 options={branchOptions}
                 value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
@@ -113,7 +128,33 @@ export default function Achievements() {
               />
             </div>
           )}
-          <div className="relative w-60">
+
+          {classOptions.length > 0 && (
+            <select
+              className="input !w-auto text-xs font-semibold"
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+            >
+              <option value="">Semua Kelas ({rows.length})</option>
+              {classOptions.map((cls) => (
+                <option key={cls} value={cls}>
+                  Kelas: {cls}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <select
+            className="input !w-auto text-xs font-semibold"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="uas">Urut: UAS 100 Terbanyak</option>
+            <option value="formatif">Urut: Formatif 100</option>
+            <option value="name">Urut: Nama Siswa (A-Z)</option>
+          </select>
+
+          <div className="relative w-52">
             <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
             <input
               className="input !pl-10"
@@ -148,10 +189,10 @@ export default function Achievements() {
       <div className="card overflow-hidden">
         {loading ? (
           <div className="space-y-2.5 p-5">{[...Array(4)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
-        ) : rows.length === 0 ? (
+        ) : filteredRows.length === 0 ? (
           <div className="flex flex-col items-center gap-2 p-12 text-slate-400">
             <Award size={40} />
-            <span>Belum ada data siswa / nilai laporan belajar</span>
+            <span>Tidak ada data siswa yang cocok dengan filter</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -168,7 +209,7 @@ export default function Achievements() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((r) => {
+                {filteredRows.map((r) => {
                   const pct = Math.min(100, Math.round(((r.available_free_spp > 0 ? 20 : r.progress_to_next) / 20) * 100));
                   return (
                     <tr key={r.student_id} className="hover:bg-slate-50/80">

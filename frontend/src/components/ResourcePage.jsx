@@ -443,7 +443,7 @@ export default function ResourcePage({ resource: cfg }) {
             <input className="input" placeholder="Kosongkan jika ingin diisi langsung oleh Tutor" value={initForm.material} onChange={(e) => setInitForm({ ...initForm, material: e.target.value })} />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-700">PR Anak Default (opsional)</label>
+            <label className="mb-1 block text-sm font-semibold text-slate-700">PR (Pekerjaan Rumah) Default (opsional)</label>
             <input className="input" placeholder="mis. Latihan Workbook Hal. 12" value={initForm.homework} onChange={(e) => setInitForm({ ...initForm, homework: e.target.value })} />
           </div>
           <div className="flex justify-end gap-2 pt-2">

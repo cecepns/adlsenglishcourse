@@ -15,6 +15,7 @@ export default function Meetings() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("online");
+  const [classTypeFilter, setClassTypeFilter] = useState("Semua Tipe");
   const [search, setSearch] = useState("");
   const debounced = useDebounce(search, 300);
 
@@ -67,6 +68,12 @@ export default function Meetings() {
     }
   };
 
+  const displayRows = rows.filter((r) => {
+    if (classTypeFilter === "Semua Tipe") return true;
+    const typeStr = (r.class_type || r.name || "").toLowerCase();
+    return typeStr.includes(classTypeFilter.toLowerCase());
+  });
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -107,21 +114,40 @@ export default function Meetings() {
         </div>
       </div>
 
+      {/* Pengelompokan Berdasarkan Type Kelas (PDF Hal 1 Item 5) */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+        <span className="text-xs font-bold text-slate-500 px-2">Type Kelas:</span>
+        {["Semua Tipe", "Regular", "Private", "Intensive"].map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setClassTypeFilter(t)}
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+              classTypeFilter === t
+                ? "bg-brand text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="card h-44 animate-pulse bg-slate-100" />
           ))}
         </div>
-      ) : rows.length === 0 ? (
+      ) : displayRows.length === 0 ? (
         <div className="card flex flex-col items-center justify-center p-12 text-center text-slate-400">
           <Video size={42} className="mb-2" />
-          <p className="text-sm font-semibold">Belum ada kelas online yang terdaftar</p>
-          <p className="mt-1 text-xs">Admin atau Tutor dapat mengubah tipe kelas menjadi Online dan menambahkan tautan meeting.</p>
+          <p className="text-sm font-semibold">Tidak ada kelas yang cocok dengan filter ({classTypeFilter})</p>
+          <p className="mt-1 text-xs">Pilih "Semua Tipe" atau ubah kata kunci pencarian.</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {rows.map((c) => {
+          {displayRows.map((c) => {
             const hasUrl = Boolean(c.meeting_url && /^https?:\/\//i.test(c.meeting_url));
             return (
               <div key={c.id} className="card flex flex-col justify-between p-5">
