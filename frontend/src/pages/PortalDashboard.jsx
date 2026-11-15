@@ -19,6 +19,7 @@ import {
   Eye,
   Film,
   GraduationCap,
+  Headphones,
   Image as ImageIcon,
   Info,
   Loader2,

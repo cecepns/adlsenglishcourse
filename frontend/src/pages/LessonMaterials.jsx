@@ -27,7 +27,8 @@ const CATEGORIES = ["Lesson Plan", "Modul Belajar (PDF)", "Slide Presentasi (PPT
 
 export default function LessonMaterials() {
   const { user } = useAuth();
-  const canUpload = ["owner", "admin_pusat"].includes(user?.role);
+  const isOwner = ["owner", "admin_pusat"].includes(user?.role);
+  const canUpload = isOwner;
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDoc, setSelectedDoc] = useState(null);

@@ -388,6 +388,57 @@ export default function CatalogShop() {
     toast.success(`Nomor rekening disalin: ${text}`);
   };
 
+  const addCategory = async (e) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    setSavingCat(true);
+    try {
+      await request(
+        () => api.post(API_ENDPOINTS.PRODUCT_CATEGORIES.LIST, { name: newCatName.trim() }),
+        { success: "Kategori baru berhasil ditambahkan." }
+      );
+      setNewCatName("");
+      loadCategories();
+    } catch {
+      /* toast handled */
+    } finally {
+      setSavingCat(false);
+    }
+  };
+
+  const deleteCategory = (cat) => {
+    toast(
+      (t) => (
+        <div className="text-sm">
+          <p className="mb-2 font-medium">Hapus kategori "{cat.name}"?</p>
+          <div className="flex gap-2">
+            <button
+              className="btn-primary !bg-none !bg-red-600 !px-3 !py-1"
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  await request(
+                    () => api.delete(API_ENDPOINTS.PRODUCT_CATEGORIES.DETAIL(cat.id)),
+                    { success: "Kategori berhasil dihapus." }
+                  );
+                  loadCategories();
+                } catch {
+                  /* toast handled */
+                }
+              }}
+            >
+              Hapus
+            </button>
+            <button className="btn-ghost !px-3 !py-1" onClick={() => toast.dismiss(t.id)}>
+              Batal
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: Infinity }
+    );
+  };
+
   const categoryTabs = ["Semua", ...categoriesList.map((c) => c.name)];
   const selectCategories = categoriesList.length
     ? categoriesList.map((c) => c.name)
