@@ -1,9 +1,10 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { CheckCircle2, Gift, Loader2, Plus, Search, Tag, Users } from "lucide-react";
+import { CheckCircle2, Gift, Loader2, Plus, Search, Tag, Users, FileSpreadsheet } from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting } from "@/utils/greetings";
+import { exportToExcel } from "@/utils/exportExcel";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
@@ -28,6 +29,9 @@ export default function Referrals() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [exporting, setExporting] = useState(false);
   const debounced = useDebounce(search, 300);
 
   const [createModal, setCreateModal] = useState(false);
@@ -49,7 +53,41 @@ export default function Referrals() {
     page,
     limit,
     search: debounced,
+    start_date: startDate || undefined,
+    end_date: endDate || undefined,
   });
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { data } = await api.get(API_ENDPOINTS.REFERRALS.LIST, {
+        params: {
+          limit: 5000,
+          export: 1,
+          search: debounced || undefined,
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+        },
+      });
+      const dataToExport = data.data || rows;
+      const cols = [
+        { key: "created_at", label: "Tanggal Pengajuan" },
+        { key: "referrer_name", label: "Nama Pengajak" },
+        { key: "referred_student_name", label: "Siswa Diajak" },
+        { key: "referred_phone", label: "No. HP" },
+        { key: "branch_name", label: "Cabang" },
+        { key: "commission_amount", label: "Komisi" },
+        { key: "status", label: "Status" },
+        { key: "applied_bill_title", label: "Tagihan Tujuan" },
+        { key: "notes", label: "Catatan" },
+      ];
+      exportToExcel("Rekap_Referrals_Komisi_ADLS", cols, dataToExport);
+    } catch {
+      toast.error("Gagal mengekspor data referral");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const submitReferral = async (e) => {
     e.preventDefault();
@@ -141,6 +179,59 @@ export default function Referrals() {
             <Plus size={16} /> Ajukan Referral
           </button>
         </div>
+      </div>
+
+      {/* Date Range Filter & Export */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-slate-600">Rentang Tanggal:</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              setPage(1);
+            }}
+            className="input !w-auto !py-1 text-xs"
+            title="Tanggal Mulai"
+          />
+          <span className="text-xs text-slate-400">s/d</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              setPage(1);
+            }}
+            className="input !w-auto !py-1 text-xs"
+            title="Tanggal Selesai"
+          />
+          {(startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate("");
+                setEndDate("");
+                setPage(1);
+              }}
+              className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
+        {(isStaff || user.role === "tutor") && (
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
+          >
+            <FileSpreadsheet size={15} />
+            <span>{exporting ? "Mengekspor..." : "Export Excel"}</span>
+          </button>
+        )}
       </div>
 
       <div className="card overflow-hidden">

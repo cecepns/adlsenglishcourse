@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
-import { Award, Gift, RefreshCw, Search, Trophy } from "lucide-react";
+import { Award, Gift, RefreshCw, Search, Trophy, FileSpreadsheet } from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting } from "@/utils/greetings";
+import { exportToExcel } from "@/utils/exportExcel";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
@@ -65,6 +66,29 @@ export default function Achievements() {
       if (sortBy === "formatif") return (b.formatif_100_count || 0) - (a.formatif_100_count || 0);
       return (b.uas_100_count || 0) - (a.uas_100_count || 0);
     });
+
+  const handleExport = () => {
+    if (!filteredRows.length) return toast.error("Tidak ada data untuk diekspor");
+    const cols = [
+      { key: "student_name", label: "Nama Siswa" },
+      { key: "class_name", label: "Kelas" },
+      { key: "branch_name", label: "Cabang" },
+      { key: "uas_100_count", label: "UAS 100 (Kali)" },
+      { key: "formatif_100_count", label: "Formatif 100 (Kali)" },
+      { key: "total_graded", label: "Total Penilaian" },
+      { key: "reward_claimed", label: "Reward Gratis SPP" },
+    ];
+    const dataToExport = filteredRows.map((r) => ({
+      student_name: r.student_name || `Siswa #${r.student_id}`,
+      class_name: r.class_name || "-",
+      branch_name: r.branch_name || "-",
+      uas_100_count: r.uas_100_count || 0,
+      formatif_100_count: r.formatif_100_count || 0,
+      total_graded: r.total_graded || 0,
+      reward_claimed: r.reward_claimed ? "Sudah Diklaim" : r.uas_100_count >= 20 ? "Siap Diklaim" : "Belum Memenuhi",
+    }));
+    exportToExcel("Rekap_Prestasi_Nilai_100_ADLS", cols, dataToExport);
+  };
 
   const claimFreeSpp = async (row) => {
     toast(
@@ -163,6 +187,17 @@ export default function Achievements() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          {(isStaff || user.role === "tutor") && (
+            <button
+              type="button"
+              onClick={handleExport}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+              title="Export ke Excel"
+            >
+              <FileSpreadsheet size={15} />
+              <span>Export Excel</span>
+            </button>
+          )}
           <button onClick={load} className="btn-ghost !py-2.5" aria-label="Refresh">
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           </button>

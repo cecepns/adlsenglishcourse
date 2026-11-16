@@ -2,10 +2,24 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import Select from "react-select";
-import { ArrowRight, CalendarPlus, Check, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
+import {
+  ArrowRight,
+  Calendar,
+  CalendarPlus,
+  Check,
+  Download,
+  FileSpreadsheet,
+  Loader2,
+  Plus,
+  Search,
+  Sparkles,
+  Users,
+  X,
+} from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting, getOpeningGreeting } from "@/utils/greetings";
+import { exportToExcel } from "@/utils/exportExcel";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
@@ -34,6 +48,15 @@ export default function ResourcePage({ resource: cfg }) {
   const [quickBusyId, setQuickBusyId] = useState(null);
   const [decisionModal, setDecisionModal] = useState(null); // { row, status, notes }
 
+  // Filter Rentang Tanggal & Download Excel (Admin & Tutor)
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [exporting, setExporting] = useState(false);
+
+  // Switcher Anak khusus Orang Tua (Multi-Anak)
+  const [studentIdFilter, setStudentIdFilter] = useState("");
+  const [myChildren, setMyChildren] = useState([]);
+
   // Modal siapkan slot nilai kelas oleh Admin Cabang / HQ (#8)
   const [initModal, setInitModal] = useState(false);
   const [initForm, setInitForm] = useState({
@@ -47,6 +70,8 @@ export default function ResourcePage({ resource: cfg }) {
 
   const isHQ = ["owner", "admin_pusat"].includes(user.role);
   const isStaff = STAFF.includes(user.role);
+  const isParent = user?.role === "ortu";
+  const canDownloadExcel = ["owner", "admin_pusat", "admin_cabang", "tutor"].includes(user?.role);
   const showBranchFilter = Boolean(cfg.branchFilter && isHQ);
 
   useEffect(() => {
@@ -57,6 +82,16 @@ export default function ResourcePage({ resource: cfg }) {
       .catch(() => setBranches([]));
   }, [showBranchFilter]);
 
+  // Load anak-anak untuk orang tua jika di menu absensi atau laporan belajar
+  useEffect(() => {
+    if (isParent) {
+      api
+        .get(API_ENDPOINTS.MY_STUDENTS)
+        .then((r) => setMyChildren(r.data.data || []))
+        .catch(() => setMyChildren([]));
+    }
+  }, [isParent]);
+
   const debounced = useDebounce(search, 300);
   const queryParams = {
     page,
@@ -65,6 +100,9 @@ export default function ResourcePage({ resource: cfg }) {
     ...(showBranchFilter && branchId ? { branch_id: branchId } : {}),
     ...(cfg.userSortFilters && roleFilter ? { role: roleFilter } : {}),
     ...(cfg.userSortFilters && statusFilter ? { status: statusFilter } : {}),
+    ...(startDate ? { start_date: startDate } : {}),
+    ...(endDate ? { end_date: endDate } : {}),
+    ...(studentIdFilter ? { student_id: studentIdFilter } : {}),
     ...(sortKey ? { sort: sortKey, order: sortOrder } : {}),
   };
   const { rows, pagination, loading, error, refetch } = useResourceList(cfg.endpoint.LIST, queryParams);
@@ -75,6 +113,33 @@ export default function ResourcePage({ resource: cfg }) {
   const rawFields = cfg.getFields ? cfg.getFields(user, modal?.row) : cfg.fields;
   const fields = rawFields.filter((f) => !f.approveOnly || (isApprover && modal?.row));
   const columns = cfg.getColumns ? cfg.getColumns(user) : cfg.columns;
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get(cfg.endpoint.LIST, {
+        params: {
+          limit: 5000,
+          export: 1,
+          search: debounced || undefined,
+          branch_id: showBranchFilter && branchId ? branchId : undefined,
+          role: cfg.userSortFilters && roleFilter ? roleFilter : undefined,
+          status: cfg.userSortFilters && statusFilter ? statusFilter : undefined,
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+          student_id: studentIdFilter || undefined,
+          sort: sortKey || undefined,
+          order: sortOrder,
+        },
+      });
+      const dataToExport = res.data.data || rows;
+      exportToExcel(cfg.title || "Export_ADLS", columns, dataToExport);
+    } catch {
+      exportToExcel(cfg.title || "Export_ADLS", columns, rows);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -336,6 +401,86 @@ export default function ResourcePage({ resource: cfg }) {
               }}
             />
           </div>
+
+          {/* Filter Rentang Tanggal (Date Range Filter) */}
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 text-xs">
+            <div className="flex items-center gap-1 pl-2 text-slate-500 font-semibold">
+              <Calendar size={13} className="text-brand shrink-0" />
+              <span className="hidden sm:inline">Periode:</span>
+            </div>
+            <input
+              type="date"
+              className="rounded-lg border-0 bg-slate-50 px-2 py-1 text-xs text-slate-700 focus:ring-1 focus:ring-brand"
+              value={startDate}
+              title="Dari Tanggal"
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
+            />
+            <span className="text-slate-400 font-bold">-</span>
+            <input
+              type="date"
+              className="rounded-lg border-0 bg-slate-50 px-2 py-1 text-xs text-slate-700 focus:ring-1 focus:ring-brand"
+              value={endDate}
+              title="Sampai Tanggal"
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                  setPage(1);
+                }}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                title="Reset Rentang Tanggal"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* Switcher Anak untuk Orang Tua (Multi-Anak) di Absensi / Laporan */}
+          {isParent && myChildren.length > 1 && (
+            <select
+              className="input !w-auto text-xs font-semibold"
+              value={studentIdFilter}
+              onChange={(e) => {
+                setStudentIdFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">Semua Anak ({myChildren.length})</option>
+              {myChildren.map((c) => (
+                <option key={c.id} value={c.id}>
+                  Anak: {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Download Excel untuk Admin dan Tutor */}
+          {canDownloadExcel && (
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={exporting || rows.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition disabled:opacity-50"
+              title="Download data sebagai file Excel (.csv UTF-8)"
+            >
+              {exporting ? (
+                <Loader2 size={14} className="animate-spin text-emerald-700" />
+              ) : (
+                <FileSpreadsheet size={15} className="text-emerald-700" />
+              )}
+              <span>Export Excel</span>
+            </button>
+          )}
 
           {cfg.initClassAction && isStaff && (
             <button type="button" className="btn-ghost" onClick={() => setInitModal(true)}>

@@ -23,10 +23,13 @@ import {
   Tag,
   Trash2,
   User,
+  X,
+  FileSpreadsheet,
 } from "lucide-react";
 import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting } from "@/utils/greetings";
+import { exportToExcel } from "@/utils/exportExcel";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
@@ -60,6 +63,7 @@ const ORDER_STATUS_TABS = [
 export default function CatalogShop() {
   const { user } = useAuth();
   const isStaff = STAFF.includes(user.role);
+  const canExport = ["owner", "admin_pusat", "admin_cabang", "tutor"].includes(user?.role);
 
   const [tab, setTab] = useState("catalog"); // catalog | orders
   const [products, setProducts] = useState([]);
@@ -102,8 +106,11 @@ export default function CatalogShop() {
   // Modal Biaya Tambahan (PPN & Ongkir / Ekstra)
   const [feeModal, setFeeModal] = useState(false);
 
-  // Status Filter Pesanan
+  // Status Filter Pesanan & Rentang Tanggal
   const [orderStatusFilter, setOrderStatusFilter] = useState("Semua");
+  const [orderStartDate, setOrderStartDate] = useState("");
+  const [orderEndDate, setOrderEndDate] = useState("");
+  const [exportingOrders, setExportingOrders] = useState(false);
 
   // Modal Pelunasan Piutang / Belum Lunas
   const [settleModal, setSettleModal] = useState(null);
@@ -160,6 +167,8 @@ export default function CatalogShop() {
           limit: 100,
           search: debounced || undefined,
           status: orderStatusFilter === "Semua" ? undefined : orderStatusFilter,
+          start_date: orderStartDate || undefined,
+          end_date: orderEndDate || undefined,
         },
       });
       setOrders(data.data || []);
@@ -168,6 +177,63 @@ export default function CatalogShop() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExportOrders = async () => {
+    setExportingOrders(true);
+    try {
+      const res = await api.get(API_ENDPOINTS.PRODUCT_ORDERS, {
+        params: {
+          limit: 5000,
+          export: 1,
+          search: debounced || undefined,
+          status: orderStatusFilter === "Semua" ? undefined : orderStatusFilter,
+          start_date: orderStartDate || undefined,
+          end_date: orderEndDate || undefined,
+        },
+      });
+      const dataToExport = res.data.data || orders;
+      const cols = [
+        { key: "transaction_date", label: "Tanggal Transaksi" },
+        { key: "buyer_name", label: "Pembeli" },
+        { key: "buyer_phone", label: "No. HP" },
+        { key: "product_name", label: "Produk" },
+        { key: "qty", label: "Qty" },
+        { key: "unit_price", label: "Harga Satuan" },
+        { key: "discount_amount", label: "Diskon" },
+        { key: "tax_amount", label: "PPN" },
+        { key: "extra_fee", label: "Biaya Tambahan" },
+        { key: "total_price", label: "Total Harga" },
+        { key: "amount_paid", label: "Jumlah Dibayar" },
+        { key: "payment_method", label: "Metode Bayar" },
+        { key: "cashier_name", label: "Kasir / Pegawai" },
+        { key: "status", label: "Status" },
+        { key: "notes", label: "Catatan" },
+      ];
+      exportToExcel("Rekap_Order_Kas_Mini_ADLS", cols, dataToExport);
+    } catch {
+      exportToExcel("Rekap_Order_Kas_Mini_ADLS", [
+        { key: "buyer_name", label: "Pembeli" },
+        { key: "product_name", label: "Produk" },
+        { key: "qty", label: "Qty" },
+        { key: "total_price", label: "Total Harga" },
+        { key: "status", label: "Status" },
+      ], orders);
+    } finally {
+      setExportingOrders(false);
+    }
+  };
+
+  const handleExportProducts = () => {
+    const cols = [
+      { key: "name", label: "Nama Produk" },
+      { key: "category", label: "Kategori" },
+      { key: "age_group", label: "Kelompok Usia" },
+      { key: "price", label: "Harga Satuan" },
+      { key: "stock", label: "Stok Tersedia" },
+      { key: "description", label: "Deskripsi" },
+    ];
+    exportToExcel("Katalog_Produk_ADLS", cols, products);
   };
 
   useEffect(() => {
@@ -182,7 +248,7 @@ export default function CatalogShop() {
     if (tab === "catalog") loadProducts();
     else loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, ageGroup, category, debounced, orderStatusFilter]);
+  }, [tab, ageGroup, category, debounced, orderStatusFilter, orderStartDate, orderEndDate]);
 
   const calcSubtotal = (prod, qty) => (Number(qty) || 1) * Number(prod?.price || 0);
   const calcDiscount = (subtotal, form) => {
@@ -529,14 +595,27 @@ export default function CatalogShop() {
         ) : (
           <div className="text-xs font-semibold text-slate-500">Daftar pesanan produk ADLS & verifikasi pembayaran</div>
         )}
-        <div className="relative w-full sm:w-60">
-          <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-          <input
-            className="input !pl-10"
-            placeholder={tab === "catalog" ? "Cari produk..." : "Cari pemesan / produk..."}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative w-full sm:w-60">
+            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
+            <input
+              className="input !pl-10"
+              placeholder={tab === "catalog" ? "Cari produk..." : "Cari pemesan / produk..."}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {tab === "catalog" && canExport && (
+            <button
+              type="button"
+              onClick={handleExportProducts}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+              title="Download Katalog Excel"
+            >
+              <FileSpreadsheet size={15} />
+              <span className="hidden sm:inline">Export Excel</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -643,6 +722,52 @@ export default function CatalogShop() {
             <div className="text-xs font-bold text-slate-500">
               Total: {orders.length} transaksi
             </div>
+          </div>
+
+          {/* Date Range Filter & Export Excel */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-600">Rentang Tanggal:</span>
+              <input
+                type="date"
+                value={orderStartDate}
+                onChange={(e) => setOrderStartDate(e.target.value)}
+                className="input !w-auto !py-1 text-xs"
+                title="Tanggal Mulai"
+              />
+              <span className="text-xs text-slate-400">s/d</span>
+              <input
+                type="date"
+                value={orderEndDate}
+                onChange={(e) => setOrderEndDate(e.target.value)}
+                className="input !w-auto !py-1 text-xs"
+                title="Tanggal Selesai"
+              />
+              {(orderStartDate || orderEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderStartDate("");
+                    setOrderEndDate("");
+                  }}
+                  className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
+            {canExport && (
+              <button
+                type="button"
+                onClick={handleExportOrders}
+                disabled={exportingOrders}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
+              >
+                <FileSpreadsheet size={15} />
+                <span>{exportingOrders ? "Mengekspor..." : "Export Excel"}</span>
+              </button>
+            )}
           </div>
 
           <div className="card overflow-hidden">

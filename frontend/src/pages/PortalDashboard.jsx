@@ -394,13 +394,16 @@ export default function PortalDashboard() {
 
       {/* KPI Cards Row (Per #2: Hapus Nilai UAS 100 untuk Kelas Karyawan) */}
       <div className={`grid grid-cols-2 gap-4 ${isParent ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
-        <div className="card p-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
-            <CalendarCheck size={16} className="text-emerald-600" /> Kehadiran
+        <Link to="/attendance" className="card p-4 transition hover:border-brand/40 hover:shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
+              <CalendarCheck size={16} className="text-emerald-600" /> Kehadiran
+            </div>
+            <span className="text-[11px] font-semibold text-brand">Lihat Detail →</span>
           </div>
           <div className="mt-2 text-2xl font-extrabold text-slate-900">{att.rate}%</div>
           <div className="text-xs text-slate-500">{att.hadir} hadir dari {att.total} sesi</div>
-        </div>
+        </Link>
         <div className="card p-4">
           <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
             <Receipt size={16} className="text-rose-600" /> Tagihan SPP

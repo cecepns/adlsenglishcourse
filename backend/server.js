@@ -236,15 +236,25 @@ app.post("/api/auth/register", wrap(async (req, res) => {
   const reasonChoosing = clean(req.body.reason_choosing);
 
   if (!name || !email || !password) return fail(res, 400, "Nama, email, dan password wajib diisi");
-  const [[dup]] = await pool.query("SELECT id FROM users WHERE email=?", [email]);
-  if (dup) return fail(res, 400, "Email sudah terdaftar");
-
-  const hash = await bcrypt.hash(password, 10);
-  const [ur] = await pool.query(
-    "INSERT INTO users(name,email,password,role,branch_id,phone,status) VALUES(?,?,?,?,?,?, 'active')",
-    [name, email, hash, role, defaultBranchId, phone]
-  );
-  const userId = ur.insertId;
+  const [[dup]] = await pool.query("SELECT id, password, role FROM users WHERE email=?", [email]);
+  let userId = null;
+  if (dup) {
+    // Cek jika akun ini merupakan pendaftaran yang sebelumnya gagal menyimpan data ke tabel students
+    const [[hasStudent]] = await pool.query("SELECT id FROM students WHERE user_id=? OR parent_user_id=?", [dup.id, dup.id]);
+    if (!hasStudent) {
+      userId = dup.id;
+      await pool.query("UPDATE users SET name=?, phone=COALESCE(?, phone), branch_id=COALESCE(?, branch_id) WHERE id=?", [name, phone, defaultBranchId, userId]);
+    } else {
+      return fail(res, 400, "Email sudah terdaftar");
+    }
+  } else {
+    const hash = await bcrypt.hash(password, 10);
+    const [ur] = await pool.query(
+      "INSERT INTO users(name,email,password,role,branch_id,phone,status) VALUES(?,?,?,?,?,?, 'active')",
+      [name, email, hash, role, defaultBranchId, phone]
+    );
+    userId = ur.insertId;
+  }
 
   if (role === "ortu" && Array.isArray(req.body.children) && req.body.children.length > 0) {
     for (const ch of req.body.children) {
@@ -256,8 +266,9 @@ app.post("/api/auth/register", wrap(async (req, res) => {
                               parent_father_name,parent_father_job,parent_mother_name,parent_mother_job,parent_religion,parent_education,parent_wa,
                               marketing_source,reason_choosing)
          VALUES(?,?,?,?,?,?,?,?, 'active',
-                ?,?,?,?,?,?,?,?,?,?,?,
-                ?,?,?,?,?,?,?,?,?)`,
+                ?,?,?,?,?,?,?,?,?,?,?,?,
+                ?,?,?,?,?,?,?,
+                ?,?)`,
         [
           childName,
           name,
@@ -299,40 +310,41 @@ app.post("/api/auth/register", wrap(async (req, res) => {
                             parent_father_name,parent_father_job,parent_mother_name,parent_mother_job,parent_religion,parent_education,parent_wa,
                             marketing_source,reason_choosing)
        VALUES(?,?,?,?,?,?,?,?,?, 'active',
-              ?,?,?,?,?,?,?,?,?,?,?,
-              ?,?,?,?,?,?,?,?,?)`,
-      [
-        studentName,
-        role === "ortu" ? name : null,
-        phone,
-        defaultClassType,
-        defaultLevel,
-        defaultBranchId,
-        role === "siswa" ? userId : null,
-        role === "ortu" ? userId : null,
-        today,
-        nickname,
-        gender,
-        birthPlace,
-        birthDate,
-        schoolOrigin,
-        schoolGrade,
-        religion,
-        siblingsCount,
-        childNumber,
-        housingComplex,
-        address,
-        studentWa,
-        parentFatherName,
-        parentFatherJob,
-        parentMotherName,
-        parentMotherJob,
-        parentReligion,
-        parentEducation,
-        parentWa,
-        marketingSource,
-        reasonChoosing,
-      ]
+              ?,?,?,?,?,?,?,?,?,?,?,?,
+              ?,?,?,?,?,?,?,
+              ?,?)`,
+        [
+          studentName,
+          role === "ortu" ? name : null,
+          phone,
+          defaultClassType,
+          defaultLevel,
+          defaultBranchId,
+          role === "siswa" ? userId : null,
+          role === "ortu" ? userId : null,
+          today,
+          nickname,
+          gender,
+          birthPlace,
+          birthDate,
+          schoolOrigin,
+          schoolGrade,
+          religion,
+          siblingsCount,
+          childNumber,
+          housingComplex,
+          address,
+          studentWa,
+          parentFatherName,
+          parentFatherJob,
+          parentMotherName,
+          parentMotherJob,
+          parentReligion,
+          parentEducation,
+          parentWa,
+          marketingSource,
+          reasonChoosing,
+        ]
     );
   }
 
@@ -345,6 +357,31 @@ app.post("/api/auth/login", wrap(async (req, res) => {
   const [[u]] = await pool.query("SELECT u.*, b.name AS branch_name FROM users u LEFT JOIN branches b ON b.id=u.branch_id WHERE u.email=?", [String(req.body.email || "").trim()]);
   if (!u || !(await bcrypt.compare(String(req.body.password || ""), u.password))) return fail(res, 401, "Email atau password salah");
   if (u.status === "inactive") return fail(res, 403, "Akun Anda sedang dinonaktifkan");
+
+  // Pastikan akun siswa / ortu selalu otomatis terdaftar di tabel students
+  if (["siswa", "ortu"].includes(u.role)) {
+    const [[hasStudent]] = await pool.query("SELECT id FROM students WHERE user_id=? OR parent_user_id=?", [u.id, u.id]);
+    if (!hasStudent) {
+      const isSiswa = u.role === "siswa";
+      await pool.query(
+        `INSERT INTO students(name,parent_name,parent_phone,class_type,level,branch_id,user_id,parent_user_id,joined_at,status,student_wa,parent_wa)
+         VALUES(?,?,?,?,?,?,?,?,CURDATE(),'active',?,?)`,
+        [
+          u.name,
+          isSiswa ? null : u.name,
+          u.phone,
+          "Regular",
+          "Preschool (Pre A1)",
+          u.branch_id || null,
+          isSiswa ? u.id : null,
+          isSiswa ? null : u.id,
+          isSiswa ? u.phone : null,
+          isSiswa ? null : u.phone,
+        ]
+      );
+    }
+  }
+
   const user = { id: u.id, name: u.name, email: u.email, role: u.role, branch_id: u.branch_id, branch_name: u.branch_name || null };
   res.json({ success: true, data: { token: jwt.sign(user, process.env.JWT_SECRET || "adls", { expiresIn: "12h" }), user } });
 }));
@@ -1530,7 +1567,11 @@ app.delete("/api/product_categories/:id", auth, can(STAFF), wrap(async (req, res
 }));
 
 app.get("/api/product_orders", auth, wrap(async (req, res) => {
-  const q = req.query, page = Math.max(+q.page || 1, 1), limit = [10, 25, 50, 100].includes(+q.limit) ? +q.limit : 10;
+  const q = req.query, page = Math.max(+q.page || 1, 1);
+  let limit = [10, 25, 50, 100].includes(+q.limit) ? +q.limit : 10;
+  if (q.export === "1" || q.export === "true") {
+    limit = Math.min(+q.limit || 5000, 5000);
+  }
   const where = [], args = [];
   if (q.search) { where.push("(o.buyer_name LIKE ? OR p.name LIKE ? OR b.name LIKE ?)"); args.push(`%${q.search}%`, `%${q.search}%`, `%${q.search}%`); }
   if (q.status && q.status !== "semua") {
@@ -1540,6 +1581,14 @@ app.get("/api/product_orders", auth, wrap(async (req, res) => {
       where.push("o.status=?");
       args.push(q.status);
     }
+  }
+  if (q.start_date) {
+    where.push("DATE(COALESCE(o.transaction_date, o.created_at)) >= ?");
+    args.push(q.start_date);
+  }
+  if (q.end_date) {
+    where.push("DATE(COALESCE(o.transaction_date, o.created_at)) <= ?");
+    args.push(q.end_date);
   }
   if (!STAFF.includes(req.user.role)) {
     where.push("o.user_id=?");
@@ -2249,6 +2298,14 @@ app.get("/api/students-database", auth, can([...STAFF, "tutor"]), wrap(async (re
     where.push("(s.name LIKE ? OR c.name LIKE ? OR c.class_type LIKE ? OR b.name LIKE ? OR u.name LIKE ?)");
     args.push(`%${req.query.search}%`, `%${req.query.search}%`, `%${req.query.search}%`, `%${req.query.search}%`, `%${req.query.search}%`);
   }
+  if (req.query.start_date) {
+    where.push("s.joined_at >= ?");
+    args.push(req.query.start_date);
+  }
+  if (req.query.end_date) {
+    where.push("s.joined_at <= ?");
+    args.push(req.query.end_date);
+  }
 
   const [rows] = await pool.query(
     `SELECT s.id, s.name AS student_name, s.nickname, s.gender, s.birth_place, s.birth_date, s.school_origin, s.school_grade, s.religion, s.siblings_count, s.child_number, s.housing_complex, s.address, s.student_wa, s.parent_name, s.parent_phone, s.parent_father_name, s.parent_father_job, s.parent_mother_name, s.parent_mother_job, s.parent_religion, s.parent_education, s.parent_wa, s.marketing_source, s.reason_choosing, s.status, s.stop_reason, s.joined_at, s.course_completed, s.certificate_delivery, s.certificate_url, s.certificate_code,
@@ -2354,14 +2411,55 @@ const upload = multer({
 app.post("/api/upload", auth, upload.single("file"), (req, res) => req.file ? res.json({ success: true, data: { url: "/uploads/" + req.file.filename } }) : fail(res, 400, "File tidak valid (gambar/pdf/audio/video, maks 25MB)"));
 
 // Generic CRUD: pagination, search, limit, sorting, filter
+const RESOURCE_DATE_COLS = {
+  attendance: "date",
+  tutor_attendance: "date",
+  learning_reports: "report_date",
+  expenses: "expense_date",
+  leaves: "start_date",
+  announcements: "event_date",
+  students: "joined_at",
+  bills: "due_date",
+  referrals: "created_at",
+  complaints: "created_at",
+  classes: "created_at",
+  users: "created_at",
+  branches: "created_at",
+};
+
 Object.entries(RESOURCES).forEach(([name, cfg]) => {
   const base = `/api/${name}`;
   app.get(base, auth, can(cfg.r), wrap(async (req, res) => {
-    const q = req.query, page = Math.max(+q.page || 1, 1), limit = [10, 25, 50, 100].includes(+q.limit) ? +q.limit : 10;
+    const q = req.query, page = Math.max(+q.page || 1, 1);
+    let limit = [10, 25, 50, 100].includes(+q.limit) ? +q.limit : 10;
+    if (q.export === "1" || q.export === "true") {
+      limit = Math.min(+q.limit || 5000, 5000);
+    }
     const where = [], args = [];
     if (q.search) { where.push("(" + cfg.search.map((c) => `${c} LIKE ?`).join(" OR ") + ")"); cfg.search.forEach(() => args.push(`%${q.search}%`)); }
     if (q.id !== undefined && q.id !== "") { where.push("t.id=?"); args.push(q.id); }
     cfg.fields.forEach((f) => { if (q[f] !== undefined && q[f] !== "") { where.push(`t.${f}=?`); args.push(q[f]); } });
+
+    // Filter Rentang Tanggal (Date Range) untuk semua generic resource
+    const dateCol = RESOURCE_DATE_COLS[name] || (cfg.fields.includes("date") ? "date" : "created_at");
+    if (q.start_date) {
+      if (dateCol === "created_at") {
+        where.push(`t.${dateCol} >= ?`);
+        args.push(`${q.start_date} 00:00:00`);
+      } else {
+        where.push(`t.${dateCol} >= ?`);
+        args.push(q.start_date);
+      }
+    }
+    if (q.end_date) {
+      if (dateCol === "created_at") {
+        where.push(`t.${dateCol} <= ?`);
+        args.push(`${q.end_date} 23:59:59`);
+      } else {
+        where.push(`t.${dateCol} <= ?`);
+        args.push(q.end_date);
+      }
+    }
 
     if (isScoped(cfg, req.user)) { where.push("t.branch_id=?"); args.push(req.user.branch_id); }
 
@@ -2390,10 +2488,22 @@ Object.entries(RESOURCES).forEach(([name, cfg]) => {
       where.push("t.tutor_id=?");
       args.push(req.user.id);
     }
-    if (cfg.studentLinkScoped && ["siswa", "ortu"].includes(req.user.role)) {
-      where.push("(s.user_id=? OR s.parent_user_id=?)");
-      args.push(req.user.id, req.user.id);
+
+    // Strict Scoping Siswa & Ortu (Hanya memunculkan data absensi & data milik akunnya sendiri)
+    if (name === "attendance" || cfg.studentLinkScoped) {
+      if (req.user.role === "siswa") {
+        where.push("(s.user_id = ? OR (s.student_wa IS NOT NULL AND s.student_wa = ? AND s.student_wa <> ''))");
+        args.push(req.user.id, req.user.phone || "---");
+      } else if (req.user.role === "ortu") {
+        where.push("(s.parent_user_id = ? OR (s.parent_phone IS NOT NULL AND s.parent_phone = ? AND s.parent_phone <> ''))");
+        args.push(req.user.id, req.user.phone || "---");
+      }
     }
+    if (q.student_id && ["attendance", "bills", "learning_reports"].includes(name)) {
+      where.push("t.student_id=?");
+      args.push(Number(q.student_id));
+    }
+
     if (cfg.studentLinkOrUserScoped && ["siswa", "ortu"].includes(req.user.role)) {
       where.push("(t.user_id=? OR s.user_id=? OR s.parent_user_id=?)");
       args.push(req.user.id, req.user.id, req.user.id);
@@ -2717,6 +2827,38 @@ async function ensureSchema() {
   const [[prodCnt]] = await pool.query("SELECT COUNT(*) n FROM products");
   if (!deo && Number(prodCnt.n || 0) <= 3) {
     await pool.query("INSERT INTO products(name,category,age_group,price,stock,description) VALUES('ADLS Deo','Merchandise','Remaja',45000,40,'Deodorant eksklusif ADLS')");
+  }
+
+  // Sinkronisasi otomatis: Pastikan semua akun siswa/ortu di tabel users memiliki baris di tabel students
+  try {
+    const [orphanUsers] = await pool.query(`
+      SELECT u.* FROM users u
+      WHERE u.role IN ('siswa', 'ortu')
+      AND NOT EXISTS (
+        SELECT 1 FROM students s WHERE s.user_id = u.id OR s.parent_user_id = u.id
+      )
+    `);
+    for (const ou of orphanUsers) {
+      const isSiswa = ou.role === "siswa";
+      await pool.query(
+        `INSERT INTO students(name,parent_name,parent_phone,class_type,level,branch_id,user_id,parent_user_id,joined_at,status,student_wa,parent_wa)
+         VALUES(?,?,?,?,?,?,?,?,CURDATE(),'active',?,?)`,
+        [
+          ou.name,
+          isSiswa ? null : ou.name,
+          ou.phone,
+          "Regular",
+          "Preschool (Pre A1)",
+          ou.branch_id || null,
+          isSiswa ? ou.id : null,
+          isSiswa ? null : ou.id,
+          isSiswa ? ou.phone : null,
+          isSiswa ? null : ou.phone,
+        ]
+      );
+    }
+  } catch (e) {
+    console.error("Auto-heal orphan students error:", e);
   }
 }
 

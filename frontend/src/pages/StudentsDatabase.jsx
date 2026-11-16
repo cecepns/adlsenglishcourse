@@ -14,6 +14,7 @@ import {
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { useAuth } from "@/context/AuthContext";
+import { exportToExcel } from "@/utils/exportExcel";
 import toast from "react-hot-toast";
 
 export default function StudentsDatabase() {
@@ -23,6 +24,8 @@ export default function StudentsDatabase() {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [branches, setBranches] = useState([]);
 
   const loadData = async () => {
@@ -30,7 +33,11 @@ export default function StudentsDatabase() {
     try {
       const [resDb, resBranches] = await Promise.all([
         api.get(API_ENDPOINTS.STUDENTS_DATABASE, {
-          params: { branch_id: branchFilter || undefined },
+          params: {
+            branch_id: branchFilter || undefined,
+            start_date: startDate || undefined,
+            end_date: endDate || undefined,
+          },
         }),
         api.get(API_ENDPOINTS.BRANCHES.LIST, { params: { limit: 50 } }),
       ]);
@@ -45,7 +52,7 @@ export default function StudentsDatabase() {
 
   useEffect(() => {
     loadData();
-  }, [branchFilter]);
+  }, [branchFilter, startDate, endDate]);
 
   const filtered = useMemo(() => {
     return data.filter((row) => {
@@ -64,55 +71,45 @@ export default function StudentsDatabase() {
 
   const exportCsv = () => {
     if (!filtered.length) return toast.error("Tidak ada data untuk diekspor");
-    const headers = [
-      "No.",
-      "Student Names",
-      "Class",
-      "Branch",
-      "Payment",
-      "Payment Method",
-      "Date Of Payment",
-      "Class Day 1 Schedule",
-      "Class Day 2 Schedule",
-      "Class Day 3 Schedule",
-      "Class Time Start",
-      "Class Time End",
-      "Tutor PIC",
-      "Student WhatsApp",
-      "Parent WhatsApp",
-      "Housing Complex",
-      "Marketing Source",
+    const cols = [
+      { key: "no", label: "No." },
+      { key: "student_name", label: "Student Names" },
+      { key: "class_name", label: "Class" },
+      { key: "branch_name", label: "Branch" },
+      { key: "payment_status", label: "Payment" },
+      { key: "payment_method", label: "Payment Method" },
+      { key: "date_of_payment", label: "Date Of Payment" },
+      { key: "day_1", label: "Class Day 1 Schedule" },
+      { key: "day_2", label: "Class Day 2 Schedule" },
+      { key: "day_3", label: "Class Day 3 Schedule" },
+      { key: "time_start", label: "Class Time Start" },
+      { key: "time_end", label: "Class Time End" },
+      { key: "tutor_name", label: "Tutor PIC" },
+      { key: "student_wa", label: "Student WhatsApp" },
+      { key: "parent_wa", label: "Parent WhatsApp" },
+      { key: "housing_complex", label: "Housing Complex" },
+      { key: "marketing_source", label: "Marketing Source" },
     ];
-
-    const rows = filtered.map((r, idx) => [
-      idx + 1,
-      `"${(r.student_name || "").replace(/"/g, '""')}"`,
-      `"${(r.class_name || "").replace(/"/g, '""')}"`,
-      `"${(r.branch_name || "").replace(/"/g, '""')}"`,
-      r.payment_status || "Not Paid",
-      r.payment_method || "",
-      r.date_of_payment || "",
-      r.day_1 || "",
-      r.day_2 || "",
-      r.day_3 || "",
-      r.time_start || "",
-      r.time_end || "",
-      `"${(r.tutor_name || "").replace(/"/g, '""')}"`,
-      r.student_wa || "",
-      r.parent_wa || "",
-      `"${(r.housing_complex || "").replace(/"/g, '""')}"`,
-      r.marketing_source || "",
-    ]);
-
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Rekap_Database_Siswa_ADLS_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("File CSV rekap database berhasil diunduh");
+    const dataToExport = filtered.map((r, idx) => ({
+      no: idx + 1,
+      student_name: r.student_name || "",
+      class_name: r.class_name || "",
+      branch_name: r.branch_name || "",
+      payment_status: r.payment_status || "Not Paid",
+      payment_method: r.payment_method || "",
+      date_of_payment: r.date_of_payment || "",
+      day_1: r.day_1 || "",
+      day_2: r.day_2 || "",
+      day_3: r.day_3 || "",
+      time_start: r.time_start || "",
+      time_end: r.time_end || "",
+      tutor_name: r.tutor_name || "",
+      student_wa: r.student_wa || "",
+      parent_wa: r.parent_wa || "",
+      housing_complex: r.housing_complex || "",
+      marketing_source: r.marketing_source || "",
+    }));
+    exportToExcel("Rekap_Database_Siswa_ADLS", cols, dataToExport);
   };
 
   return (
@@ -186,6 +183,38 @@ export default function StudentsDatabase() {
             <option value="Paid">Hanya Paid (Lunas)</option>
             <option value="Not Paid">Hanya Not Paid (Belum Lunas)</option>
           </select>
+
+          {/* Date Range Filter */}
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
+            <span className="font-semibold text-slate-500">Tgl Gabung:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent text-xs outline-none"
+              title="Tanggal Mulai"
+            />
+            <span className="text-slate-400">s/d</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent text-xs outline-none"
+              title="Tanggal Selesai"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="ml-1 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-600 hover:bg-slate-200"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

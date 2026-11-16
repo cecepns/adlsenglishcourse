@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import Select from "react-select";
-import { Banknote, CheckCircle2, Loader2, RefreshCw, Settings2, Wallet } from "lucide-react";
+import { Banknote, CheckCircle2, Loader2, RefreshCw, Settings2, Wallet, FileSpreadsheet } from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting } from "@/utils/greetings";
+import { exportToExcel } from "@/utils/exportExcel";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import Modal from "@/components/Modal";
@@ -90,6 +92,27 @@ export default function Payroll() {
     }
   };
 
+  const handleExport = () => {
+    if (!rows.length) return toast.error("Tidak ada data honor untuk diekspor");
+    const cols = [
+      { key: "tutor_name", label: "Nama Tutor" },
+      { key: "branch_name", label: "Cabang" },
+      { key: "rate", label: "Tarif/Sesi" },
+      { key: "sessions_count", label: "Sesi Hadir" },
+      { key: "ontime_count", label: "Tepat Waktu" },
+      { key: "late_count", label: "Terlambat" },
+      { key: "absent_count", label: "Izin / Cuti" },
+      { key: "base_pay", label: "Honor Pokok" },
+      { key: "transport_pay", label: "Tunjangan Transport" },
+      { key: "penalty_amount", label: "Potongan Telat" },
+      { key: "bonus_amount", label: "Bonus Tepat Waktu" },
+      { key: "total_amount", label: "Total Honor Diterima" },
+      { key: "payment_status", label: "Status Pembayaran" },
+      { key: "paid_at", label: "Tanggal Dibayar" },
+    ];
+    exportToExcel(`Rekap_Payroll_Tutor_${month}`, cols, rows);
+  };
+
   const totalPayroll = rows.reduce((s, r) => s + Number(r.total_amount || 0), 0);
   const paidCount = rows.filter((r) => r.payment_status === "paid").length;
 
@@ -125,6 +148,15 @@ export default function Payroll() {
               <Settings2 size={16} /> Aturan Gaji
             </button>
           )}
+          <button
+            type="button"
+            onClick={handleExport}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+            title="Export Rekap Honor ke Excel"
+          >
+            <FileSpreadsheet size={15} />
+            <span>Export Excel</span>
+          </button>
           <button type="button" onClick={load} className="btn-ghost !py-2.5" aria-label="Refresh">
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           </button>

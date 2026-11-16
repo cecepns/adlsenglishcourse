@@ -3,10 +3,12 @@ import toast from "react-hot-toast";
 import Select from "react-select";
 import {
   Building2,
+  Calendar,
   CalendarPlus,
   CheckCircle2,
   Copy,
   CreditCard,
+  FileSpreadsheet,
   Loader2,
   MessageCircle,
   Pencil,
@@ -14,11 +16,13 @@ import {
   Receipt,
   Search,
   Trash2,
+  X,
   XCircle,
 } from "lucide-react";
 import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting } from "@/utils/greetings";
+import { exportToExcel } from "@/utils/exportExcel";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
@@ -90,6 +94,12 @@ export default function BillsPage() {
   const [saving, setSaving] = useState(false);
   const debounced = useDebounce(search, 300);
 
+  // Filter Rentang Tanggal & Download Excel (Admin & Tutor)
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const canDownloadExcel = ["owner", "admin_pusat", "admin_cabang", "tutor"].includes(user?.role);
+
   useEffect(() => {
     api
       .get(API_ENDPOINTS.BILLS_BANK_INFO)
@@ -108,8 +118,54 @@ export default function BillsPage() {
     limit,
     search: debounced,
     ...(isHQ && branchId ? { branch_id: branchId } : {}),
+    ...(startDate ? { start_date: startDate } : {}),
+    ...(endDate ? { end_date: endDate } : {}),
   };
   const { rows, pagination, loading, error, refetch } = useResourceList(API_ENDPOINTS.BILLS.LIST, queryParams);
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get(API_ENDPOINTS.BILLS.LIST, {
+        params: {
+          limit: 5000,
+          export: 1,
+          search: debounced || undefined,
+          branch_id: isHQ && branchId ? branchId : undefined,
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+        },
+      });
+      const dataToExport = res.data.data || rows;
+      const cols = [
+        { key: "month", label: "Bulan" },
+        { key: "student_name", label: "Siswa" },
+        { key: "branch_name", label: "Cabang" },
+        { key: "title", label: "Tagihan" },
+        { key: "amount", label: "Nominal" },
+        { key: "discount", label: "Diskon" },
+        { key: "due_date", label: "Jatuh Tempo" },
+        { key: "status", label: "Status" },
+        { key: "payment_method", label: "Metode Bayar" },
+        { key: "paid_at", label: "Tanggal Bayar" },
+        { key: "notes", label: "Catatan" },
+      ];
+      exportToExcel("Rekap_Tagihan_SPP_ADLS", cols, dataToExport);
+    } catch {
+      exportToExcel("Rekap_Tagihan_SPP_ADLS", [
+        { key: "month", label: "Bulan" },
+        { key: "student_name", label: "Siswa" },
+        { key: "branch_name", label: "Cabang" },
+        { key: "title", label: "Tagihan" },
+        { key: "amount", label: "Nominal" },
+        { key: "discount", label: "Diskon" },
+        { key: "due_date", label: "Jatuh Tempo" },
+        { key: "status", label: "Status" },
+      ], rows);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const copyAcc = (text) => {
     navigator.clipboard?.writeText(text);
@@ -323,7 +379,7 @@ export default function BillsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {isHQ && branches.length > 0 && (
             <div className="w-48">
@@ -353,7 +409,68 @@ export default function BillsPage() {
               }}
             />
           </div>
+
+          {/* Filter Rentang Tanggal Jatuh Tempo */}
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 text-xs">
+            <div className="flex items-center gap-1 pl-2 text-slate-500 font-semibold">
+              <Calendar size={13} className="text-brand shrink-0" />
+              <span className="hidden sm:inline">Tempo:</span>
+            </div>
+            <input
+              type="date"
+              className="rounded-lg border-0 bg-slate-50 px-2 py-1 text-xs text-slate-700 focus:ring-1 focus:ring-brand"
+              value={startDate}
+              title="Dari Tanggal"
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
+            />
+            <span className="text-slate-400 font-bold">-</span>
+            <input
+              type="date"
+              className="rounded-lg border-0 bg-slate-50 px-2 py-1 text-xs text-slate-700 focus:ring-1 focus:ring-brand"
+              value={endDate}
+              title="Sampai Tanggal"
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                  setPage(1);
+                }}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                title="Reset Rentang Tanggal"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Download Excel untuk Admin dan Tutor */}
+        {canDownloadExcel && (
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={exporting || rows.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition disabled:opacity-50"
+            title="Download data tagihan SPP sebagai Excel (.csv UTF-8)"
+          >
+            {exporting ? (
+              <Loader2 size={14} className="animate-spin text-emerald-700" />
+            ) : (
+              <FileSpreadsheet size={15} className="text-emerald-700" />
+            )}
+            <span>Export Excel</span>
+          </button>
+        )}
       </div>
 
       <div className="card overflow-hidden">

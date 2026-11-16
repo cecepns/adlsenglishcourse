@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Award, CheckCircle2, ExternalLink, Film, Loader2, Plus, Search, Star } from "lucide-react";
+import { Award, CheckCircle2, ExternalLink, Film, Loader2, Plus, Search, Star, FileSpreadsheet } from "lucide-react";
 import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting } from "@/utils/greetings";
+import { exportToExcel } from "@/utils/exportExcel";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
@@ -38,6 +39,9 @@ export default function VideoProjects() {
   const [saving, setSaving] = useState(false);
   const [classFilter, setClassFilter] = useState("");
   const [sortOrder, setSortOrder] = useState("desc"); // "desc" (Terbaru) | "asc" (Terlama)
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const isReviewer = [...STAFF, "tutor"].includes(user.role);
   const isStudentSide = ["siswa", "ortu"].includes(user.role);
@@ -46,13 +50,54 @@ export default function VideoProjects() {
     setLoading(true);
     try {
       const { data } = await api.get(API_ENDPOINTS.VIDEO_PROJECTS.LIST, {
-        params: { limit: 100, search: debounced || undefined },
+        params: {
+          limit: 100,
+          search: debounced || undefined,
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+        },
       });
       setRows(data.data || []);
     } catch {
       setRows([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { data } = await api.get(API_ENDPOINTS.VIDEO_PROJECTS.LIST, {
+        params: {
+          limit: 5000,
+          export: 1,
+          search: debounced || undefined,
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+        },
+      });
+      const dataToExport = (data.data || rows).filter((r) => {
+        if (classFilter && r.class_name !== classFilter) return false;
+        return true;
+      });
+      const cols = [
+        { key: "month", label: "Bulan / Periode" },
+        { key: "student_name", label: "Nama Siswa" },
+        { key: "class_name", label: "Kelas" },
+        { key: "branch_name", label: "Cabang" },
+        { key: "title", label: "Judul Video" },
+        { key: "video_url", label: "Link Video" },
+        { key: "score", label: "Nilai" },
+        { key: "status", label: "Status" },
+        { key: "feedback", label: "Feedback Tutor" },
+        { key: "created_at", label: "Tanggal Pengumpulan" },
+      ];
+      exportToExcel("Rekap_Video_Projects_ADLS", cols, dataToExport);
+    } catch {
+      toast.error("Gagal mengekspor data video");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -72,7 +117,7 @@ export default function VideoProjects() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debounced]);
+  }, [debounced, startDate, endDate]);
 
   const openSubmit = async () => {
     const base = {
@@ -206,6 +251,52 @@ export default function VideoProjects() {
             <Plus size={16} /> Kumpulkan Video
           </button>
         </div>
+      </div>
+
+      {/* Date Range Filter Bar & Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-slate-600">Rentang Tanggal:</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="input !w-auto !py-1 text-xs"
+            title="Tanggal Mulai"
+          />
+          <span className="text-xs text-slate-400">s/d</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="input !w-auto !py-1 text-xs"
+            title="Tanggal Selesai"
+          />
+          {(startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate("");
+                setEndDate("");
+              }}
+              className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
+        {isReviewer && (
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
+          >
+            <FileSpreadsheet size={15} />
+            <span>{exporting ? "Mengekspor..." : "Export Excel"}</span>
+          </button>
+        )}
       </div>
 
       {loading ? (
