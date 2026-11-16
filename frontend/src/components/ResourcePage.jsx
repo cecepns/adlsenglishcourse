@@ -298,9 +298,9 @@ export default function ResourcePage({ resource: cfg }) {
   };
 
   return (
-    <div>
+    <div className="space-y-4 sm:space-y-5">
       {user.role === "tutor" && cfg.tutorClockNotice && (
-        <div className="mb-4 flex flex-col justify-between gap-3 rounded-2xl bg-gradient-to-r from-brand-dark via-brand to-sky-700 p-5 text-white shadow-md sm:flex-row sm:items-center">
+        <div className="flex flex-col justify-between gap-3 rounded-2xl bg-gradient-to-r from-brand-dark via-brand to-sky-700 p-5 text-white shadow-md sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
             <Sparkles size={20} className="shrink-0 text-amber-300" />
             <div>
@@ -316,155 +316,17 @@ export default function ResourcePage({ resource: cfg }) {
         </div>
       )}
 
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-extrabold text-slate-900">{cfg.title}</h1>
+      {/* 1. Header Bar: Title + Subtitle on Left, Actions on Right */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">{cfg.title}</h1>
+          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
+            {cfg.subtitle || `Kelola dan pantau data ${cfg.title.toLowerCase()} secara terstruktur & real-time`}
+          </p>
+        </div>
+
+        {/* Action Buttons Cluster */}
         <div className="flex flex-wrap items-center gap-2">
-          {showBranchFilter && branches.length > 0 && (
-            <div className="w-44">
-              <Select
-                options={branchOptions}
-                value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
-                onChange={(opt) => {
-                  setBranchId(opt?.value || "");
-                  setPage(1);
-                }}
-                styles={{
-                  control: (base) => ({ ...base, borderRadius: "0.75rem", borderColor: "#cbd5e1", fontSize: "0.875rem", minHeight: 42 }),
-                  menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem" }),
-                }}
-              />
-            </div>
-          )}
-
-          {cfg.userSortFilters && (
-            <>
-              <select
-                className="input !w-auto min-w-[140px]"
-                value={roleFilter}
-                onChange={(e) => {
-                  setRoleFilter(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Filter Role"
-              >
-                <option value="">Semua Role</option>
-                <option value="owner">Owner</option>
-                <option value="admin_pusat">Admin Pusat</option>
-                <option value="admin_cabang">Admin Cabang</option>
-                <option value="tutor">Tutor</option>
-                <option value="siswa">Siswa / Karyawan</option>
-                <option value="ortu">Orang Tua</option>
-              </select>
-              <select
-                className="input !w-auto min-w-[130px]"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Filter Status"
-              >
-                <option value="">Semua Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-              <select
-                className="input !w-auto min-w-[160px]"
-                value={sortKey ? `${sortKey}:${sortOrder}` : ""}
-                onChange={(e) => {
-                  const [k, o] = (e.target.value || "").split(":");
-                  setSortKey(k || "");
-                  setSortOrder(o || "asc");
-                  setPage(1);
-                }}
-                aria-label="Sortir Users"
-              >
-                <option value="">Urutkan: Terbaru</option>
-                <option value="role:asc">Sortir Role (A-Z)</option>
-                <option value="role:desc">Sortir Role (Z-A)</option>
-                <option value="status:asc">Sortir Status (Active dulu)</option>
-                <option value="status:desc">Sortir Status (Inactive dulu)</option>
-                <option value="name:asc">Sortir Nama (A-Z)</option>
-              </select>
-            </>
-          )}
-
-          <div className="relative flex-1 sm:w-56">
-            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-            <input
-              className="input !pl-10"
-              placeholder="Cari..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-
-          {/* Filter Rentang Tanggal (Date Range Filter) */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 text-xs">
-            <div className="flex items-center gap-1 pl-2 text-slate-500 font-semibold">
-              <Calendar size={13} className="text-brand shrink-0" />
-              <span className="hidden sm:inline">Periode:</span>
-            </div>
-            <input
-              type="date"
-              className="rounded-lg border-0 bg-slate-50 px-2 py-1 text-xs text-slate-700 focus:ring-1 focus:ring-brand"
-              value={startDate}
-              title="Dari Tanggal"
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setPage(1);
-              }}
-            />
-            <span className="text-slate-400 font-bold">-</span>
-            <input
-              type="date"
-              className="rounded-lg border-0 bg-slate-50 px-2 py-1 text-xs text-slate-700 focus:ring-1 focus:ring-brand"
-              value={endDate}
-              title="Sampai Tanggal"
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setPage(1);
-              }}
-            />
-            {(startDate || endDate) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
-                  setPage(1);
-                }}
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
-                title="Reset Rentang Tanggal"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-
-          {/* Switcher Anak untuk Orang Tua (Multi-Anak) di Absensi / Laporan */}
-          {isParent && myChildren.length > 1 && (
-            <select
-              className="input !w-auto text-xs font-semibold"
-              value={studentIdFilter}
-              onChange={(e) => {
-                setStudentIdFilter(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">Semua Anak ({myChildren.length})</option>
-              {myChildren.map((c) => (
-                <option key={c.id} value={c.id}>
-                  Anak: {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {/* Download Excel untuk Admin dan Tutor */}
           {canDownloadExcel && (
             <button
               type="button"
@@ -483,17 +345,177 @@ export default function ResourcePage({ resource: cfg }) {
           )}
 
           {cfg.initClassAction && isStaff && (
-            <button type="button" className="btn-ghost" onClick={() => setInitModal(true)}>
-              <CalendarPlus size={16} /> Siapkan Kolom Nilai Kelas
+            <button type="button" className="btn-ghost !py-2 text-xs font-bold" onClick={() => setInitModal(true)}>
+              <CalendarPlus size={15} /> Siapkan Kolom Nilai
             </button>
           )}
 
           {canCreate && (
-            <button className="btn-primary" onClick={() => setModal({})}>
+            <button className="btn-primary !py-2 text-xs font-bold shadow-sm" onClick={() => setModal({})}>
               <Plus size={16} />
-              Tambah
+              <span>Tambah {cfg.singular || cfg.title}</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* 2. Dedicated Filter & Search Card Toolbar */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          {/* Search Box on Left */}
+          <div className="relative min-w-[220px] flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-2.5 text-slate-400" />
+            <input
+              className="input !pl-10 !py-2 text-xs w-full"
+              placeholder={`Cari data ${cfg.title.toLowerCase()}...`}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
+          {/* Filter Dropdowns and Date Picker on Right */}
+          <div className="flex flex-wrap items-center gap-2">
+            {showBranchFilter && branches.length > 0 && (
+              <div className="w-44 sm:w-48">
+                <Select
+                  options={branchOptions}
+                  value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
+                  onChange={(opt) => {
+                    setBranchId(opt?.value || "");
+                    setPage(1);
+                  }}
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderRadius: "0.75rem",
+                      borderColor: "#cbd5e1",
+                      fontSize: "0.75rem",
+                      minHeight: 38,
+                      height: 38,
+                      fontWeight: 600,
+                    }),
+                    menu: (base) => ({ ...base, zIndex: 40, borderRadius: "0.75rem", fontSize: "0.75rem" }),
+                  }}
+                />
+              </div>
+            )}
+
+            {cfg.userSortFilters && (
+              <>
+                <select
+                  className="input !w-auto !py-2 text-xs font-medium"
+                  value={roleFilter}
+                  onChange={(e) => {
+                    setRoleFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Filter Role"
+                >
+                  <option value="">Semua Role</option>
+                  <option value="owner">Owner</option>
+                  <option value="admin_pusat">Admin Pusat</option>
+                  <option value="admin_cabang">Admin Cabang</option>
+                  <option value="tutor">Tutor</option>
+                  <option value="siswa">Siswa / Karyawan</option>
+                  <option value="ortu">Orang Tua</option>
+                </select>
+                <select
+                  className="input !w-auto !py-2 text-xs font-medium"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Filter Status"
+                >
+                  <option value="">Semua Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <select
+                  className="input !w-auto !py-2 text-xs font-medium"
+                  value={sortKey ? `${sortKey}:${sortOrder}` : ""}
+                  onChange={(e) => {
+                    const [k, o] = (e.target.value || "").split(":");
+                    setSortKey(k || "");
+                    setSortOrder(o || "asc");
+                    setPage(1);
+                  }}
+                  aria-label="Sortir Users"
+                >
+                  <option value="">Urutkan: Terbaru</option>
+                  <option value="role:asc">Sortir Role (A-Z)</option>
+                  <option value="role:desc">Sortir Role (Z-A)</option>
+                  <option value="status:asc">Sortir Status (Active)</option>
+                  <option value="status:desc">Sortir Status (Inactive)</option>
+                  <option value="name:asc">Sortir Nama (A-Z)</option>
+                </select>
+              </>
+            )}
+
+            {/* Switcher Anak untuk Orang Tua (Multi-Anak) di Absensi / Laporan */}
+            {isParent && myChildren.length > 1 && (
+              <select
+                className="input !w-auto !py-2 text-xs font-semibold"
+                value={studentIdFilter}
+                onChange={(e) => {
+                  setStudentIdFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">Semua Anak ({myChildren.length})</option>
+                {myChildren.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Anak: {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Filter Rentang Tanggal (Date Range Pill) */}
+            <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
+              <Calendar size={13} className="text-brand shrink-0" />
+              <span className="text-slate-500 font-semibold hidden sm:inline">Periode:</span>
+              <input
+                type="date"
+                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+                value={startDate}
+                title="Dari Tanggal"
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setPage(1);
+                }}
+              />
+              <span className="text-slate-400 font-bold text-[11px]">-</span>
+              <input
+                type="date"
+                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+                value={endDate}
+                title="Sampai Tanggal"
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPage(1);
+                }}
+              />
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                    setPage(1);
+                  }}
+                  className="rounded-md p-0.5 text-slate-400 hover:bg-slate-200 hover:text-rose-600 transition"
+                  title="Reset Rentang Tanggal"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

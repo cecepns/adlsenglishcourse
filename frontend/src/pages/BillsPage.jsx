@@ -333,16 +333,32 @@ export default function BillsPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Tagihan SPP & Pembayaran</h1>
-          <p className="text-sm text-slate-500">Pembayaran resmi ditransfer ke rekening PT ADLS English Course dengan verifikasi bukti transfer</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">Tagihan SPP & Pembayaran</h1>
+          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Pembayaran resmi ditransfer ke rekening PT ADLS English Course dengan verifikasi bukti transfer</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canDownloadExcel && (
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={exporting || rows.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition disabled:opacity-50"
+              title="Download data tagihan SPP sebagai Excel (.csv UTF-8)"
+            >
+              {exporting ? (
+                <Loader2 size={14} className="animate-spin text-emerald-700" />
+              ) : (
+                <FileSpreadsheet size={15} className="text-emerald-700" />
+              )}
+              <span>Export Excel</span>
+            </button>
+          )}
           {isStaff && (
             <>
-              <button type="button" onClick={() => setGenModal(true)} className="btn-ghost">
-                <CalendarPlus size={16} /> Generate SPP
+              <button type="button" onClick={() => setGenModal(true)} className="btn-ghost !py-2 text-xs font-bold">
+                <CalendarPlus size={15} /> Generate SPP
               </button>
-              <button type="button" onClick={() => openCrud(null)} className="btn-primary">
+              <button type="button" onClick={() => openCrud(null)} className="btn-primary !py-2 text-xs font-bold shadow-sm">
                 <Plus size={16} /> Tambah Tagihan
               </button>
             </>
@@ -379,29 +395,14 @@ export default function BillsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {isHQ && branches.length > 0 && (
-            <div className="w-48">
-              <Select
-                options={branchOptions}
-                value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
-                onChange={(opt) => {
-                  setBranchId(opt?.value || "");
-                  setPage(1);
-                }}
-                styles={{
-                  control: (base) => ({ ...base, borderRadius: "0.75rem", borderColor: "#cbd5e1", fontSize: "0.875rem", minHeight: 42 }),
-                  menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem" }),
-                }}
-              />
-            </div>
-          )}
-          <div className="relative w-64">
-            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
+      {/* Filter Toolbar Card */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-[240px] flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-2.5 text-slate-400" />
             <input
-              className="input !pl-10"
-              placeholder="Cari siswa / bulan / tagihan..."
+              className="input !pl-10 !py-2 text-xs w-full"
+              placeholder="Cari nama siswa, bulan, atau nomor tagihan..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -410,67 +411,74 @@ export default function BillsPage() {
             />
           </div>
 
-          {/* Filter Rentang Tanggal Jatuh Tempo */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 text-xs">
-            <div className="flex items-center gap-1 pl-2 text-slate-500 font-semibold">
+          <div className="flex flex-wrap items-center gap-2">
+            {isHQ && branches.length > 0 && (
+              <div className="w-44 sm:w-48">
+                <Select
+                  options={branchOptions}
+                  value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
+                  onChange={(opt) => {
+                    setBranchId(opt?.value || "");
+                    setPage(1);
+                  }}
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderRadius: "0.75rem",
+                      borderColor: "#cbd5e1",
+                      fontSize: "0.75rem",
+                      minHeight: 38,
+                      height: 38,
+                      fontWeight: 600,
+                    }),
+                    menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem", fontSize: "0.75rem" }),
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Filter Rentang Tanggal Jatuh Tempo */}
+            <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
               <Calendar size={13} className="text-brand shrink-0" />
-              <span className="hidden sm:inline">Tempo:</span>
-            </div>
-            <input
-              type="date"
-              className="rounded-lg border-0 bg-slate-50 px-2 py-1 text-xs text-slate-700 focus:ring-1 focus:ring-brand"
-              value={startDate}
-              title="Dari Tanggal"
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setPage(1);
-              }}
-            />
-            <span className="text-slate-400 font-bold">-</span>
-            <input
-              type="date"
-              className="rounded-lg border-0 bg-slate-50 px-2 py-1 text-xs text-slate-700 focus:ring-1 focus:ring-brand"
-              value={endDate}
-              title="Sampai Tanggal"
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setPage(1);
-              }}
-            />
-            {(startDate || endDate) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
+              <span className="text-slate-500 font-semibold hidden sm:inline">Tempo:</span>
+              <input
+                type="date"
+                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+                value={startDate}
+                title="Dari Tanggal"
+                onChange={(e) => {
+                  setStartDate(e.target.value);
                   setPage(1);
                 }}
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
-                title="Reset Rentang Tanggal"
-              >
-                <X size={13} />
-              </button>
-            )}
+              />
+              <span className="text-slate-400 font-bold text-[11px]">-</span>
+              <input
+                type="date"
+                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+                value={endDate}
+                title="Sampai Tanggal"
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPage(1);
+                }}
+              />
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                    setPage(1);
+                  }}
+                  className="rounded-md p-0.5 text-slate-400 hover:bg-slate-200 hover:text-rose-600 transition"
+                  title="Reset Rentang Tanggal"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Download Excel untuk Admin dan Tutor */}
-        {canDownloadExcel && (
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={exporting || rows.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition disabled:opacity-50"
-            title="Download data tagihan SPP sebagai Excel (.csv UTF-8)"
-          >
-            {exporting ? (
-              <Loader2 size={14} className="animate-spin text-emerald-700" />
-            ) : (
-              <FileSpreadsheet size={15} className="text-emerald-700" />
-            )}
-            <span>Export Excel</span>
-          </button>
-        )}
       </div>
 
       <div className="card overflow-hidden">

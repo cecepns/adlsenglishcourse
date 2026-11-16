@@ -125,41 +125,53 @@ export default function Payroll() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Payroll Honor Tutor</h1>
-          <p className="text-sm text-slate-500">Perhitungan otomatis berdasarkan sesi hadir, tunjangan transport, potongan telat, dan bonus tepat waktu</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">Payroll Honor Tutor</h1>
+          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Perhitungan otomatis berdasarkan sesi hadir, tunjangan transport, potongan telat, dan bonus tepat waktu</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input type="month" className="input !w-44" value={month} onChange={(e) => setMonth(e.target.value)} />
-          {isHQ && branches.length > 0 && (
-            <div className="w-48">
-              <Select
-                options={branchOptions}
-                value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
-                onChange={(opt) => setBranchId(opt?.value || "")}
-                styles={{
-                  control: (base) => ({ ...base, borderRadius: "0.75rem", borderColor: "#cbd5e1", fontSize: "0.875rem", minHeight: 42 }),
-                  menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem" }),
-                }}
-              />
-            </div>
-          )}
           {isHQ && (
-            <button type="button" onClick={() => setRuleModal(true)} className="btn-ghost">
-              <Settings2 size={16} /> Aturan Gaji
+            <button type="button" onClick={() => setRuleModal(true)} className="btn-ghost !py-2 text-xs font-bold">
+              <Settings2 size={15} /> Aturan Gaji
             </button>
           )}
           <button
             type="button"
             onClick={handleExport}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition"
             title="Export Rekap Honor ke Excel"
           >
             <FileSpreadsheet size={15} />
             <span>Export Excel</span>
           </button>
-          <button type="button" onClick={load} className="btn-ghost !py-2.5" aria-label="Refresh">
+          <button type="button" onClick={load} className="btn-ghost !py-2 !px-3" aria-label="Refresh">
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           </button>
+        </div>
+      </div>
+
+      {/* Filter Card */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-xs font-bold text-slate-600">Pilih Periode:</span>
+            <input type="month" className="input !w-44 !py-1.5 text-xs font-semibold" value={month} onChange={(e) => setMonth(e.target.value)} />
+            {isHQ && branches.length > 0 && (
+              <div className="w-48">
+                <Select
+                  options={branchOptions}
+                  value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
+                  onChange={(opt) => setBranchId(opt?.value || "")}
+                  styles={{
+                    control: (base) => ({ ...base, borderRadius: "0.75rem", borderColor: "#cbd5e1", fontSize: "0.75rem", minHeight: 38, height: 38, fontWeight: 600 }),
+                    menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem", fontSize: "0.75rem" }),
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <div className="text-xs font-semibold text-slate-500">
+            Menampilkan data honor tutor untuk bulan <b>{month}</b>
+          </div>
         </div>
       </div>
 

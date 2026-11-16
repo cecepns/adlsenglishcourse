@@ -555,8 +555,8 @@ export default function CatalogShop() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        {tab === "catalog" ? (
+      {tab === "catalog" ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-xs font-bold uppercase text-slate-400">Usia:</span>
@@ -592,32 +592,108 @@ export default function CatalogShop() {
               ))}
             </div>
           </div>
-        ) : (
-          <div className="text-xs font-semibold text-slate-500">Daftar pesanan produk ADLS & verifikasi pembayaran</div>
-        )}
-        <div className="flex items-center gap-2">
-          <div className="relative w-full sm:w-60">
-            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-            <input
-              className="input !pl-10"
-              placeholder={tab === "catalog" ? "Cari produk..." : "Cari pemesan / produk..."}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative w-full sm:w-60">
+              <Search size={16} className="absolute left-3.5 top-2.5 text-slate-400" />
+              <input
+                className="input !h-9.5 !pl-10 text-xs rounded-xl"
+                placeholder="Cari produk..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {canExport && (
+              <button
+                type="button"
+                onClick={handleExportProducts}
+                className="inline-flex h-9.5 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                title="Download Katalog Excel"
+              >
+                <FileSpreadsheet size={15} />
+                <span className="hidden sm:inline">Export Excel</span>
+              </button>
+            )}
           </div>
-          {tab === "catalog" && canExport && (
-            <button
-              type="button"
-              onClick={handleExportProducts}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
-              title="Download Katalog Excel"
-            >
-              <FileSpreadsheet size={15} />
-              <span className="hidden sm:inline">Export Excel</span>
-            </button>
-          )}
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+              <Search size={16} className="absolute left-3.5 top-2.5 text-slate-400" />
+              <input
+                className="input !h-9.5 !pl-10 text-xs rounded-xl"
+                placeholder="Cari pemesan, produk, kasir..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50/50 p-1">
+                {ORDER_STATUS_TABS.map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setOrderStatusFilter(st.id)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                      orderStatusFilter === st.id
+                        ? "bg-brand text-white shadow-sm"
+                        : "text-slate-600 hover:bg-white"
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
+                <span className="font-semibold text-slate-500">Periode:</span>
+                <input
+                  type="date"
+                  value={orderStartDate}
+                  onChange={(e) => setOrderStartDate(e.target.value)}
+                  className="bg-transparent text-xs outline-none"
+                  title="Tanggal Mulai"
+                />
+                <span className="text-slate-400">s/d</span>
+                <input
+                  type="date"
+                  value={orderEndDate}
+                  onChange={(e) => setOrderEndDate(e.target.value)}
+                  className="bg-transparent text-xs outline-none"
+                  title="Tanggal Selesai"
+                />
+                {(orderStartDate || orderEndDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrderStartDate("");
+                      setOrderEndDate("");
+                    }}
+                    className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <span className="text-xs font-semibold text-slate-400">Total: {orders.length} transaksi</span>
+            </div>
+            {canExport && (
+              <button
+                type="button"
+                onClick={handleExportOrders}
+                disabled={exportingOrders}
+                className="inline-flex h-9.5 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
+              >
+                <FileSpreadsheet size={15} />
+                <span>{exportingOrders ? "Mengekspor..." : "Export Excel"}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {tab === "catalog" ? (
         loading ? (
@@ -700,76 +776,7 @@ export default function CatalogShop() {
           </div>
         )
       ) : (
-        <div className="space-y-3">
-          {/* Status Filter Tabs (Selesai, Belum Lunas, Belum Bayar, Dibatalkan) */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white p-1">
-              {ORDER_STATUS_TABS.map((st) => (
-                <button
-                  key={st.id}
-                  type="button"
-                  onClick={() => setOrderStatusFilter(st.id)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                    orderStatusFilter === st.id
-                      ? "bg-brand text-white shadow-sm"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {st.label}
-                </button>
-              ))}
-            </div>
-            <div className="text-xs font-bold text-slate-500">
-              Total: {orders.length} transaksi
-            </div>
-          </div>
-
-          {/* Date Range Filter & Export Excel */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-slate-600">Rentang Tanggal:</span>
-              <input
-                type="date"
-                value={orderStartDate}
-                onChange={(e) => setOrderStartDate(e.target.value)}
-                className="input !w-auto !py-1 text-xs"
-                title="Tanggal Mulai"
-              />
-              <span className="text-xs text-slate-400">s/d</span>
-              <input
-                type="date"
-                value={orderEndDate}
-                onChange={(e) => setOrderEndDate(e.target.value)}
-                className="input !w-auto !py-1 text-xs"
-                title="Tanggal Selesai"
-              />
-              {(orderStartDate || orderEndDate) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOrderStartDate("");
-                    setOrderEndDate("");
-                  }}
-                  className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-
-            {canExport && (
-              <button
-                type="button"
-                onClick={handleExportOrders}
-                disabled={exportingOrders}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
-              >
-                <FileSpreadsheet size={15} />
-                <span>{exportingOrders ? "Mengekspor..." : "Export Excel"}</span>
-              </button>
-            )}
-          </div>
-
+        <div className="space-y-4">
           <div className="card overflow-hidden">
             {loading ? (
               <div className="space-y-2.5 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>

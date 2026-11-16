@@ -144,22 +144,22 @@ export default function Referrals() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Komisi Referral (Potongan SPP)</h1>
-          <p className="text-sm text-slate-500">Apresiasi komisi potongan SPP bagi orang tua & siswa yang berhasil mengajak teman/anak bergabung</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">Komisi Referral (Potongan SPP)</h1>
+          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Apresiasi komisi potongan SPP bagi orang tua & siswa yang berhasil mengajak teman/anak bergabung</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-60">
-            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-            <input
-              className="input !pl-10"
-              placeholder="Cari nama pengajak / siswa..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
+          {(isStaff || user.role === "tutor") && (
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition disabled:opacity-50"
+              title="Download rekap komisi referral sebagai Excel (.csv UTF-8)"
+            >
+              <FileSpreadsheet size={15} />
+              <span>{exporting ? "Mengekspor..." : "Export Excel"}</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -174,64 +174,68 @@ export default function Referrals() {
               });
               setCreateModal(true);
             }}
-            className="btn-primary"
+            className="btn-primary !py-2 text-xs font-bold shadow-sm"
           >
             <Plus size={16} /> Ajukan Referral
           </button>
         </div>
       </div>
 
-      {/* Date Range Filter & Export */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-slate-600">Rentang Tanggal:</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              setStartDate(e.target.value);
-              setPage(1);
-            }}
-            className="input !w-auto !py-1 text-xs"
-            title="Tanggal Mulai"
-          />
-          <span className="text-xs text-slate-400">s/d</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => {
-              setEndDate(e.target.value);
-              setPage(1);
-            }}
-            className="input !w-auto !py-1 text-xs"
-            title="Tanggal Selesai"
-          />
-          {(startDate || endDate) && (
-            <button
-              type="button"
-              onClick={() => {
-                setStartDate("");
-                setEndDate("");
+      {/* Filter Card */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-[240px] flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-2.5 text-slate-400" />
+            <input
+              className="input !pl-10 !py-2 text-xs w-full"
+              placeholder="Cari nama pengajak atau siswa..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
                 setPage(1);
               }}
-              className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200"
-            >
-              Reset
-            </button>
-          )}
-        </div>
+            />
+          </div>
 
-        {(isStaff || user.role === "tutor") && (
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
-          >
-            <FileSpreadsheet size={15} />
-            <span>{exporting ? "Mengekspor..." : "Export Excel"}</span>
-          </button>
-        )}
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
+            <span className="text-slate-500 font-semibold hidden sm:inline">Periode:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
+              className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+              title="Tanggal Mulai"
+            />
+            <span className="text-slate-400 font-bold text-[11px]">-</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
+              className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+              title="Tanggal Selesai"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                  setPage(1);
+                }}
+                className="rounded-md p-0.5 text-slate-400 hover:bg-slate-200 hover:text-rose-600 transition"
+                title="Reset Rentang Tanggal"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="card overflow-hidden">

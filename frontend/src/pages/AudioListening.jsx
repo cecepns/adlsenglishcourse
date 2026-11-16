@@ -137,44 +137,50 @@ export default function AudioListening() {
 
   return (
     <div className="space-y-5">
+      {/* Top Header Row (Title & Action) */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Audio Listening Pembelajaran</h1>
           <p className="text-sm text-slate-500">Akses audio listening modul & QRIS langsung dari website resmi ADLS</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-60">
-            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-            <input
-              className="input !pl-10"
-              placeholder="Cari materi / modul..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          {canManage && (
-            <button type="button" onClick={() => openModal(null)} className="btn-primary">
+        {canManage && (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => openModal(null)} className="btn-primary !h-9.5">
               <Plus size={16} /> Tambah Audio
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {LEVELS.map((lv) => (
-          <button
-            key={lv}
-            type="button"
-            onClick={() => setLevelFilter(lv)}
-            className={`rounded-full px-4 py-1.5 text-xs font-bold transition ${
-              levelFilter === lv
-                ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm"
-                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {lv}
-          </button>
-        ))}
+      {/* Dedicated Filter & Search Toolbar Card */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+          <Search size={16} className="pointer-events-none absolute left-3.5 top-2.5 text-slate-400" />
+          <input
+            className="input !h-9.5 !pl-10 text-xs rounded-xl"
+            placeholder="Cari materi / modul..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-bold text-slate-400 uppercase mr-1">Level:</span>
+          {LEVELS.map((lv) => (
+            <button
+              key={lv}
+              type="button"
+              onClick={() => setLevelFilter(lv)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                levelFilter === lv
+                  ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {lv}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (

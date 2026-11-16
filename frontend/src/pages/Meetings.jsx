@@ -76,13 +76,40 @@ export default function Meetings() {
 
   return (
     <div className="space-y-5">
+      {/* Top Header Row (Title & Action) */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Class Meeting Online</h1>
           <p className="text-sm text-slate-500">Ruang kelas online resmi ADLS English Course untuk Tutor dan Siswa</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl border border-slate-200 bg-white p-1">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={load}
+            className="inline-flex h-9.5 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 hover:text-slate-900"
+            aria-label="Refresh Data"
+            title="Refresh Data"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Dedicated Filter & Search Toolbar Card */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+          <Search size={16} className="pointer-events-none absolute left-3.5 top-2.5 text-slate-400" />
+          <input
+            className="input !h-9.5 !pl-10 text-xs rounded-xl"
+            placeholder="Cari kelas / tutor..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Mode Kelas Online vs Semua */}
+          <div className="flex rounded-xl border border-slate-200 bg-slate-50/60 p-1">
             {[
               { id: "online", label: "Kelas Online" },
               { id: "all", label: "Semua Kelas" },
@@ -91,46 +118,36 @@ export default function Meetings() {
                 key={tab.id}
                 type="button"
                 onClick={() => setFilterType(tab.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                  filterType === tab.id ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+                className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+                  filterType === tab.id ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-xs" : "text-slate-600 hover:bg-white"
                 }`}
               >
                 {tab.label}
               </button>
             ))}
           </div>
-          <div className="relative w-56">
-            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-            <input
-              className="input !pl-10"
-              placeholder="Cari kelas / tutor..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <button onClick={load} className="btn-ghost !py-2.5" aria-label="Refresh">
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-          </button>
-        </div>
-      </div>
 
-      {/* Pengelompokan Berdasarkan Type Kelas (PDF Hal 1 Item 5) */}
-      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
-        <span className="text-xs font-bold text-slate-500 px-2">Type Kelas:</span>
-        {["Semua Tipe", "Regular", "Private", "Intensive"].map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setClassTypeFilter(t)}
-            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-              classTypeFilter === t
-                ? "bg-brand text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+          <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+
+          {/* Pengelompokan Berdasarkan Type Kelas */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-400 uppercase mr-1">Tipe:</span>
+            {["Semua Tipe", "Regular", "Private", "Intensive"].map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setClassTypeFilter(t)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                  classTypeFilter === t
+                    ? "bg-brand text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {loading ? (

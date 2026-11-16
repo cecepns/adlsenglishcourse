@@ -148,12 +148,12 @@ export default function StudentsDatabase() {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="relative min-w-[240px] flex-1">
-          <Search size={16} className="pointer-events-none absolute left-3.5 top-3 text-slate-400" />
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative min-w-[240px] flex-1 sm:max-w-md">
+          <Search size={16} className="pointer-events-none absolute left-3.5 top-2.5 text-slate-400" />
           <input
             type="text"
-            className="input !pl-10 !py-2 text-xs"
+            className="input !h-9.5 !pl-10 text-xs rounded-xl"
             placeholder="Cari nama siswa, kelas, cabang, atau tutor..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -163,7 +163,7 @@ export default function StudentsDatabase() {
         <div className="flex flex-wrap items-center gap-2">
           {["owner", "admin_pusat"].includes(user?.role) && (
             <select
-              className="input !w-auto !py-2 text-xs"
+              className="input !h-9.5 !w-auto text-xs rounded-xl"
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
             >
@@ -175,7 +175,7 @@ export default function StudentsDatabase() {
           )}
 
           <select
-            className="input !w-auto !py-2 text-xs"
+            className="input !h-9.5 !w-auto text-xs rounded-xl"
             value={paymentFilter}
             onChange={(e) => setPaymentFilter(e.target.value)}
           >
@@ -185,7 +185,7 @@ export default function StudentsDatabase() {
           </select>
 
           {/* Date Range Filter */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
+          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
             <span className="font-semibold text-slate-500">Tgl Gabung:</span>
             <input
               type="date"
@@ -209,7 +209,7 @@ export default function StudentsDatabase() {
                   setStartDate("");
                   setEndDate("");
                 }}
-                className="ml-1 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-600 hover:bg-slate-200"
+                className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
               >
                 Reset
               </button>

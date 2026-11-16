@@ -135,72 +135,80 @@ export default function Achievements() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Prestasi Murid Nilai 100</h1>
-          <p className="text-sm text-slate-500">Pelacakan nilai sempurna — capai 20x nilai UAS 100 untuk mendapatkan Reward Gratis 1x SPP</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">Prestasi Murid Nilai 100</h1>
+          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Pelacakan nilai sempurna — capai 20x nilai UAS 100 untuk mendapatkan Reward Gratis 1x SPP</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isHQ && branches.length > 0 && (
-            <div className="w-44">
-              <Select
-                options={branchOptions}
-                value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
-                onChange={(opt) => setBranchId(opt?.value || "")}
-                styles={{
-                  control: (base) => ({ ...base, borderRadius: "0.75rem", borderColor: "#cbd5e1", fontSize: "0.875rem", minHeight: 42 }),
-                  menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem" }),
-                }}
-              />
-            </div>
-          )}
-
-          {classOptions.length > 0 && (
-            <select
-              className="input !w-auto text-xs font-semibold"
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-            >
-              <option value="">Semua Kelas ({rows.length})</option>
-              {classOptions.map((cls) => (
-                <option key={cls} value={cls}>
-                  Kelas: {cls}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <select
-            className="input !w-auto text-xs font-semibold"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-          >
-            <option value="uas">Urut: UAS 100 Terbanyak</option>
-            <option value="formatif">Urut: Formatif 100</option>
-            <option value="name">Urut: Nama Siswa (A-Z)</option>
-          </select>
-
-          <div className="relative w-52">
-            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-            <input
-              className="input !pl-10"
-              placeholder="Cari nama siswa..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
           {(isStaff || user.role === "tutor") && (
             <button
               type="button"
               onClick={handleExport}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition"
               title="Export ke Excel"
             >
               <FileSpreadsheet size={15} />
               <span>Export Excel</span>
             </button>
           )}
-          <button onClick={load} className="btn-ghost !py-2.5" aria-label="Refresh">
+          <button onClick={load} className="btn-ghost !py-2 !px-3" aria-label="Refresh">
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           </button>
+        </div>
+      </div>
+
+      {/* Filter Card */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-[240px] flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-2.5 text-slate-400" />
+            <input
+              className="input !pl-10 !py-2 text-xs w-full"
+              placeholder="Cari nama siswa..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isHQ && branches.length > 0 && (
+              <div className="w-44 sm:w-48">
+                <Select
+                  options={branchOptions}
+                  value={branchOptions.find((o) => o.value === branchId) || branchOptions[0]}
+                  onChange={(opt) => setBranchId(opt?.value || "")}
+                  styles={{
+                    control: (base) => ({ ...base, borderRadius: "0.75rem", borderColor: "#cbd5e1", fontSize: "0.75rem", minHeight: 38, height: 38, fontWeight: 600 }),
+                    menu: (base) => ({ ...base, zIndex: 30, borderRadius: "0.75rem", fontSize: "0.75rem" }),
+                  }}
+                />
+              </div>
+            )}
+
+            {classOptions.length > 0 && (
+              <select
+                className="input !w-auto !py-2 text-xs font-semibold"
+                value={classFilter}
+                onChange={(e) => setClassFilter(e.target.value)}
+              >
+                <option value="">Semua Kelas ({rows.length})</option>
+                {classOptions.map((cls) => (
+                  <option key={cls} value={cls}>
+                    Kelas: {cls}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <select
+              className="input !w-auto !py-2 text-xs font-semibold"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="uas">Urut: UAS 100 Terbanyak</option>
+              <option value="formatif">Urut: Formatif 100</option>
+              <option value="name">Urut: Nama Siswa (A-Z)</option>
+            </select>
+          </div>
         </div>
       </div>
 
