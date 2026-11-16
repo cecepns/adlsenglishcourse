@@ -65,18 +65,46 @@ const ICON_BG = {
   purple: "bg-purple-50 text-purple-600",
 };
 
-function KpiCard({ icon: Icon, label, value, sub, color = "blue" }) {
-  return (
-    <div className="card p-4 sm:p-5">
-      <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wide text-slate-500">
-        <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${ICON_BG[color] || ICON_BG.blue}`}>
-          <Icon size={17} />
-        </span>
-        <span className="truncate">{label}</span>
+function KpiCard({ icon: Icon, label, value, sub, color = "blue", to }) {
+  const content = (
+    <div
+      className={`card p-4 sm:p-5 h-full transition duration-150 ${
+        to
+          ? "cursor-pointer hover:border-brand/40 hover:shadow-md hover:-translate-y-0.5 group"
+          : ""
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+              ICON_BG[color] || ICON_BG.blue
+            }`}
+          >
+            <Icon size={17} />
+          </span>
+          <span className="truncate">{label}</span>
+        </div>
+        {to && (
+          <ChevronRight
+            size={15}
+            className="shrink-0 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand"
+          />
+        )}
       </div>
-      <div className="mt-3 text-2xl font-extrabold text-slate-900">{value}</div>
+      <div className="mt-3 text-2xl font-extrabold text-slate-900 group-hover:text-brand transition-colors">
+        {value}
+      </div>
       {sub && <div className="mt-1 text-xs font-medium text-slate-500">{sub}</div>}
     </div>
+  );
+
+  return to ? (
+    <Link to={to} className="block no-underline">
+      {content}
+    </Link>
+  ) : (
+    content
   );
 }
 
@@ -302,6 +330,7 @@ export default function Dashboard() {
           value={stats ? stats.students ?? 0 : "…"}
           sub={stats ? `${stats.totalStudents ?? 0} total · ${stats.inactiveStudents ?? 0} nonaktif` : ""}
           color="blue"
+          to="/students"
         />
 
         {/* Siswa Baru vs Keluar (#14) */}
@@ -311,6 +340,7 @@ export default function Dashboard() {
           value={stats ? stats.newStudents ?? 0 : "…"}
           sub={stats ? `${stats.outStudents ?? 0} siswa berhenti (out)` : ""}
           color="emerald"
+          to="/students"
         />
 
         {/* Paid Students: Cash vs Transfer */}
@@ -324,6 +354,7 @@ export default function Dashboard() {
               : ""
           }
           color="emerald"
+          to="/students-database"
         />
 
         {/* Unpaid Students */}
@@ -333,6 +364,7 @@ export default function Dashboard() {
           value={stats ? `${unpaidCount} Siswa` : "…"}
           sub={stats ? `Tunggakan: ${rp(unpaidAmount)}` : ""}
           color="rose"
+          to="/bills"
         />
 
         <KpiCard
@@ -341,6 +373,7 @@ export default function Dashboard() {
           value={stats ? `${stats.attendanceRate ?? 0}%` : "…"}
           sub={stats ? `dari ${stats.attendanceTotal ?? 0} catatan absensi` : ""}
           color="sky"
+          to="/attendance"
         />
 
         <KpiCard
@@ -349,6 +382,7 @@ export default function Dashboard() {
           value={stats ? `${stats.tutorAttendanceRate ?? 0}%` : "…"}
           sub={stats ? `${stats.tutorAttendanceTotal ?? 0} sesi · ${stats.tutorLateCount ?? 0} telat` : ""}
           color="emerald"
+          to="/tutor_attendance"
         />
 
         <KpiCard
@@ -357,6 +391,7 @@ export default function Dashboard() {
           value={stats ? stats.classes ?? 0 : "…"}
           sub={stats ? `${stats.offlineClasses ?? 0} offline · ${stats.onlineClasses ?? 0} online` : ""}
           color="indigo"
+          to="/classes"
         />
 
         <KpiCard
@@ -365,6 +400,7 @@ export default function Dashboard() {
           value={stats ? rp(stats.totalExpenses) : "…"}
           sub={stats ? `Top ${topExpenses.length} kategori pengeluaran` : ""}
           color="amber"
+          to="/expenses"
         />
       </div>
 
@@ -406,38 +442,9 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wide text-emerald-800">Siswa Lunas (Cash)</span>
-              <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-900">Tunai</span>
-            </div>
-            <div className="mt-2 text-2xl font-extrabold text-emerald-900">{paidCashCount} Siswa</div>
-            <div className="mt-1 text-xs font-semibold text-emerald-700">{rp(paidCashAmount)}</div>
-          </div>
-
-          <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wide text-blue-800">Siswa Lunas (Transfer)</span>
-              <span className="rounded-full bg-blue-200 px-2 py-0.5 text-xs font-bold text-blue-900">Transfer</span>
-            </div>
-            <div className="mt-2 text-2xl font-extrabold text-blue-900">{paidTransferCount} Siswa</div>
-            <div className="mt-1 text-xs font-semibold text-blue-700">{rp(paidTransferAmount)}</div>
-          </div>
-
-          <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wide text-rose-800">Siswa Belum Bayar (Unpaid)</span>
-              <span className="rounded-full bg-rose-200 px-2 py-0.5 text-xs font-bold text-rose-900">Pending</span>
-            </div>
-            <div className="mt-2 text-2xl font-extrabold text-rose-900">{unpaidCount} Siswa</div>
-            <div className="mt-1 text-xs font-semibold text-rose-700">Tunggakan {rp(unpaidAmount)}</div>
-          </div>
-        </div>
-
         {/* Rincian Berdasarkan Masing-Masing Cabang */}
-        {branchPaidUnpaid.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+        {branchPaidUnpaid.length > 0 ? (
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500">
                 <tr>
@@ -484,6 +491,8 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-slate-400">Belum ada data pembayaran cabang</div>
         )}
       </div>
 
@@ -493,6 +502,12 @@ export default function Dashboard() {
         subtitle={`Perkembangan siswa berdasarkan masing-masing cabang (${growthView === "weekly" ? "Mingguan" : "Bulanan"})`}
         right={
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/students"
+              className="inline-flex items-center gap-1 rounded-xl bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand hover:bg-brand-100"
+            >
+              Data Siswa <ChevronRight size={13} />
+            </Link>
             <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
               <button
                 type="button"
@@ -552,6 +567,11 @@ export default function Dashboard() {
         <ChartCard
           title="Sumber Pendaftaran (Marketing Source)"
           subtitle="Distribusi calon siswa mengenal ADLS English Course"
+          right={
+            <Link to="/students-database" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+              Rekap Siswa <ChevronRight size={14} />
+            </Link>
+          }
         >
           {marketingSources.length > 0 ? (
             <HorizontalBars
@@ -572,6 +592,11 @@ export default function Dashboard() {
         <ChartCard
           title="Alasan Siswa Berhenti (Student Out)"
           subtitle="Evaluasi dan data retensi siswa non-aktif / berhenti"
+          right={
+            <Link to="/students" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+              Data Siswa <ChevronRight size={14} />
+            </Link>
+          }
         >
           {stopReasons.length > 0 ? (
             <HorizontalBars
@@ -592,7 +617,15 @@ export default function Dashboard() {
       {/* Row: Pemasukan SPP, Top Expenses, Rekap Kehadiran, & Top Tutors */}
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Pemasukan SPP per Bulan */}
-        <ChartCard title="Pemasukan SPP per Bulan" subtitle="Perbandingan tagihan terbayar vs belum lunas">
+        <ChartCard
+          title="Pemasukan SPP per Bulan"
+          subtitle="Perbandingan tagihan terbayar vs belum lunas"
+          right={
+            <Link to="/bills" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+              Kelola Tagihan SPP <ChevronRight size={14} />
+            </Link>
+          }
+        >
           <GroupedBarChart
             labels={billMonths.map((m) => fmtMonth(m.month))}
             formatValue={shortRp}
@@ -626,7 +659,15 @@ export default function Dashboard() {
         </ChartCard>
 
         {/* Rekap Kehadiran Siswa */}
-        <ChartCard title="Rekap Kehadiran Siswa" subtitle="Distribusi status absensi seluruh sesi">
+        <ChartCard
+          title="Rekap Kehadiran Siswa"
+          subtitle="Distribusi status absensi seluruh sesi"
+          right={
+            <Link to="/attendance" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+              Absensi Siswa <ChevronRight size={14} />
+            </Link>
+          }
+        >
           <DonutChart
             centerValue={`${stats?.attendanceRate ?? 0}%`}
             centerLabel="Tingkat Hadir"
@@ -652,9 +693,10 @@ export default function Dashboard() {
           {topTutors.length ? (
             <div className="space-y-3">
               {topTutors.map((t, idx) => (
-                <div
+                <Link
+                  to="/tutor_attendance"
                   key={t.id}
-                  className="flex items-center justify-between gap-3.5 rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5 transition hover:border-slate-200"
+                  className="flex items-center justify-between gap-3.5 rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5 transition hover:border-brand/40 hover:bg-white hover:shadow-xs group cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <span
@@ -671,7 +713,7 @@ export default function Dashboard() {
                       {idx === 0 ? <Award size={18} className="text-amber-600" /> : `#${idx + 1}`}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-extrabold text-slate-900 truncate">
+                      <div className="text-sm font-extrabold text-slate-900 group-hover:text-brand transition-colors truncate">
                         {t.name}
                       </div>
                       <div className="mt-0.5 text-xs text-slate-500 truncate" title={t.branch_name}>
@@ -688,23 +730,26 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <div className="shrink-0 text-right min-w-[115px]">
-                    <span
-                      className={`inline-block whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-extrabold ${
-                        t.on_time_rate >= 85
-                          ? "bg-emerald-100 text-emerald-800"
-                          : t.on_time_rate >= 50
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-slate-200 text-slate-700"
-                      }`}
-                    >
-                      {t.on_time_rate}% Tepat Waktu
-                    </span>
-                    <div className="mt-1 text-[11px] font-medium text-slate-400 whitespace-nowrap">
-                      {t.on_time_sessions}/{t.total_sessions} sesi hadir
+                  <div className="shrink-0 flex items-center gap-2">
+                    <div className="text-right min-w-[115px]">
+                      <span
+                        className={`inline-block whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-extrabold ${
+                          t.on_time_rate >= 85
+                            ? "bg-emerald-100 text-emerald-800"
+                            : t.on_time_rate >= 50
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {t.on_time_rate}% Tepat Waktu
+                      </span>
+                      <div className="mt-1 text-[11px] font-medium text-slate-400 whitespace-nowrap">
+                        {t.on_time_sessions}/{t.total_sessions} sesi hadir
+                      </div>
                     </div>
+                    <ChevronRight size={15} className="text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand" />
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -719,6 +764,12 @@ export default function Dashboard() {
         subtitle="Sistem real-time pemantauan slot mengajar kosong, jadwal per cabang & sesi, serta deteksi bentrok"
         right={
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/classes"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
+            >
+              Jadwal Kelas <ChevronRight size={13} />
+            </Link>
             <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
               <button
                 type="button"
@@ -829,9 +880,11 @@ export default function Dashboard() {
                                 {busyItems.length > 0 ? (
                                   <div className="space-y-1.5">
                                     {busyItems.map((bi, biIdx) => (
-                                      <div
+                                      <Link
+                                        to="/classes"
                                         key={biIdx}
-                                        className="rounded-lg border border-blue-200 bg-blue-50/80 p-2 text-left shadow-2xs"
+                                        className="rounded-lg border border-blue-200 bg-blue-50/80 p-2 text-left shadow-2xs block hover:border-brand hover:bg-blue-100/70 transition"
+                                        title="Buka Kelas Belajar"
                                       >
                                         <div className="flex items-center justify-between gap-1 mb-0.5">
                                           <span className="text-[11px] font-bold text-slate-900 truncate">
@@ -847,7 +900,7 @@ export default function Dashboard() {
                                         {bi.level && (
                                           <div className="text-[10px] text-slate-500 truncate">{bi.level}</div>
                                         )}
-                                      </div>
+                                      </Link>
                                     ))}
                                   </div>
                                 ) : (
