@@ -7,7 +7,15 @@ app.use(cors({ origin: process.env.CORS_ORIGIN?.split(",") || true }));
 app.use(express.json({ limit: "2mb" }));
 const UPLOAD_DIR = path.join(__dirname, "uploads-adls-english-course");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-app.use("/uploads", express.static(UPLOAD_DIR));
+const serveUploads = express.static(UPLOAD_DIR, {
+  setHeaders: (res, filePath) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  },
+});
+app.use("/uploads", serveUploads);
+app.use("/adls/uploads", serveUploads);
 
 const pool = mysql.createPool({ host: process.env.DB_HOST, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME || "kinq6231_adls", connectionLimit: 10, dateStrings: ["DATE"] });
 const STAFF = ["owner", "admin_pusat", "admin_cabang"], ALL = [...STAFF, "tutor", "siswa", "ortu"], HQ = ["owner", "admin_pusat"];

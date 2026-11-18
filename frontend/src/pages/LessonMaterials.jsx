@@ -15,7 +15,7 @@ import {
   Building2,
   Trash2,
 } from "lucide-react";
-import { api } from "@/utils/api";
+import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { useAuth } from "@/context/AuthContext";
 import { COURSE_LEVELS } from "@/config/resources";
@@ -289,7 +289,7 @@ export default function LessonMaterials() {
       {/* Secure Viewer Modal */}
       {selectedDoc && (
         <SecureDocViewer
-          fileUrl={selectedDoc.file_url}
+          fileUrl={resolveAssetUrl(selectedDoc.file_url)}
           title={selectedDoc.title}
           fileType={selectedDoc.file_type}
           onClose={() => setSelectedDoc(null)}

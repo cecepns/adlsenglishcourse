@@ -51,20 +51,47 @@
   background-color: #e0f2fe !important;
   color: #1e3a5f !important;
 }
+
+/* Hari ini (default / belum dipilih) */
+.react-datepicker__day--today {
+  border: 1.5px solid #0284c7 !important;
+  color: #0369a1 !important;
+  font-weight: 800 !important;
+  background-color: transparent !important;
+}
+.react-datepicker__day--today:hover {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+}
+
+/* Hari / bulan aktif, terpilih, atau keyboard-selected (termasuk jika hari ini) */
 .react-datepicker__day--selected,
 .react-datepicker__day--keyboard-selected,
 .react-datepicker__month-text--selected,
-.react-datepicker__month-text--keyboard-selected {
-  background: linear-gradient(135deg, #1e3a5f 0%, #2a5885 100%) !important;
+.react-datepicker__month-text--keyboard-selected,
+.react-datepicker__day--today.react-datepicker__day--selected,
+.react-datepicker__day--today.react-datepicker__day--keyboard-selected,
+.react-datepicker__month-text--today.react-datepicker__month-text--selected,
+.react-datepicker__month-text--today.react-datepicker__month-text--keyboard-selected {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%) !important;
   color: #ffffff !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
+  border-color: transparent !important;
+  box-shadow: 0 3px 8px rgba(30, 58, 95, 0.3) !important;
 }
-.react-datepicker__day--today {
-  border: 1px solid #2a5885 !important;
-  color: #2a5885 !important;
-}
-.react-datepicker__day--today.react-datepicker__day--selected {
+
+.react-datepicker__day--selected:hover,
+.react-datepicker__day--keyboard-selected:hover,
+.react-datepicker__day--today.react-datepicker__day--selected:hover,
+.react-datepicker__day--today.react-datepicker__day--keyboard-selected:hover {
+  background: linear-gradient(135deg, #172554 0%, #1d4ed8 100%) !important;
   color: #ffffff !important;
+}
+
+/* Hari di luar bulan aktif (grayed out) */
+.react-datepicker__day--outside-month {
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
 }
 .react-datepicker__month-select,
 .react-datepicker__year-select {
