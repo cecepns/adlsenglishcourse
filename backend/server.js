@@ -2122,7 +2122,13 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
   }
 
   const [tutors] = await pool.query(
-    `SELECT u.id, u.name, u.email, u.phone, b.name AS branch_name
+    `SELECT u.id, u.name, u.email, u.phone, b.name AS branch_name,
+            (SELECT GROUP_CONCAT(DISTINCT cb.name ORDER BY cb.name SEPARATOR ', ')
+             FROM branches cb
+             WHERE cb.id=u.branch_id
+                OR cb.id IN (SELECT branch_id FROM tutor_branches WHERE tutor_id=u.id)
+                OR cb.id IN (SELECT branch_id FROM classes WHERE tutor_id=u.id)
+            ) AS teaching_branches
      FROM users u
      LEFT JOIN branches b ON b.id=u.branch_id
      WHERE ${tWhere.join(" AND ")}
@@ -2143,7 +2149,8 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
   const results = [];
   for (const tut of tutors) {
     const [tutClasses] = await pool.query(
-      `SELECT c.id, c.name, COALESCE(c.class_type, c.name) AS class_type, c.level, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, c.schedule, b.name AS branch_name
+      `SELECT c.id, c.name, COALESCE(c.class_type, c.name) AS class_type, c.level, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, c.schedule, b.name AS branch_name,
+              (SELECT COUNT(*) FROM students s WHERE s.class_id=c.id AND s.status='active') AS student_count
        FROM classes c
        LEFT JOIN branches b ON b.id=c.branch_id
        WHERE c.tutor_id=?`,
@@ -2185,6 +2192,7 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
                 day: stdDay,
                 session: slot.session,
                 time: slot.label,
+                student_count: Number(c.student_count || 0),
               };
               busyList.push(busyMap[key]);
             }
@@ -2213,6 +2221,7 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
       email: tut.email,
       phone: tut.phone,
       branch_name: tut.branch_name || "-",
+      teaching_branches: tut.teaching_branches || tut.branch_name || "-",
       active_classes: tutClasses.length,
       total_classes: tutClasses.length,
       busy_slots_count: Object.keys(busyMap).length,
@@ -2252,6 +2261,7 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
           class_id: bs.class_id,
           class_name: bs.class_name,
           level: bs.level,
+          student_count: Number(bs.student_count || 0),
           is_busy: true,
         });
       }

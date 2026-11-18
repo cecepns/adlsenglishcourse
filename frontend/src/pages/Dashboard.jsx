@@ -868,7 +868,10 @@ export default function Dashboard() {
                             const busyItems = timetableData.matrix?.[selectedTimetableDay]?.[slot.session]?.[b.id] || [];
                             const freeForBranch = tutorAvail.filter(
                               (t) =>
-                                (t.branch_name === b.name || t.branch_name === "-" || !t.branch_name) &&
+                                (t.branch_name === b.name ||
+                                  t.branch_name === "-" ||
+                                  !t.branch_name ||
+                                  (t.teaching_branches && t.teaching_branches.includes(b.name))) &&
                                 t.empty_slots?.some((s) => s.day === selectedTimetableDay && s.session === slot.session)
                             );
 
@@ -897,20 +900,47 @@ export default function Dashboard() {
                                         <div className="text-[11px] font-semibold text-brand-dark truncate">
                                           {bi.class_name}
                                         </div>
-                                        {bi.level && (
-                                          <div className="text-[10px] text-slate-500 truncate">{bi.level}</div>
-                                        )}
+                                        <div className="mt-1 flex items-center justify-between gap-1 border-t border-blue-100/80 pt-1 text-[10px]">
+                                          <span className="text-slate-500 truncate" title={bi.level}>{bi.level || "-"}</span>
+                                          <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 font-bold text-blue-900">
+                                            <Users size={10} /> {bi.student_count || 0} Siswa
+                                          </span>
+                                        </div>
                                       </Link>
                                     ))}
                                   </div>
                                 ) : (
-                                  <div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/30 p-2 text-center">
+                                  <div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/40 p-2 text-center">
                                     <div className="text-[11px] font-bold text-emerald-800">
                                       ✨ KOSONG
                                     </div>
-                                    <div className="text-[10px] font-medium text-emerald-600 mt-0.5">
-                                      {freeForBranch.length ? `${freeForBranch.length} Tutor Tersedia` : "Slot Siap Diisi"}
-                                    </div>
+                                    {freeForBranch.length > 0 ? (
+                                      <>
+                                        <div className="text-[10px] font-semibold text-emerald-700 mt-0.5">
+                                          {freeForBranch.length} Tutor Tersedia:
+                                        </div>
+                                        <div className="mt-1.5 flex flex-wrap gap-1 justify-center">
+                                          {freeForBranch.map((t) => (
+                                            <button
+                                              key={t.id}
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setAvailModalTutor(t);
+                                              }}
+                                              className="inline-block rounded-md bg-white border border-emerald-200 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-900 shadow-2xs hover:bg-emerald-100 hover:border-emerald-300 transition"
+                                              title={`Klik untuk lihat jadwal ${t.name}`}
+                                            >
+                                              {t.name}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="text-[10px] font-medium text-emerald-600 mt-0.5">
+                                        Slot Siap Diisi
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -1015,8 +1045,8 @@ export default function Dashboard() {
                   {availModalTutor.busy_slots.map((b, i) => (
                     <div key={i} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 text-xs">
                       <div>
-                        <div className="font-bold text-slate-800">{b.day} ({b.time_range})</div>
-                        <div className="text-slate-500">{b.class_name} · {b.class_type}</div>
+                        <div className="font-bold text-slate-800">{b.day} ({b.time || b.time_range})</div>
+                        <div className="text-slate-500">{b.class_name} · {b.class_type} · <span className="font-semibold text-slate-700">{b.student_count || 0} Siswa</span></div>
                       </div>
                       <span className="rounded bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">Terisi</span>
                     </div>
