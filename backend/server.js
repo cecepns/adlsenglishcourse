@@ -24,13 +24,13 @@ const BANK_INFO = {
 const RESOURCES = {
   branches: { fields: ["name", "city", "address", "phone", "status"], search: ["t.name", "t.city"], select: "t.*", join: "", r: [...STAFF, "tutor"], c: HQ, u: HQ },
   classes: { fields: ["name", "class_type", "level", "schedule", "day_1", "day_2", "day_3", "time_start", "time_end", "tutor_id", "branch_id", "type", "meeting_url"], search: ["t.name", "t.class_type", "t.level", "b.name", "u.name", "t.day_1", "t.day_2", "t.day_3"], select: "t.*, COALESCE(t.class_type, t.name) AS class_type, b.name AS branch_name, u.name AS tutor_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN users u ON u.id=t.tutor_id", scoped: true, tutorOwned: true, r: ALL, c: STAFF, u: [...STAFF, "tutor"] },
-  students: { fields: ["name", "parent_name", "parent_phone", "class_id", "class_type", "level", "branch_id", "user_id", "parent_user_id", "joined_at", "left_at", "status", "course_completed", "completed_at", "certificate_delivery", "certificate_url", "certificate_code", "nickname", "gender", "birth_place", "birth_date", "school_origin", "school_grade", "religion", "siblings_count", "child_number", "housing_complex", "address", "student_wa", "parent_father_name", "parent_father_job", "parent_mother_name", "parent_mother_job", "parent_religion", "parent_education", "parent_wa", "marketing_source", "reason_choosing", "stop_reason"], search: ["t.name", "t.parent_name", "b.name", "c.name", "t.class_type", "t.level", "t.nickname", "t.housing_complex"], select: "t.*, b.name AS branch_name, COALESCE(c.class_type, c.name) AS class_name, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, su.name AS student_account_name, pu.name AS parent_account_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN users su ON su.id=t.user_id LEFT JOIN users pu ON pu.id=t.parent_user_id", scoped: true, tutorClassStudentScoped: true, r: [...STAFF, "tutor"], c: STAFF, u: STAFF },
+  students: { fields: ["name", "parent_name", "parent_phone", "class_id", "class_type", "level", "pricelist", "branch_id", "user_id", "parent_user_id", "joined_at", "left_at", "status", "course_completed", "completed_at", "certificate_delivery", "certificate_url", "certificate_code", "nickname", "gender", "birth_place", "birth_date", "school_origin", "school_grade", "religion", "siblings_count", "child_number", "housing_complex", "address", "student_wa", "parent_father_name", "parent_father_job", "parent_mother_name", "parent_mother_job", "parent_religion", "parent_education", "parent_wa", "marketing_source", "reason_choosing", "stop_reason"], search: ["t.name", "t.parent_name", "b.name", "c.name", "t.class_type", "t.level", "t.nickname", "t.housing_complex"], select: "t.*, b.name AS branch_name, COALESCE(c.class_type, c.name) AS class_name, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, su.name AS student_account_name, pu.name AS parent_account_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN users su ON su.id=t.user_id LEFT JOIN users pu ON pu.id=t.parent_user_id", scoped: true, tutorClassStudentScoped: true, r: [...STAFF, "tutor"], c: STAFF, u: STAFF },
   products: { fields: ["name", "category", "age_group", "price", "stock", "image", "description"], search: ["t.name", "t.category", "t.age_group"], select: "t.*", join: "", r: ALL, c: STAFF, u: STAFF },
   bills: { fields: ["student_id", "title", "month", "amount", "discount", "due_date", "status", "payment_method", "proof", "paid_at", "notes", "branch_id", "is_cash"], search: ["t.title", "t.month", "s.name", "b.name"], select: "t.*, s.name AS student_name, s.parent_phone, b.name AS branch_name", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, studentLinkScoped: true, r: ALL, c: STAFF, u: STAFF },
   attendance: { fields: ["student_id", "class_id", "date", "status", "branch_id"], search: ["t.status", "s.name", "c.name", "b.name"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, b.name AS branch_name", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, studentLinkScoped: true, tutorClassScoped: true, r: ALL, c: [...STAFF, "tutor"], u: STAFF },
   tutor_attendance: { fields: ["tutor_id", "class_id", "branch_id", "date", "check_in", "late_minutes", "status", "notes"], search: ["u.name", "c.name", "b.name", "t.status", "t.notes"], select: "t.*, u.name AS tutor_name, COALESCE(c.class_type, c.name) AS class_name, b.name AS branch_name", join: "LEFT JOIN users u ON u.id=t.tutor_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, tutorScoped: true, r: [...STAFF, "tutor"], c: [...STAFF, "tutor"], u: STAFF },
   expenses: { fields: ["title", "category", "amount", "expense_date", "branch_id", "notes"], search: ["t.title", "t.category", "b.name", "t.notes"], select: "t.*, b.name AS branch_name", join: "LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, r: STAFF, c: STAFF, u: STAFF },
-  learning_reports: { fields: ["student_id", "class_id", "tutor_id", "branch_id", "report_month", "report_date", "material", "homework", "formative_score", "summative_score", "speaking_score", "notes"], search: ["s.name", "c.name", "u.name", "t.material", "t.homework", "t.report_month"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, u.name AS tutor_name, b.name AS branch_name", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN users u ON u.id=t.tutor_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, tutorAutoId: true, tutorReportScoped: true, studentLinkScoped: true, r: ALL, c: [...STAFF, "tutor"], u: [...STAFF, "tutor"] },
+  learning_reports: { fields: ["student_id", "class_id", "tutor_id", "branch_id", "report_month", "report_date", "material", "homework", "formative_score", "summative_score", "speaking_score", "notes"], search: ["s.name", "c.name", "u.name", "t.material", "t.homework", "t.report_month"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, u.name AS tutor_name, b.name AS branch_name, COALESCE((SELECT cap.photo_url FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND cap.session_date=t.report_date ORDER BY cap.id DESC LIMIT 1), (SELECT cap.photo_url FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND DATE_FORMAT(cap.session_date,'%Y-%m')=t.report_month ORDER BY cap.session_date DESC, cap.id DESC LIMIT 1)) AS activity_photo_url, COALESCE((SELECT cap.session_time FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND cap.session_date=t.report_date ORDER BY cap.id DESC LIMIT 1), (SELECT cap.session_time FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND DATE_FORMAT(cap.session_date,'%Y-%m')=t.report_month ORDER BY cap.session_date DESC, cap.id DESC LIMIT 1)) AS activity_session_time, COALESCE((SELECT cap.attendance_summary FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND cap.session_date=t.report_date ORDER BY cap.id DESC LIMIT 1), (SELECT cap.attendance_summary FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND DATE_FORMAT(cap.session_date,'%Y-%m')=t.report_month ORDER BY cap.session_date DESC, cap.id DESC LIMIT 1)) AS activity_attendance_summary, COALESCE((SELECT cap.notes FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND cap.session_date=t.report_date ORDER BY cap.id DESC LIMIT 1), (SELECT cap.notes FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND DATE_FORMAT(cap.session_date,'%Y-%m')=t.report_month ORDER BY cap.session_date DESC, cap.id DESC LIMIT 1)) AS activity_notes", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN users u ON u.id=t.tutor_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, tutorAutoId: true, tutorReportScoped: true, studentLinkScoped: true, r: ALL, c: [...STAFF, "tutor"], u: [...STAFF, "tutor"] },
   audio_materials: { fields: ["title", "level", "module_name", "audio_url", "description", "branch_id"], search: ["t.title", "t.level", "t.module_name", "t.description"], select: "t.*, b.name AS branch_name, u.name AS author_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN users u ON u.id=t.created_by", setCreatedBy: true, r: ALL, c: [...STAFF, "tutor"], u: [...STAFF, "tutor"] },
   lesson_materials: { fields: ["title", "category", "level", "file_url", "file_type", "description", "branch_id"], search: ["t.title", "t.category", "t.level", "t.description", "b.name"], select: "t.*, b.name AS branch_name, u.name AS author_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN users u ON u.id=t.created_by", setCreatedBy: true, r: [...STAFF, "tutor"], c: HQ, u: HQ },
   video_projects: { fields: ["student_id", "class_id", "branch_id", "month", "title", "video_url", "description", "score", "feedback", "status"], search: ["t.title", "t.month", "s.name", "c.name", "b.name"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, b.name AS branch_name", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, studentLinkOrUserScoped: true, tutorVideoScoped: true, setUserIdOnCreate: true, reviewByStaffTutor: true, r: ALL, c: ALL, u: [...STAFF, "tutor"] },
@@ -382,10 +382,30 @@ app.post("/api/auth/login", wrap(async (req, res) => {
     }
   }
 
-  const user = { id: u.id, name: u.name, email: u.email, role: u.role, branch_id: u.branch_id, branch_name: u.branch_name || null };
+  let childrenNames = [];
+  if (u.role === "ortu") {
+    const [chRows] = await pool.query(
+      "SELECT name FROM students WHERE parent_user_id=? OR (parent_phone IS NOT NULL AND parent_phone=? AND parent_phone<>'') ORDER BY id ASC",
+      [u.id, u.phone || "---"]
+    );
+    childrenNames = chRows.map((c) => c.name).filter(Boolean);
+  }
+
+  const user = { id: u.id, name: u.name, email: u.email, role: u.role, branch_id: u.branch_id, branch_name: u.branch_name || null, children_names: childrenNames };
   res.json({ success: true, data: { token: jwt.sign(user, process.env.JWT_SECRET || "adls", { expiresIn: "12h" }), user } });
 }));
-app.get("/api/auth/profile", auth, (req, res) => res.json({ success: true, data: req.user }));
+app.get("/api/auth/profile", auth, wrap(async (req, res) => {
+  const userData = { ...req.user };
+  if (req.user.role === "ortu") {
+    const [[uRow]] = await pool.query("SELECT phone FROM users WHERE id=?", [req.user.id]);
+    const [chRows] = await pool.query(
+      "SELECT name FROM students WHERE parent_user_id=? OR (parent_phone IS NOT NULL AND parent_phone=? AND parent_phone<>'') ORDER BY id ASC",
+      [req.user.id, uRow?.phone || "---"]
+    );
+    userData.children_names = chRows.map((c) => c.name).filter(Boolean);
+  }
+  res.json({ success: true, data: userData });
+}));
 
 // User management (Multi-Branch RBAC + Sorting Role/Status)
 const USER_SORT_MAP = {
@@ -597,6 +617,10 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
   const isPortal = ["siswa", "ortu"].includes(req.user.role);
   const isParent = req.user.role === "ortu";
   const selectedStudentId = req.query.student_id ? Number(req.query.student_id) : null;
+  const startDate = clean(req.query.start_date);
+  const endDate = clean(req.query.end_date);
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const [rawStudents] = isPortal
     ? await pool.query(
@@ -608,7 +632,8 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
           COALESCE(c.type, 'offline') AS class_mode,
           c.meeting_url,
           u.name AS tutor_name,
-          b.name AS branch_name
+          b.name AS branch_name,
+          (SELECT bl.amount FROM bills bl WHERE bl.student_id=s.id ORDER BY bl.id DESC LIMIT 1) AS latest_bill_amount
          FROM students s
          LEFT JOIN classes c ON c.id=s.class_id
          LEFT JOIN users u ON u.id=c.tutor_id
@@ -620,14 +645,19 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
     : [[]];
 
   // #4: Ortu tidak melihat nama tutor & link meeting
-  const students = rawStudents.map((s) => (isParent ? { ...s, tutor_name: null, meeting_url: null } : s));
+  const students = rawStudents.map((s) => ({
+    ...(isParent ? { ...s, tutor_name: null, meeting_url: null } : s),
+    pricelist: Number(s.pricelist || s.latest_bill_amount || 0),
+  }));
 
   const activeStuIds = selectedStudentId && students.some((s) => s.id === selectedStudentId)
     ? [selectedStudentId]
     : students.map((s) => s.id);
+  const activeStudents = students.filter((s) => activeStuIds.includes(s.id));
+  const totalPricelist = activeStudents.reduce((sum, s) => sum + Number(s.pricelist || 0), 0);
 
   let att = { total: 0, hadir: 0, rate: 0 };
-  let billSummary = { unpaidCount: 0, verifikasiCount: 0, unpaidAmount: 0, paidCount: 0 };
+  let billSummary = { unpaidCount: 0, verifikasiCount: 0, unpaidAmount: 0, paidCount: 0, latestPricelist: totalPricelist, paidThisMonth: false, hasUnpaidSpp: false };
   let recentReports = [];
   let uas100Count = 0;
   let claimedFreeSpp = 0;
@@ -635,26 +665,54 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
 
   if (activeStuIds.length) {
     const ph = activeStuIds.map(() => "?").join(",");
-    const [[attR]] = await pool.query(`SELECT COUNT(*) total, COALESCE(SUM(status='hadir'),0) hadir FROM attendance WHERE student_id IN (${ph})`, activeStuIds);
+    const attWhere = [`student_id IN (${ph})`], attArgs = [...activeStuIds];
+    if (startDate) { attWhere.push("date >= ?"); attArgs.push(startDate); }
+    if (endDate) { attWhere.push("date <= ?"); attArgs.push(endDate); }
+    const [[attR]] = await pool.query(`SELECT COUNT(*) total, COALESCE(SUM(status='hadir'),0) hadir FROM attendance WHERE ${attWhere.join(" AND ")}`, attArgs);
     att = { total: Number(attR.total || 0), hadir: Number(attR.hadir || 0), rate: attR.total ? Math.round((Number(attR.hadir || 0) * 100) / Number(attR.total)) : 0 };
-    const [[billR]] = await pool.query(`SELECT COALESCE(SUM(status IN ('unpaid','overdue')),0) unpaidCount, COALESCE(SUM(status='verifikasi'),0) verifikasiCount, COALESCE(SUM(CASE WHEN status<>'paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) unpaidAmount, COALESCE(SUM(status='paid'),0) paidCount FROM bills WHERE student_id IN (${ph})`, activeStuIds);
-    billSummary = { unpaidCount: Number(billR.unpaidCount || 0), verifikasiCount: Number(billR.verifikasiCount || 0), unpaidAmount: Number(billR.unpaidAmount || 0), paidCount: Number(billR.paidCount || 0) };
+
+    const billWhere = [`student_id IN (${ph})`], billArgs = [...activeStuIds];
+    if (startDate) { billWhere.push("COALESCE(due_date, DATE(created_at)) >= ?"); billArgs.push(startDate); }
+    if (endDate) { billWhere.push("COALESCE(due_date, DATE(created_at)) <= ?"); billArgs.push(endDate); }
+    const [[billR]] = await pool.query(`SELECT COALESCE(SUM(status IN ('unpaid','overdue')),0) unpaidCount, COALESCE(SUM(status='verifikasi'),0) verifikasiCount, COALESCE(SUM(CASE WHEN status<>'paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) unpaidAmount, COALESCE(SUM(status='paid'),0) paidCount FROM bills WHERE ${billWhere.join(" AND ")}`, billArgs);
+    const [[paidMonthR]] = await pool.query(
+      `SELECT COUNT(*) cnt FROM bills WHERE student_id IN (${ph}) AND status='paid' AND (month=? OR DATE_FORMAT(COALESCE(paid_at, due_date, created_at), '%Y-%m')=?)`,
+      [...activeStuIds, currentMonth, currentMonth]
+    );
+    const paidThisMonth = Number(paidMonthR.cnt || 0) > 0;
+    const unpaidCnt = Number(billR.unpaidCount || 0);
+    const unpaidAmt = Number(billR.unpaidAmount || 0);
+    const hasUnpaidSpp = unpaidCnt > 0 || (!paidThisMonth && totalPricelist > 0);
+    billSummary = {
+      unpaidCount: unpaidCnt,
+      verifikasiCount: Number(billR.verifikasiCount || 0),
+      unpaidAmount: unpaidAmt > 0 ? unpaidAmt : (!paidThisMonth ? totalPricelist : 0),
+      paidCount: Number(billR.paidCount || 0),
+      latestPricelist: totalPricelist,
+      paidThisMonth,
+      hasUnpaidSpp,
+    };
+
+    const repWhere = [`lr.student_id IN (${ph})`], repArgs = [...activeStuIds];
+    if (startDate) { repWhere.push("lr.report_date >= ?"); repArgs.push(startDate); }
+    if (endDate) { repWhere.push("lr.report_date <= ?"); repArgs.push(endDate); }
     const [reps] = await pool.query(
       `SELECT lr.*, s.name AS student_name, COALESCE(c.class_type, c.name, s.class_type) AS class_name
        FROM learning_reports lr
        LEFT JOIN students s ON s.id=lr.student_id
        LEFT JOIN classes c ON c.id=lr.class_id
-       WHERE lr.student_id IN (${ph})
+       WHERE ${repWhere.join(" AND ")}
        ORDER BY lr.report_date DESC, lr.id DESC LIMIT 6`,
-      activeStuIds
+      repArgs
     );
     recentReports = isParent ? reps.map((r) => ({ ...r, tutor_id: null, tutor_name: null })) : reps;
     const [[u100]] = await pool.query(`SELECT COUNT(*) n FROM learning_reports WHERE student_id IN (${ph}) AND summative_score >= 100`, activeStuIds);
     const [[clm]] = await pool.query(`SELECT COUNT(*) n FROM reward_claims WHERE student_id IN (${ph})`, activeStuIds);
-    const [[vid]] = await pool.query(
-      selectedStudentId ? `SELECT COUNT(*) n FROM video_projects WHERE student_id IN (${ph})` : `SELECT COUNT(*) n FROM video_projects WHERE student_id IN (${ph}) OR user_id=?`,
-      selectedStudentId ? activeStuIds : [...activeStuIds, req.user.id]
-    );
+    const vidWhere = [selectedStudentId ? `student_id IN (${ph})` : `(student_id IN (${ph}) OR user_id=?)`];
+    const vidArgs = selectedStudentId ? [...activeStuIds] : [...activeStuIds, req.user.id];
+    if (startDate) { vidWhere.push("DATE(created_at) >= ?"); vidArgs.push(startDate); }
+    if (endDate) { vidWhere.push("DATE(created_at) <= ?"); vidArgs.push(endDate); }
+    const [[vid]] = await pool.query(`SELECT COUNT(*) n FROM video_projects WHERE ${vidWhere.join(" AND ")}`, vidArgs);
     uas100Count = Number(u100.n || 0);
     claimedFreeSpp = Number(clm.n || 0);
     videoCount = Number(vid.n || 0);
@@ -662,18 +720,21 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
 
   // Foto Dokumentasi Kegiatan Kelas Terkini (Laporan Nyata untuk Orang Tua)
   let activityPhotos = [];
-  const classIds = students.map((s) => s.class_id).filter(Boolean);
+  const classIds = activeStudents.map((s) => s.class_id).filter(Boolean);
   if (classIds.length) {
     const cph = classIds.map(() => "?").join(",");
+    const phWhere = [`cap.class_id IN (${cph})`], phArgs = [...classIds];
+    if (startDate) { phWhere.push("cap.session_date >= ?"); phArgs.push(startDate); }
+    if (endDate) { phWhere.push("cap.session_date <= ?"); phArgs.push(endDate); }
     const [photos] = await pool.query(
       `SELECT cap.*, COALESCE(c.class_type, c.name) AS class_name, b.name AS branch_name, u.name AS tutor_name
        FROM class_activity_photos cap
        LEFT JOIN classes c ON c.id=cap.class_id
        LEFT JOIN branches b ON b.id=cap.branch_id
        LEFT JOIN users u ON u.id=cap.tutor_id
-       WHERE cap.class_id IN (${cph})
+       WHERE ${phWhere.join(" AND ")}
        ORDER BY cap.session_date DESC, cap.id DESC LIMIT 12`,
-      classIds
+      phArgs
     );
     activityPhotos = photos;
   }
@@ -925,11 +986,326 @@ app.post("/api/portal/reschedule", auth, can(["siswa", "ortu"]), wrap(async (req
     ]
   );
 
+  // Jika dipicu dari pengajuan izin, otomatis isi kolom Tanggal Reschedule (end_date)
+  const leaveId = req.body.leave_id ? Number(req.body.leave_id) : null;
+  if (leaveId) {
+    await pool.query("UPDATE leaves SET end_date=? WHERE id=? AND user_id=?", [newDate, leaveId, req.user.id]);
+  }
+
   res.status(201).json({
     success: true,
     data: { id: ins.insertId },
-    message: "Jadwal kelas private berhasil di-reschedule!",
+    message: "Jadwal kelas berhasil di-reschedule!",
   });
+}));
+
+// Learning Journey Roadmap 12x Pertemuan (Speaking, Listening, Writing, Reading)
+const DEFAULT_ROADMAP_TOPICS = [
+  { meeting_number: 1, topic: "Greeting and Introduction" },
+  { meeting_number: 2, topic: "Colours, Numbers and Fruits" },
+  { meeting_number: 3, topic: "Days and the Calendar" },
+  { meeting_number: 4, topic: "Family and Daily Activities" },
+  { meeting_number: 5, topic: "Hobbies and Free Time" },
+  { meeting_number: 6, topic: "Food, Drinks and Ordering" },
+  { meeting_number: 7, topic: "Places and Giving Directions" },
+  { meeting_number: 8, topic: "Describing People and Objects" },
+  { meeting_number: 9, topic: "Past Experiences and Stories" },
+  { meeting_number: 10, topic: "Plans, Goals and Future" },
+  { meeting_number: 11, topic: "Practical Conversation & Presentation" },
+  { meeting_number: 12, topic: "Final Review & Level Evaluation" },
+];
+
+app.get("/api/learning-journey", auth, can(ALL), wrap(async (req, res) => {
+  let targetStudentId = req.query.student_id ? Number(req.query.student_id) : null;
+  let studentInfo = null;
+
+  if (["siswa", "ortu"].includes(req.user.role)) {
+    const stuQuery = req.user.role === "siswa"
+      ? "SELECT s.id, s.name, COALESCE(c.level, s.level) AS level, COALESCE(c.class_type, c.name, s.class_type) AS class_type, s.course_completed FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.user_id=? OR (s.student_wa IS NOT NULL AND s.student_wa=? AND s.student_wa<>'') ORDER BY s.id ASC"
+      : "SELECT s.id, s.name, COALESCE(c.level, s.level) AS level, COALESCE(c.class_type, c.name, s.class_type) AS class_type, s.course_completed FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.parent_user_id=? OR (s.parent_phone IS NOT NULL AND s.parent_phone=? AND s.parent_phone<>'') ORDER BY s.id ASC";
+    const [myStudents] = await pool.query(stuQuery, [req.user.id, req.user.phone || "---"]);
+    if (targetStudentId) {
+      studentInfo = myStudents.find((s) => Number(s.id) === targetStudentId) || myStudents[0] || null;
+    } else {
+      studentInfo = myStudents[0] || null;
+    }
+    targetStudentId = studentInfo?.id || null;
+  } else if (targetStudentId) {
+    const [[st]] = await pool.query(
+      "SELECT s.id, s.name, COALESCE(c.level, s.level) AS level, COALESCE(c.class_type, c.name, s.class_type) AS class_type, s.course_completed FROM students s LEFT JOIN classes c ON c.id=s.class_id WHERE s.id=?",
+      [targetStudentId]
+    );
+    studentInfo = st || null;
+  }
+
+  const [tplRows] = await pool.query(
+    "SELECT meeting_number, topic FROM roadmap_templates WHERE level='DEFAULT' ORDER BY meeting_number ASC"
+  );
+  const tplMap = Object.fromEntries(
+    (tplRows.length ? tplRows : DEFAULT_ROADMAP_TOPICS).map((t) => [Number(t.meeting_number), t.topic])
+  );
+
+  let scoreMap = {};
+  if (targetStudentId) {
+    const [scoreRows] = await pool.query(
+      "SELECT meeting_number, topic_override, speaking, listening, writing, reading, notes FROM student_journey_scores WHERE student_id=? ORDER BY meeting_number ASC",
+      [targetStudentId]
+    );
+    scoreMap = Object.fromEntries(scoreRows.map((r) => [Number(r.meeting_number), r]));
+  }
+
+  const meetings = [];
+  for (let i = 1; i <= 12; i++) {
+    const sc = scoreMap[i] || {};
+    const topic = sc.topic_override || tplMap[i] || DEFAULT_ROADMAP_TOPICS[i - 1]?.topic || `Pertemuan ${i}`;
+    const hasScore = sc.speaking != null || sc.listening != null || sc.writing != null || sc.reading != null;
+    meetings.push({
+      meeting_number: i,
+      topic,
+      speaking: sc.speaking != null ? Number(sc.speaking) : null,
+      listening: sc.listening != null ? Number(sc.listening) : null,
+      writing: sc.writing != null ? Number(sc.writing) : null,
+      reading: sc.reading != null ? Number(sc.reading) : null,
+      notes: sc.notes || "",
+      completed: hasScore,
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      student: studentInfo,
+      meetings,
+    },
+  });
+}));
+
+// Admin edit roadmap 12 pertemuan & replace ke semua akun (ortu, student, tutor)
+app.put("/api/learning-journey/template", auth, can(STAFF), wrap(async (req, res) => {
+  const meetings = Array.isArray(req.body.meetings) ? req.body.meetings : [];
+  if (!meetings.length) return fail(res, 400, "Daftar pertemuan wajib diisi");
+
+  for (const m of meetings) {
+    const num = Number(m.meeting_number);
+    const topic = clean(m.topic) || `Pertemuan ${num}`;
+    if (num >= 1 && num <= 12) {
+      await pool.query(
+        "INSERT INTO roadmap_templates(level, meeting_number, topic, updated_by) VALUES('DEFAULT', ?, ?, ?) ON DUPLICATE KEY UPDATE topic=VALUES(topic), updated_by=VALUES(updated_by)",
+        [num, topic, req.user.id]
+      );
+    }
+  }
+
+  // Replace ke semua akun (ortu, student, tutor): hapus topic_override agar semua akun sinkron dengan kurikulum admin
+  await pool.query("UPDATE student_journey_scores SET topic_override=NULL");
+
+  res.json({
+    success: true,
+    message: "Roadmap 12 pertemuan berhasil diperbarui & diterapkan ke semua akun (Ortu, Siswa, Tutor)!",
+  });
+}));
+
+// Admin & Tutor input / update nilai Speaking, Listening, Writing, Reading per pertemuan
+app.put("/api/learning-journey/scores/:studentId", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const studentId = Number(req.params.studentId);
+  if (!studentId) return fail(res, 400, "ID siswa tidak valid");
+
+  const list = Array.isArray(req.body.meetings) ? req.body.meetings : [req.body];
+  const parseScore = (v) => (v === "" || v === null || v === undefined ? null : Math.max(0, Math.min(100, Number(v))));
+
+  for (const item of list) {
+    const num = Number(item.meeting_number);
+    if (!(num >= 1 && num <= 12)) continue;
+    const speaking = parseScore(item.speaking);
+    const listening = parseScore(item.listening);
+    const writing = parseScore(item.writing);
+    const reading = parseScore(item.reading);
+    const notes = clean(item.notes);
+
+    await pool.query(
+      `INSERT INTO student_journey_scores(student_id, meeting_number, speaking, listening, writing, reading, notes, updated_by)
+       VALUES(?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         speaking=VALUES(speaking),
+         listening=VALUES(listening),
+         writing=VALUES(writing),
+         reading=VALUES(reading),
+         notes=VALUES(notes),
+         updated_by=VALUES(updated_by)`,
+      [studentId, num, speaking, listening, writing, reading, notes, req.user.id]
+    );
+  }
+
+  res.json({ success: true, message: "Nilai Learning Journey Roadmap berhasil disimpan!" });
+}));
+
+// Laporan Belajar Bulanan & Design Laporan Belajar Setiap Kelas Bulanan (PDF Ortu Hal 4 & Hal 8)
+const DEFAULT_MONTHLY_EVAL_STRUCTURE = [
+  {
+    id: "speaking",
+    aspect: "Speaking",
+    target: "Students are able to name and identify at least 10 food and drink items.",
+    criteria: [
+      { id: "speaking_1", label: "1. Summative assessment results." },
+      { id: "speaking_2", label: "2. Performance evidence throughout the learning process." },
+      { id: "speaking_3", label: "3. Consistency of achievement." },
+    ],
+  },
+  {
+    id: "reading",
+    aspect: "Reading",
+    target: "Students are able to read and recognize food names on a simple menu.",
+    criteria: [
+      { id: "reading_1", label: "1. Summative assessment results." },
+      { id: "reading_2", label: "2. Performance evidence throughout the learning process." },
+      { id: "reading_3", label: "3. Consistency of achievement." },
+    ],
+  },
+  {
+    id: "listening",
+    aspect: "Listening",
+    target: "Students are able to follow simple instructions related to food.",
+    criteria: [
+      { id: "listening_1", label: "1. Summative assessment results." },
+      { id: "listening_2", label: "2. Performance evidence throughout the learning process." },
+      { id: "listening_3", label: "3. Consistency of achievement." },
+    ],
+  },
+  {
+    id: "writing",
+    aspect: "Writing",
+    target: "Students are able to write at least 5 food and drink vocabulary words correctly.",
+    criteria: [
+      { id: "writing_1", label: "1. Summative assessment results." },
+      { id: "writing_2", label: "2. Performance evidence throughout the learning process." },
+      { id: "writing_3", label: "3. Consistency of achievement." },
+    ],
+  },
+];
+
+const EVAL_MONTH_NAMES_EN = [
+  "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+  "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
+];
+
+app.get("/api/monthly-evaluations", auth, can(ALL), wrap(async (req, res) => {
+  const now = new Date();
+  const month = clean(req.query.month) || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  let targetStudentId = req.query.student_id ? Number(req.query.student_id) : null;
+  let targetClassId = req.query.class_id ? Number(req.query.class_id) : 0;
+  let studentInfo = null;
+
+  if (["siswa", "ortu"].includes(req.user.role)) {
+    const stuQuery = req.user.role === "siswa"
+      ? "SELECT s.id, s.name, s.class_id, COALESCE(c.class_type, c.name, s.class_type) AS class_name, COALESCE(c.level, s.level) AS level, b.name AS branch_name FROM students s LEFT JOIN classes c ON c.id=s.class_id LEFT JOIN branches b ON b.id=s.branch_id WHERE s.user_id=? OR (s.student_wa IS NOT NULL AND s.student_wa=? AND s.student_wa<>'') ORDER BY s.id ASC"
+      : "SELECT s.id, s.name, s.class_id, COALESCE(c.class_type, c.name, s.class_type) AS class_name, COALESCE(c.level, s.level) AS level, b.name AS branch_name FROM students s LEFT JOIN classes c ON c.id=s.class_id LEFT JOIN branches b ON b.id=s.branch_id WHERE s.parent_user_id=? OR (s.parent_phone IS NOT NULL AND s.parent_phone=? AND s.parent_phone<>'') ORDER BY s.id ASC";
+    const [myStudents] = await pool.query(stuQuery, [req.user.id, req.user.phone || "---"]);
+    studentInfo = (targetStudentId ? myStudents.find((s) => Number(s.id) === targetStudentId) : null) || myStudents[0] || null;
+    targetStudentId = studentInfo?.id || null;
+    targetClassId = Number(studentInfo?.class_id || 0);
+  } else if (targetStudentId) {
+    const [[st]] = await pool.query(
+      "SELECT s.id, s.name, s.class_id, COALESCE(c.class_type, c.name, s.class_type) AS class_name, COALESCE(c.level, s.level) AS level, b.name AS branch_name FROM students s LEFT JOIN classes c ON c.id=s.class_id LEFT JOIN branches b ON b.id=s.branch_id WHERE s.id=?",
+      [targetStudentId]
+    );
+    studentInfo = st || null;
+    if (!targetClassId && st?.class_id) targetClassId = Number(st.class_id);
+  }
+
+  // Fallback chain: (class_id, month) -> (class_id, 'DEFAULT') -> (0, month) -> (0, 'DEFAULT') -> built-in default
+  const [tplRows] = await pool.query(
+    `SELECT * FROM monthly_eval_templates
+     WHERE (class_id=? AND month=?) OR (class_id=? AND month='DEFAULT') OR (class_id=0 AND month=?) OR (class_id=0 AND month='DEFAULT')`,
+    [targetClassId, month, targetClassId, month]
+  );
+  const pickTpl =
+    tplRows.find((r) => Number(r.class_id) === targetClassId && r.month === month) ||
+    tplRows.find((r) => Number(r.class_id) === targetClassId && r.month === "DEFAULT") ||
+    tplRows.find((r) => Number(r.class_id) === 0 && r.month === month) ||
+    tplRows.find((r) => Number(r.class_id) === 0 && r.month === "DEFAULT") ||
+    null;
+
+  let structure = DEFAULT_MONTHLY_EVAL_STRUCTURE;
+  if (pickTpl?.structure_json) {
+    try {
+      const parsed = JSON.parse(pickTpl.structure_json);
+      if (Array.isArray(parsed) && parsed.length) structure = parsed;
+    } catch { /* fallback */ }
+  }
+
+  let scores = {};
+  let notes = "";
+  if (targetStudentId) {
+    const [[scRow]] = await pool.query(
+      "SELECT scores_json, notes FROM monthly_eval_scores WHERE student_id=? AND month=? LIMIT 1",
+      [targetStudentId, month]
+    );
+    if (scRow?.scores_json) {
+      try { scores = JSON.parse(scRow.scores_json) || {}; } catch { scores = {}; }
+    }
+    notes = scRow?.notes || "";
+  }
+
+  const moIdx = Number(String(month).split("-")[1] || 1) - 1;
+  const defaultTitle = `LEMBAR EVALUASI ${EVAL_MONTH_NAMES_EN[moIdx] || month}`;
+
+  res.json({
+    success: true,
+    data: {
+      month,
+      class_id: targetClassId,
+      student: studentInfo,
+      title: pickTpl?.title || defaultTitle,
+      structure,
+      scores,
+      notes,
+    },
+  });
+}));
+
+app.put("/api/monthly-evaluations/design", auth, can(STAFF), wrap(async (req, res) => {
+  const classId = req.body.apply_all_classes ? 0 : (Number(req.body.class_id) || 0);
+  const month = clean(req.body.month) || "DEFAULT";
+  const title = clean(req.body.title);
+  const structure = Array.isArray(req.body.structure) ? req.body.structure : [];
+  if (!structure.length) return fail(res, 400, "Minimal harus ada 1 aspek penilaian pada tabel evaluasi");
+
+  const sanitized = structure.map((blk, i) => ({
+    id: clean(blk.id) || `aspect_${i + 1}`,
+    aspect: clean(blk.aspect) || `Aspect ${i + 1}`,
+    target: clean(blk.target) || "",
+    criteria: (Array.isArray(blk.criteria) ? blk.criteria : []).map((cr, j) => ({
+      id: clean(cr.id) || `aspect_${i + 1}_${j + 1}`,
+      label: clean(cr.label) || `${j + 1}.`,
+    })),
+  }));
+
+  await pool.query(
+    `INSERT INTO monthly_eval_templates(class_id, month, title, structure_json, updated_by)
+     VALUES(?,?,?,?,?)
+     ON DUPLICATE KEY UPDATE title=VALUES(title), structure_json=VALUES(structure_json), updated_by=VALUES(updated_by)`,
+    [classId, month, title, JSON.stringify(sanitized), req.user.id]
+  );
+
+  res.json({ success: true, message: "Desain Lembar Evaluasi Bulanan berhasil disimpan!" });
+}));
+
+app.put("/api/monthly-evaluations/scores", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const studentId = Number(req.body.student_id);
+  const classId = Number(req.body.class_id) || 0;
+  const month = clean(req.body.month);
+  const scores = req.body.scores && typeof req.body.scores === "object" ? req.body.scores : {};
+  const notes = clean(req.body.notes);
+  if (!studentId || !month) return fail(res, 400, "Siswa dan bulan wajib diisi");
+
+  await pool.query(
+    `INSERT INTO monthly_eval_scores(student_id, class_id, month, scores_json, notes, updated_by)
+     VALUES(?,?,?,?,?,?)
+     ON DUPLICATE KEY UPDATE class_id=VALUES(class_id), scores_json=VALUES(scores_json), notes=VALUES(notes), updated_by=VALUES(updated_by)`,
+    [studentId, classId, month, JSON.stringify(scores), notes, req.user.id]
+  );
+
+  res.json({ success: true, message: "Nilai Evaluasi Bulanan siswa berhasil disimpan!" });
 }));
 
 app.get("/api/portal/reschedules", auth, can(["siswa", "ortu"]), wrap(async (req, res) => {
@@ -1818,12 +2194,32 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
   const now = new Date();
   const selectedMonth = clean(req.query.month) || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const [selYear, selMo] = selectedMonth.split("-").map(Number);
+  const lastDay = new Date(selYear, selMo, 0).getDate();
+  const monthStart = `${selectedMonth}-01`;
+  const monthEnd = `${selectedMonth}-${String(lastDay).padStart(2, "0")}`;
 
   const bWhere = branchId ? " AND branch_id=?" : "", bArgs = branchId ? [branchId] : [];
-  const [[stuRow]] = await pool.query(`SELECT COUNT(*) total, COALESCE(SUM(status='active'),0) active, COALESCE(SUM(status<>'active'),0) inactive FROM students WHERE 1=1${bWhere}`, bArgs);
+  const [[stuRow]] = await pool.query(
+    `SELECT COUNT(*) total,
+            COALESCE(SUM(CASE WHEN status='active' OR (left_at IS NOT NULL AND left_at > ?) THEN 1 ELSE 0 END), 0) active,
+            COALESCE(SUM(CASE WHEN status<>'active' AND (left_at IS NULL OR left_at <= ?) THEN 1 ELSE 0 END), 0) inactive
+     FROM students
+     WHERE COALESCE(joined_at, DATE(created_at)) <= ?${bWhere}`,
+    [monthEnd, monthEnd, monthEnd, ...bArgs]
+  );
   const [[clsRow]] = await pool.query(`SELECT COUNT(*) total, COALESCE(SUM(type='online'),0) online, COALESCE(SUM(type<>'online' OR type IS NULL),0) offline FROM classes WHERE 1=1${bWhere}`, bArgs);
-  const [[billRow]] = await pool.query(`SELECT COALESCE(SUM(status<>'paid'),0) unpaidCount, COALESCE(SUM(CASE WHEN status<>'paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) unpaidAmount, COALESCE(SUM(status='paid'),0) paidCount, COALESCE(SUM(CASE WHEN status='paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) paidAmount, COALESCE(SUM(status='overdue' OR (status='unpaid' AND due_date < CURDATE())),0) overdueCount, COALESCE(SUM(status='verifikasi'),0) verifikasiCount FROM bills WHERE 1=1${bWhere}`, bArgs);
-  
+  const [[billRow]] = await pool.query(
+    `SELECT COALESCE(SUM(status<>'paid'),0) unpaidCount,
+            COALESCE(SUM(CASE WHEN status<>'paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) unpaidAmount,
+            COALESCE(SUM(status='paid'),0) paidCount,
+            COALESCE(SUM(CASE WHEN status='paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) paidAmount,
+            COALESCE(SUM(status='overdue' OR (status='unpaid' AND due_date < CURDATE())),0) overdueCount,
+            COALESCE(SUM(status='verifikasi'),0) verifikasiCount
+     FROM bills
+     WHERE (month=? OR DATE_FORMAT(COALESCE(paid_at, due_date, created_at), '%Y-%m')=?)${bWhere}`,
+    [selectedMonth, selectedMonth, ...bArgs]
+  );
+
   // #13 Informasi Paid & Unpaid Student (Cash vs Transfer)
   const [[monthBillRow]] = await pool.query(
     `SELECT
@@ -1857,13 +2253,13 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
     openComplaints = (await pool.query("SELECT COUNT(*) n FROM complaints WHERE status='open' AND sender_role='tutor' AND (branch_id=? OR branch_id IS NULL OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=complaints.user_id AND tb.branch_id=?))", [req.user.branch_id, req.user.branch_id]))[0][0].n;
   }
 
-  const [attStatusRows] = await pool.query(`SELECT status, COUNT(*) total FROM attendance WHERE 1=1${bWhere} GROUP BY status`, bArgs);
+  const [attStatusRows] = await pool.query(`SELECT status, COUNT(*) total FROM attendance WHERE DATE_FORMAT(date, '%Y-%m')=?${bWhere} GROUP BY status`, [selectedMonth, ...bArgs]);
   const attBreakdown = { hadir: 0, izin: 0, sakit: 0, alpha: 0 };
   attStatusRows.forEach((r) => { attBreakdown[r.status] = Number(r.total || 0); });
   const attTotal = Object.values(attBreakdown).reduce((a, b) => a + b, 0);
   const attRate = attTotal ? Math.round((attBreakdown.hadir * 100) / attTotal) : 0;
 
-  const [[tutAttRow]] = await pool.query(`SELECT COUNT(*) total, COALESCE(SUM(status='hadir' AND COALESCE(late_minutes,0)=0),0) onTime, COALESCE(SUM(status='terlambat' OR COALESCE(late_minutes,0)>0),0) lateCount, COALESCE(SUM(status IN ('hadir','terlambat')),0) present FROM tutor_attendance WHERE 1=1${bWhere}`, bArgs);
+  const [[tutAttRow]] = await pool.query(`SELECT COUNT(*) total, COALESCE(SUM(status='hadir' AND COALESCE(late_minutes,0)=0),0) onTime, COALESCE(SUM(status='terlambat' OR COALESCE(late_minutes,0)>0),0) lateCount, COALESCE(SUM(status IN ('hadir','terlambat')),0) present FROM tutor_attendance WHERE DATE_FORMAT(date, '%Y-%m')=?${bWhere}`, [selectedMonth, ...bArgs]);
   const tutorAttTotal = Number(tutAttRow.total || 0);
   const tutorAttRate = tutorAttTotal ? Math.round((Number(tutAttRow.present || 0) * 100) / tutorAttTotal) : 0;
 
@@ -1881,18 +2277,18 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
       ) AS branch_name,
       COUNT(DISTINCT c.id) AS classes_count,
       COUNT(DISTINCT st.id) AS student_count,
-      COUNT(ta.id) AS total_sessions,
-      COALESCE(SUM(ta.status='hadir' AND COALESCE(ta.late_minutes,0)=0),0) AS on_time_sessions,
-      COALESCE(SUM(ta.status='terlambat' OR COALESCE(ta.late_minutes,0)>0),0) AS late_sessions
+      COUNT(DISTINCT ta.id) AS total_sessions,
+      COUNT(DISTINCT CASE WHEN ta.status='hadir' AND COALESCE(ta.late_minutes,0)=0 THEN ta.id END) AS on_time_sessions,
+      COUNT(DISTINCT CASE WHEN ta.status='terlambat' OR COALESCE(ta.late_minutes,0)>0 THEN ta.id END) AS late_sessions
      FROM users u
      LEFT JOIN branches b ON b.id=u.branch_id
      LEFT JOIN classes c ON c.tutor_id=u.id
-     LEFT JOIN students st ON st.class_id=c.id AND st.status='active'
-     LEFT JOIN tutor_attendance ta ON ta.tutor_id=u.id
+     LEFT JOIN students st ON st.class_id=c.id AND COALESCE(st.joined_at, DATE(st.created_at)) <= ? AND (st.status='active' OR (st.left_at IS NOT NULL AND st.left_at > ?))
+     LEFT JOIN tutor_attendance ta ON ta.tutor_id=u.id AND DATE_FORMAT(ta.date, '%Y-%m')=?
      WHERE u.role='tutor' AND COALESCE(u.status,'active')='active' ${tutorFilter}
      GROUP BY u.id, u.name, b.name
      ORDER BY student_count DESC, on_time_sessions DESC, classes_count DESC, u.id ASC LIMIT 5`,
-    tutorFilterArgs
+    [monthEnd, monthEnd, selectedMonth, ...tutorFilterArgs]
   );
   const topTutors = topTutorRows.map((r) => {
     const tot = Number(r.total_sessions || 0), onTime = Number(r.on_time_sessions || 0);
@@ -1909,8 +2305,8 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
     };
   });
 
-  const [topExpensesRows] = await pool.query(`SELECT category, COALESCE(SUM(amount),0) AS total, COUNT(*) AS items FROM expenses WHERE 1=1${bWhere} GROUP BY category ORDER BY total DESC LIMIT 4`, bArgs);
-  const [[expTotalRow]] = await pool.query(`SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE 1=1${bWhere}`, bArgs);
+  const [topExpensesRows] = await pool.query(`SELECT category, COALESCE(SUM(amount),0) AS total, COUNT(*) AS items FROM expenses WHERE DATE_FORMAT(COALESCE(expense_date, created_at), '%Y-%m')=?${bWhere} GROUP BY category ORDER BY total DESC LIMIT 4`, [selectedMonth, ...bArgs]);
+  const [[expTotalRow]] = await pool.query(`SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE DATE_FORMAT(COALESCE(expense_date, created_at), '%Y-%m')=?${bWhere}`, [selectedMonth, ...bArgs]);
 
   // Bulan untuk tren 6 bulan terakhir
   const months = [];
@@ -1919,26 +2315,34 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
     months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
   const firstMonthStart = `${months[0]}-01`;
-  const [[baseStu]] = await pool.query(`SELECT COUNT(*) n FROM students WHERE COALESCE(joined_at, DATE(created_at)) < ?${bWhere}`, [firstMonthStart, ...bArgs]);
-  const [stuMonthRows] = await pool.query(`SELECT DATE_FORMAT(COALESCE(joined_at, DATE(created_at)), '%Y-%m') m, COUNT(*) cnt FROM students WHERE COALESCE(joined_at, DATE(created_at)) >= ?${bWhere} GROUP BY DATE_FORMAT(COALESCE(joined_at, DATE(created_at)), '%Y-%m') ORDER BY m ASC`, [firstMonthStart, ...bArgs]);
-  const [leftMonthRows] = await pool.query(`SELECT DATE_FORMAT(left_at, '%Y-%m') m, COUNT(*) cnt FROM students WHERE left_at IS NOT NULL AND left_at >= ?${bWhere} GROUP BY DATE_FORMAT(left_at, '%Y-%m') ORDER BY m ASC`, [firstMonthStart, ...bArgs]);
+  const [[baseStu]] = await pool.query(`SELECT COUNT(*) n FROM students WHERE COALESCE(joined_at, DATE(created_at)) < ? AND (left_at IS NULL OR left_at >= ?)${bWhere}`, [firstMonthStart, firstMonthStart, ...bArgs]);
+  const [stuMonthRows] = await pool.query(`SELECT DATE_FORMAT(COALESCE(joined_at, DATE(created_at)), '%Y-%m') m, COUNT(*) cnt FROM students WHERE COALESCE(joined_at, DATE(created_at)) BETWEEN ? AND ?${bWhere} GROUP BY m ORDER BY m ASC`, [firstMonthStart, monthEnd, ...bArgs]);
+  const [leftMonthRows] = await pool.query(`SELECT DATE_FORMAT(left_at, '%Y-%m') m, COUNT(*) cnt FROM students WHERE left_at IS NOT NULL AND left_at BETWEEN ? AND ?${bWhere} GROUP BY m ORDER BY m ASC`, [firstMonthStart, monthEnd, ...bArgs]);
   const stuMap = Object.fromEntries(stuMonthRows.map((r) => [r.m, Number(r.cnt || 0)]));
   const leftMap = Object.fromEntries(leftMonthRows.map((r) => [r.m, Number(r.cnt || 0)]));
   let running = Number(baseStu.n || 0);
   const studentsByMonth = months.map((m) => { const added = stuMap[m] || 0; const left = leftMap[m] || 0; running = Math.max(0, running + added - left); return { month: m, added, left, total: running }; });
 
-  const [billMonthRows] = await pool.query(`SELECT DATE_FORMAT(COALESCE(due_date, created_at), '%Y-%m') m, COALESCE(SUM(CASE WHEN status='paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) paid, COALESCE(SUM(CASE WHEN status<>'paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) unpaid FROM bills WHERE COALESCE(due_date, created_at) >= ?${bWhere} GROUP BY DATE_FORMAT(COALESCE(due_date, created_at), '%Y-%m') ORDER BY m ASC`, [firstMonthStart, ...bArgs]);
+  const [billMonthRows] = await pool.query(
+    `SELECT COALESCE(NULLIF(month,''), DATE_FORMAT(COALESCE(due_date, created_at), '%Y-%m')) m,
+            COALESCE(SUM(CASE WHEN status='paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) paid,
+            COALESCE(SUM(CASE WHEN status<>'paid' THEN GREATEST(0, amount - COALESCE(discount,0)) ELSE 0 END),0) unpaid
+     FROM bills
+     WHERE COALESCE(NULLIF(month,''), DATE_FORMAT(COALESCE(due_date, created_at), '%Y-%m')) BETWEEN ? AND ?${bWhere}
+     GROUP BY m ORDER BY m ASC`,
+    [months[0], selectedMonth, ...bArgs]
+  );
   const billMap = Object.fromEntries(billMonthRows.map((r) => [r.m, { paid: Number(r.paid || 0), unpaid: Number(r.unpaid || 0) }]));
   const billsByMonth = months.map((m) => ({ month: m, paid: billMap[m]?.paid || 0, unpaid: billMap[m]?.unpaid || 0 }));
 
-  const [studentsByBranch] = await pool.query(`SELECT b.id, b.name, b.city, COUNT(s.id) count FROM branches b LEFT JOIN students s ON s.branch_id=b.id AND s.status='active' ${branchId ? "WHERE b.id=?" : ""} GROUP BY b.id, b.name, b.city ORDER BY count DESC, b.id ASC`, bArgs);
-  const [classSummary] = await pool.query(`SELECT c.id, COALESCE(c.class_type, c.name) AS name, c.level, c.schedule, c.type, b.name AS branch_name, COUNT(s.id) AS student_count FROM classes c LEFT JOIN branches b ON b.id=c.branch_id LEFT JOIN students s ON s.class_id=c.id AND s.status='active' ${branchId ? "WHERE c.branch_id=?" : ""} GROUP BY c.id, c.name, c.class_type, c.level, c.schedule, c.type, b.name ORDER BY student_count DESC, c.id DESC LIMIT 6`, bArgs);
+  const [studentsByBranch] = await pool.query(`SELECT b.id, b.name, b.city, COUNT(s.id) count FROM branches b LEFT JOIN students s ON s.branch_id=b.id AND COALESCE(s.joined_at, DATE(s.created_at)) <= ? AND (s.status='active' OR (s.left_at IS NOT NULL AND s.left_at > ?)) ${branchId ? "WHERE b.id=?" : ""} GROUP BY b.id, b.name, b.city ORDER BY count DESC, b.id ASC`, [monthEnd, monthEnd, ...bArgs]);
+  const [classSummary] = await pool.query(`SELECT c.id, COALESCE(c.class_type, c.name) AS name, c.level, c.schedule, c.type, b.name AS branch_name, COUNT(s.id) AS student_count FROM classes c LEFT JOIN branches b ON b.id=c.branch_id LEFT JOIN students s ON s.class_id=c.id AND COALESCE(s.joined_at, DATE(s.created_at)) <= ? AND (s.status='active' OR (s.left_at IS NOT NULL AND s.left_at > ?)) ${branchId ? "WHERE c.branch_id=?" : ""} GROUP BY c.id, c.name, c.class_type, c.level, c.schedule, c.type, b.name ORDER BY student_count DESC, c.id DESC LIMIT 6`, [monthEnd, monthEnd, ...bArgs]);
   const [branchOptions] = HQ.includes(req.user.role) ? await pool.query("SELECT id, name FROM branches ORDER BY name ASC") : [[]];
 
   // #13 Breakdown Paid & Unpaid per Branch
   const [branchPaidUnpaidRows] = await pool.query(
     `SELECT b.id AS branch_id, b.name AS branch_name,
-            (SELECT COUNT(*) FROM students s WHERE s.branch_id=b.id AND s.status='active') AS total_students,
+            (SELECT COUNT(*) FROM students s WHERE s.branch_id=b.id AND COALESCE(s.joined_at, DATE(s.created_at)) <= ? AND (s.status='active' OR (s.left_at IS NOT NULL AND s.left_at > ?))) AS total_students,
             COALESCE(SUM(bl.status='paid'), 0) AS paid_count,
             COALESCE(SUM(bl.status='paid' AND (bl.is_cash=1 OR bl.payment_method='Cash')), 0) AS cash_count,
             COALESCE(SUM(CASE WHEN bl.status='paid' AND (bl.is_cash=1 OR bl.payment_method='Cash') THEN GREATEST(0, bl.amount - COALESCE(bl.discount,0)) ELSE 0 END), 0) AS cash_amount,
@@ -1952,18 +2356,61 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
      WHERE b.status='active' ${branchId ? "AND b.id=?" : ""}
      GROUP BY b.id, b.name
      ORDER BY b.id ASC`,
-    [selectedMonth, selectedMonth, ...bArgs]
+    [monthEnd, monthEnd, selectedMonth, selectedMonth, ...bArgs]
   );
 
   // #14 Grafik Pertumbuhan Siswa Setiap Cabang (Weekly & Monthly)
   const [allBranches] = await pool.query(`SELECT id, name FROM branches WHERE status='active' ${branchId ? "AND id=?" : ""} ORDER BY id ASC`, bArgs);
+
+  // Breakdown Tipe Kelas & Level per Cabang (PDF Revisi Owner Hal 3)
+  const [classTypeLevelRows] = await pool.query(
+    `SELECT
+       COALESCE(NULLIF(TRIM(c.class_type),''), NULLIF(TRIM(s.class_type),''), 'Belum Diatur') AS class_type,
+       COALESCE(NULLIF(TRIM(c.level),''), NULLIF(TRIM(s.level),''), 'Belum Diatur') AS level,
+       s.branch_id,
+       COUNT(*) AS cnt
+     FROM students s
+     LEFT JOIN classes c ON c.id=s.class_id
+     WHERE COALESCE(s.joined_at, DATE(s.created_at)) <= ?
+       AND (s.status='active' OR (s.left_at IS NOT NULL AND s.left_at > ?))
+       ${branchId ? "AND s.branch_id=?" : ""}
+     GROUP BY class_type, level, s.branch_id
+     ORDER BY class_type ASC, level ASC`,
+    [monthEnd, monthEnd, ...bArgs]
+  );
+  const ctlMap = new Map();
+  const ctlBranchTotals = {};
+  allBranches.forEach((br) => { ctlBranchTotals[br.id] = 0; });
+  let ctlGrandTotal = 0;
+  classTypeLevelRows.forEach((r) => {
+    const key = `${r.class_type}__${r.level}`;
+    if (!ctlMap.has(key)) {
+      const counts = {};
+      allBranches.forEach((br) => { counts[br.id] = 0; });
+      ctlMap.set(key, { class_type: r.class_type, level: r.level, counts, total: 0 });
+    }
+    const entry = ctlMap.get(key);
+    const cnt = Number(r.cnt || 0);
+    if (r.branch_id && entry.counts[r.branch_id] !== undefined) {
+      entry.counts[r.branch_id] += cnt;
+      ctlBranchTotals[r.branch_id] = (ctlBranchTotals[r.branch_id] || 0) + cnt;
+    }
+    entry.total += cnt;
+    ctlGrandTotal += cnt;
+  });
+  const classTypeLevelBreakdown = {
+    branches: allBranches,
+    rows: Array.from(ctlMap.values()).sort((a, b) => a.class_type.localeCompare(b.class_type) || b.total - a.total),
+    branchTotals: ctlBranchTotals,
+    grandTotal: ctlGrandTotal,
+  };
+
   const branchMonthlyGrowth = [];
   for (const br of allBranches) {
-    let brRunning = 0;
-    const [[brBase]] = await pool.query("SELECT COUNT(*) n FROM students WHERE branch_id=? AND COALESCE(joined_at, DATE(created_at)) < ?", [br.id, firstMonthStart]);
-    brRunning = Number(brBase.n || 0);
-    const [brAdded] = await pool.query("SELECT DATE_FORMAT(COALESCE(joined_at, DATE(created_at)), '%Y-%m') m, COUNT(*) cnt FROM students WHERE branch_id=? AND COALESCE(joined_at, DATE(created_at)) >= ? GROUP BY m", [br.id, firstMonthStart]);
-    const [brLeft] = await pool.query("SELECT DATE_FORMAT(left_at, '%Y-%m') m, COUNT(*) cnt FROM students WHERE branch_id=? AND left_at IS NOT NULL AND left_at >= ? GROUP BY m", [br.id, firstMonthStart]);
+    const [[brBase]] = await pool.query("SELECT COUNT(*) n FROM students WHERE branch_id=? AND COALESCE(joined_at, DATE(created_at)) < ? AND (left_at IS NULL OR left_at >= ?)", [br.id, firstMonthStart, firstMonthStart]);
+    let brRunning = Number(brBase.n || 0);
+    const [brAdded] = await pool.query("SELECT DATE_FORMAT(COALESCE(joined_at, DATE(created_at)), '%Y-%m') m, COUNT(*) cnt FROM students WHERE branch_id=? AND COALESCE(joined_at, DATE(created_at)) BETWEEN ? AND ? GROUP BY m", [br.id, firstMonthStart, monthEnd]);
+    const [brLeft] = await pool.query("SELECT DATE_FORMAT(left_at, '%Y-%m') m, COUNT(*) cnt FROM students WHERE branch_id=? AND left_at IS NOT NULL AND left_at BETWEEN ? AND ? GROUP BY m", [br.id, firstMonthStart, monthEnd]);
     const aMap = Object.fromEntries(brAdded.map((r) => [r.m, Number(r.cnt || 0)]));
     const lMap = Object.fromEntries(brLeft.map((r) => [r.m, Number(r.cnt || 0)]));
     const timeline = months.map((m) => {
@@ -1981,14 +2428,19 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
     { week: "W1", start: `${selectedMonth}-01`, end: `${selectedMonth}-07` },
     { week: "W2", start: `${selectedMonth}-08`, end: `${selectedMonth}-14` },
     { week: "W3", start: `${selectedMonth}-15`, end: `${selectedMonth}-21` },
-    { week: "W4", start: `${selectedMonth}-22`, end: `${selectedMonth}-31` },
+    { week: "W4", start: `${selectedMonth}-22`, end: monthEnd },
   ];
   for (const br of allBranches) {
+    const [[brWeekBase]] = await pool.query("SELECT COUNT(*) n FROM students WHERE branch_id=? AND COALESCE(joined_at, DATE(created_at)) < ? AND (left_at IS NULL OR left_at >= ?)", [br.id, monthStart, monthStart]);
+    let wRunning = Number(brWeekBase.n || 0);
     const timeline = [];
     for (const w of weeks) {
       const [[wAdd]] = await pool.query("SELECT COUNT(*) n FROM students WHERE branch_id=? AND COALESCE(joined_at, DATE(created_at)) BETWEEN ? AND ?", [br.id, w.start, w.end]);
       const [[wLeft]] = await pool.query("SELECT COUNT(*) n FROM students WHERE branch_id=? AND left_at BETWEEN ? AND ?", [br.id, w.start, w.end]);
-      timeline.push({ week: w.week, new_students: Number(wAdd.n || 0), student_out: Number(wLeft.n || 0) });
+      const added = Number(wAdd.n || 0);
+      const left = Number(wLeft.n || 0);
+      wRunning = Math.max(0, wRunning + added - left);
+      timeline.push({ week: w.week, new_students: added, student_out: left, active_students: wRunning });
     }
     branchWeeklyGrowth.push({ branch_id: br.id, branch_name: br.name, timeline });
   }
@@ -1997,10 +2449,10 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
   const [sourceRows] = await pool.query(
     `SELECT COALESCE(NULLIF(TRIM(marketing_source),''), 'Lainnya') AS source, COUNT(*) AS count
      FROM students
-     WHERE 1=1 ${bWhere}
+     WHERE COALESCE(joined_at, DATE(created_at)) <= ? ${bWhere}
      GROUP BY source
      ORDER BY count DESC`,
-    bArgs
+    [monthEnd, ...bArgs]
   );
   const marketingSources = sourceRows.map((r) => ({ source: r.source, count: Number(r.count || 0) }));
 
@@ -2008,10 +2460,10 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
   const [stopRows] = await pool.query(
     `SELECT COALESCE(NULLIF(TRIM(stop_reason),''), 'Tidak Diketahui') AS reason, COUNT(*) AS count
      FROM students
-     WHERE status<>'active' ${bWhere}
+     WHERE status<>'active' AND (left_at IS NULL OR left_at <= ?) ${bWhere}
      GROUP BY reason
      ORDER BY count DESC`,
-    bArgs
+    [monthEnd, ...bArgs]
   );
   const stopReasons = stopRows.map((r) => ({ reason: r.reason, count: Number(r.count || 0) }));
 
@@ -2024,6 +2476,8 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
     students: Number(stuRow.active || 0),
     totalStudents: Number(stuRow.total || 0),
     inactiveStudents: Number(stuRow.inactive || 0),
+    newStudents: Number(selMonthNew.n || 0),
+    outStudents: Number(selMonthOut.n || 0),
     newStudentsThisMonth: Number(selMonthNew.n || 0),
     studentsOutThisMonth: Number(selMonthOut.n || 0),
     classes: Number(clsRow.total || 0),
@@ -2096,6 +2550,7 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
         unpaid_amount: uAmt,
       };
     }),
+    classTypeLevelBreakdown,
     branchGrowth: {
       weekly: branchWeeklyGrowth,
       monthly: branchMonthlyGrowth,
@@ -2109,6 +2564,13 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
 app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
   const branchId = req.query.branch_id ? Number(req.query.branch_id) : (req.user.role === "admin_cabang" ? req.user.branch_id : null);
   const tutorId = req.query.tutor_id ? Number(req.query.tutor_id) : null;
+  const reqMonth = clean(req.query.month);
+  let monthEnd = null;
+  if (reqMonth && /^\d{4}-\d{2}$/.test(reqMonth)) {
+    const [my, mm] = reqMonth.split("-").map(Number);
+    const ld = new Date(my, mm, 0).getDate();
+    monthEnd = `${reqMonth}-${String(ld).padStart(2, "0")}`;
+  }
 
   const tWhere = ["u.role='tutor'", "COALESCE(u.status,'active')='active'"];
   const tArgs = [];
@@ -2149,12 +2611,18 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
   const results = [];
   for (const tut of tutors) {
     const [tutClasses] = await pool.query(
-      `SELECT c.id, c.name, COALESCE(c.class_type, c.name) AS class_type, c.level, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, c.schedule, b.name AS branch_name,
-              (SELECT COUNT(*) FROM students s WHERE s.class_id=c.id AND s.status='active') AS student_count
-       FROM classes c
-       LEFT JOIN branches b ON b.id=c.branch_id
-       WHERE c.tutor_id=?`,
-      [tut.id]
+      monthEnd
+        ? `SELECT c.id, c.name, COALESCE(c.class_type, c.name) AS class_type, c.level, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, c.schedule, b.name AS branch_name,
+                  (SELECT COUNT(*) FROM students s WHERE s.class_id=c.id AND COALESCE(s.joined_at, DATE(s.created_at)) <= ? AND (s.status='active' OR (s.left_at IS NOT NULL AND s.left_at > ?))) AS student_count
+           FROM classes c
+           LEFT JOIN branches b ON b.id=c.branch_id
+           WHERE c.tutor_id=?`
+        : `SELECT c.id, c.name, COALESCE(c.class_type, c.name) AS class_type, c.level, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, c.schedule, b.name AS branch_name,
+                  (SELECT COUNT(*) FROM students s WHERE s.class_id=c.id AND s.status='active') AS student_count
+           FROM classes c
+           LEFT JOIN branches b ON b.id=c.branch_id
+           WHERE c.tutor_id=?`,
+      monthEnd ? [monthEnd, monthEnd, tut.id] : [tut.id]
     );
 
     const busyMap = {};
@@ -2309,21 +2777,23 @@ app.get("/api/students-database", auth, can([...STAFF, "tutor"]), wrap(async (re
     args.push(`%${req.query.search}%`, `%${req.query.search}%`, `%${req.query.search}%`, `%${req.query.search}%`, `%${req.query.search}%`);
   }
   if (req.query.start_date) {
-    where.push("s.joined_at >= ?");
+    where.push("COALESCE(s.joined_at, DATE(s.created_at)) >= ?");
     args.push(req.query.start_date);
   }
   if (req.query.end_date) {
-    where.push("s.joined_at <= ?");
+    where.push("COALESCE(s.joined_at, DATE(s.created_at)) <= ?");
     args.push(req.query.end_date);
   }
 
   const [rows] = await pool.query(
-    `SELECT s.id, s.name AS student_name, s.nickname, s.gender, s.birth_place, s.birth_date, s.school_origin, s.school_grade, s.religion, s.siblings_count, s.child_number, s.housing_complex, s.address, s.student_wa, s.parent_name, s.parent_phone, s.parent_father_name, s.parent_father_job, s.parent_mother_name, s.parent_mother_job, s.parent_religion, s.parent_education, s.parent_wa, s.marketing_source, s.reason_choosing, s.status, s.stop_reason, s.joined_at, s.course_completed, s.certificate_delivery, s.certificate_url, s.certificate_code,
+    `SELECT s.id, s.name AS student_name, s.nickname, s.gender, s.birth_place, s.birth_date, s.school_origin, s.school_grade, s.religion, s.siblings_count, s.child_number, s.housing_complex, s.address, s.student_wa, s.parent_name, s.parent_phone, s.parent_father_name, s.parent_father_job, s.parent_mother_name, s.parent_mother_job, s.parent_religion, s.parent_education, s.parent_wa, s.marketing_source, s.reason_choosing, s.status, s.stop_reason, s.joined_at, s.created_at, s.pricelist, s.course_completed, s.certificate_delivery, s.certificate_url, s.certificate_code,
             COALESCE(c.class_type, c.name, s.class_type) AS class_name,
+            COALESCE(c.level, s.level) AS level,
             c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, c.schedule,
             b.name AS branch_name,
             u.name AS tutor_name,
             (SELECT bl.status FROM bills bl WHERE bl.student_id=s.id ORDER BY bl.id DESC LIMIT 1) AS latest_bill_status,
+            (SELECT bl.amount FROM bills bl WHERE bl.student_id=s.id ORDER BY bl.id DESC LIMIT 1) AS latest_bill_amount,
             (SELECT bl.payment_method FROM bills bl WHERE bl.student_id=s.id ORDER BY bl.id DESC LIMIT 1) AS latest_bill_method,
             (SELECT bl.is_cash FROM bills bl WHERE bl.student_id=s.id ORDER BY bl.id DESC LIMIT 1) AS latest_bill_is_cash,
             (SELECT bl.paid_at FROM bills bl WHERE bl.student_id=s.id AND bl.status='paid' ORDER BY bl.id DESC LIMIT 1) AS latest_paid_at
@@ -2332,7 +2802,7 @@ app.get("/api/students-database", auth, can([...STAFF, "tutor"]), wrap(async (re
      LEFT JOIN branches b ON b.id=s.branch_id
      LEFT JOIN users u ON u.id=c.tutor_id
      WHERE ${where.join(" AND ")}
-     ORDER BY s.id DESC`,
+     ORDER BY COALESCE(s.joined_at, DATE(s.created_at)) DESC, s.id DESC`,
     args
   );
 
@@ -2352,7 +2822,10 @@ app.get("/api/students-database", auth, can([...STAFF, "tutor"]), wrap(async (re
       id: r.id,
       student_name: r.student_name,
       class_name: r.class_name || "-",
+      level: r.level || "-",
       branch_name: r.branch_name || "-",
+      pricelist: Number(r.pricelist || r.latest_bill_amount || 0),
+      joined_at: r.joined_at ? String(r.joined_at).slice(0, 10) : (r.created_at ? String(r.created_at).slice(0, 10) : null),
       payment_status: isPaid ? "Paid" : "Not Paid",
       payment_method: paymentMethod,
       date_of_payment: paymentDate,
@@ -2452,12 +2925,15 @@ Object.entries(RESOURCES).forEach(([name, cfg]) => {
 
     // Filter Rentang Tanggal (Date Range) untuk semua generic resource
     const dateCol = RESOURCE_DATE_COLS[name] || (cfg.fields.includes("date") ? "date" : "created_at");
+    const dateExpr = ["joined_at", "due_date", "event_date"].includes(dateCol)
+      ? `COALESCE(t.${dateCol}, DATE(t.created_at))`
+      : `t.${dateCol}`;
     if (q.start_date) {
       if (dateCol === "created_at") {
         where.push(`t.${dateCol} >= ?`);
         args.push(`${q.start_date} 00:00:00`);
       } else {
-        where.push(`t.${dateCol} >= ?`);
+        where.push(`${dateExpr} >= ?`);
         args.push(q.start_date);
       }
     }
@@ -2466,7 +2942,7 @@ Object.entries(RESOURCES).forEach(([name, cfg]) => {
         where.push(`t.${dateCol} <= ?`);
         args.push(`${q.end_date} 23:59:59`);
       } else {
-        where.push(`t.${dateCol} <= ?`);
+        where.push(`${dateExpr} <= ?`);
         args.push(q.end_date);
       }
     }
@@ -2499,7 +2975,31 @@ Object.entries(RESOURCES).forEach(([name, cfg]) => {
       args.push(req.user.id);
     }
 
-    // Strict Scoping Siswa & Ortu (Hanya memunculkan data absensi & data milik akunnya sendiri)
+    // Strict Scoping Siswa & Ortu (Hanya memunculkan audio, absensi & data milik kelas/akunnya sendiri)
+    if (name === "audio_materials" && ["siswa", "ortu"].includes(req.user.role)) {
+      const stuQuery = req.user.role === "siswa"
+        ? `SELECT DISTINCT COALESCE(NULLIF(TRIM(c.level),''), NULLIF(TRIM(s.level),'')) AS lv, s.branch_id
+           FROM students s
+           LEFT JOIN classes c ON c.id=s.class_id
+           WHERE s.user_id=? OR (s.student_wa IS NOT NULL AND s.student_wa=? AND s.student_wa<>'')`
+        : `SELECT DISTINCT COALESCE(NULLIF(TRIM(c.level),''), NULLIF(TRIM(s.level),'')) AS lv, s.branch_id
+           FROM students s
+           LEFT JOIN classes c ON c.id=s.class_id
+           WHERE s.parent_user_id=? OR (s.parent_phone IS NOT NULL AND s.parent_phone=? AND s.parent_phone<>'')`;
+      const [stuRows] = await pool.query(stuQuery, [req.user.id, req.user.phone || "---"]);
+      const levels = [...new Set(stuRows.map((r) => r.lv).filter(Boolean))];
+      const branchIds = [...new Set(stuRows.map((r) => r.branch_id).filter(Boolean))];
+      if (levels.length) {
+        where.push(`t.level IN (${levels.map(() => "?").join(",")})`);
+        args.push(...levels);
+      } else {
+        where.push("1=0");
+      }
+      if (branchIds.length) {
+        where.push(`(t.branch_id IS NULL OR t.branch_id IN (${branchIds.map(() => "?").join(",")}))`);
+        args.push(...branchIds);
+      }
+    }
     if (name === "attendance" || cfg.studentLinkScoped) {
       if (req.user.role === "siswa") {
         where.push("(s.user_id = ? OR (s.student_wa IS NOT NULL AND s.student_wa = ? AND s.student_wa <> ''))");
@@ -2752,6 +3252,17 @@ async function ensureSchema() {
   await pool.query("CREATE TABLE IF NOT EXISTS payroll_payments(id INT AUTO_INCREMENT PRIMARY KEY,tutor_id INT NOT NULL,month VARCHAR(7) NOT NULL,branch_id INT NULL,sessions_count INT DEFAULT 0,ontime_count INT DEFAULT 0,late_count INT DEFAULT 0,base_pay DECIMAL(12,2) DEFAULT 0,transport_pay DECIMAL(12,2) DEFAULT 0,penalty_amount DECIMAL(12,2) DEFAULT 0,bonus_amount DECIMAL(12,2) DEFAULT 0,total_amount DECIMAL(12,2) DEFAULT 0,status VARCHAR(20) DEFAULT 'paid',paid_at DATE NULL,notes VARCHAR(255) NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS class_activity_photos (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL, branch_id INT NULL, tutor_id INT NOT NULL, session_date DATE NOT NULL, session_time VARCHAR(30) NULL, photo_url VARCHAR(255) NOT NULL, attendance_summary VARCHAR(150) NULL, material VARCHAR(255) NULL, homework VARCHAR(255) NULL, notes TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS tutor_substitutes (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL, branch_id INT NULL, original_tutor_id INT NOT NULL, backup_tutor_id INT NOT NULL, substitute_date DATE NOT NULL, reason VARCHAR(255) NULL, status VARCHAR(20) DEFAULT 'scheduled', notes TEXT NULL, created_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+  await pool.query("CREATE TABLE IF NOT EXISTS roadmap_templates (id INT AUTO_INCREMENT PRIMARY KEY, level VARCHAR(80) NOT NULL DEFAULT 'DEFAULT', meeting_number INT NOT NULL, topic VARCHAR(200) NOT NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_level_meeting (level, meeting_number))");
+  await pool.query("CREATE TABLE IF NOT EXISTS student_journey_scores (id INT AUTO_INCREMENT PRIMARY KEY, student_id INT NOT NULL, meeting_number INT NOT NULL, topic_override VARCHAR(200) NULL, speaking INT NULL, listening INT NULL, writing INT NULL, reading INT NULL, notes VARCHAR(255) NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_stu_meeting (student_id, meeting_number))");
+  await pool.query("CREATE TABLE IF NOT EXISTS monthly_eval_templates (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL DEFAULT 0, month VARCHAR(7) NOT NULL DEFAULT 'DEFAULT', title VARCHAR(150) NULL, structure_json LONGTEXT NOT NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_class_month (class_id, month))");
+  await pool.query("CREATE TABLE IF NOT EXISTS monthly_eval_scores (id INT AUTO_INCREMENT PRIMARY KEY, student_id INT NOT NULL, class_id INT NOT NULL DEFAULT 0, month VARCHAR(7) NOT NULL, scores_json LONGTEXT NOT NULL, notes TEXT NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_stu_month (student_id, month))");
+
+  const [[tplCnt]] = await pool.query("SELECT COUNT(*) n FROM roadmap_templates WHERE level='DEFAULT'");
+  if (!Number(tplCnt?.n || 0)) {
+    for (const d of DEFAULT_ROADMAP_TOPICS) {
+      await pool.query("INSERT IGNORE INTO roadmap_templates(level, meeting_number, topic) VALUES('DEFAULT', ?, ?)", [d.meeting_number, d.topic]);
+    }
+  }
 
   await ensureCol("users", "phone", "VARCHAR(30) NULL");
   await ensureCol("users", "hourly_rate", "DECIMAL(12,2) NULL");
@@ -2795,6 +3306,7 @@ async function ensureSchema() {
   await ensureCol("students", "marketing_source", "VARCHAR(50) NULL");
   await ensureCol("students", "reason_choosing", "TEXT NULL");
   await ensureCol("students", "stop_reason", "VARCHAR(100) NULL");
+  await ensureCol("students", "pricelist", "DECIMAL(12,2) NULL");
 
   await ensureCol("bills", "month", "VARCHAR(7) NULL");
   await ensureCol("bills", "discount", "DECIMAL(12,2) DEFAULT 0");

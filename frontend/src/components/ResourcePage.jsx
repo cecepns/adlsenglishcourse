@@ -5,18 +5,22 @@ import Select from "react-select";
 import {
   ArrowRight,
   Calendar,
+  CalendarClock,
   CalendarPlus,
+  Camera,
   Check,
   Download,
+  ExternalLink,
   FileSpreadsheet,
   Loader2,
   Plus,
   Search,
   Sparkles,
+  Star,
   Users,
   X,
 } from "lucide-react";
-import { api } from "@/utils/api";
+import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting, getOpeningGreeting } from "@/utils/greetings";
 import { exportToExcel } from "@/utils/exportExcel";
@@ -26,6 +30,8 @@ import useDebounce from "@/hooks/useDebounce";
 import useResourceList from "@/hooks/useResourceList";
 import AsyncResourceSelect from "./AsyncResourceSelect";
 import DataTable from "./DataTable";
+import DatePickerInput from "./DatePickerInput";
+import LearningJourneyRoadmap from "./LearningJourneyRoadmap";
 import Modal from "./Modal";
 import Pagination from "./Pagination";
 import ResourceForm from "./ResourceForm";
@@ -68,11 +74,111 @@ export default function ResourcePage({ resource: cfg }) {
     homework: "",
   });
 
+  // Modal Roadmap 12 Pertemuan untuk Admin & Tutor di menu Laporan Belajar
+  const [roadmapModal, setRoadmapModal] = useState(false);
+  const [roadmapStudent, setRoadmapStudent] = useState(null);
+
+  // Modal Dokumentasi Foto/Video Kegiatan Kelas (Laporan Belajar Harian - Orang Tua)
+  const [activityDocModal, setActivityDocModal] = useState(null);
+
+  // Fitur Ambil Reschedule di halaman Izin (Siswa & Ortu) - PDF Hal 2
+  const isLeavesPage = cfg.endpoint === API_ENDPOINTS.LEAVES;
+  const isLearningReportsPage = cfg.endpoint === API_ENDPOINTS.LEARNING_REPORTS;
+  const isStudentSide = ["siswa", "ortu"].includes(user?.role);
+  const [rescheduleQuota, setRescheduleQuota] = useState(null);
+  const [portalStudents, setPortalStudents] = useState([]);
+  const [rescheduleModal, setRescheduleModal] = useState(null); // { leaveRow? }
+  const [rescheduleForm, setRescheduleForm] = useState({
+    student_id: "",
+    class_id: "",
+    tutor_id: "",
+    new_date: "",
+    new_day: "",
+    new_time: "15:00",
+    original_date: "",
+    reason: "",
+    leave_id: null,
+  });
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
+
   const isHQ = ["owner", "admin_pusat"].includes(user.role);
   const isStaff = STAFF.includes(user.role);
   const isParent = user?.role === "ortu";
+  const pageTitle = cfg.getTitle ? cfg.getTitle(user) : cfg.title;
   const canDownloadExcel = ["owner", "admin_pusat", "admin_cabang", "tutor"].includes(user?.role);
   const showBranchFilter = Boolean(cfg.branchFilter && isHQ);
+
+  const loadRescheduleContext = async () => {
+    if (!isLeavesPage || !isStudentSide) return;
+    try {
+      const [qRes, pRes] = await Promise.all([
+        api.get(API_ENDPOINTS.PORTAL_RESCHEDULE_QUOTA),
+        api.get(API_ENDPOINTS.PORTAL_SUMMARY),
+      ]);
+      setRescheduleQuota(qRes.data.data || null);
+      setPortalStudents(pRes.data.data?.students || []);
+    } catch {
+      setRescheduleQuota(null);
+    }
+  };
+
+  useEffect(() => {
+    loadRescheduleContext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLeavesPage, isStudentSide]);
+
+  const openRescheduleModal = (leaveRow = null) => {
+    const primaryStu = portalStudents[0] || {};
+    const origDate = leaveRow?.start_date ? String(leaveRow.start_date).slice(0, 10) : "";
+    setRescheduleForm({
+      student_id: primaryStu.id || "",
+      class_id: primaryStu.class_id || "",
+      tutor_id: primaryStu.tutor_id || "",
+      new_date: "",
+      new_day: "",
+      new_time: "15:00",
+      original_date: origDate,
+      reason: leaveRow?.reason || "",
+      leave_id: leaveRow?.id || null,
+    });
+    setRescheduleModal({ leaveRow });
+  };
+
+  const submitReschedule = async (e) => {
+    e.preventDefault();
+    if (!rescheduleForm.class_id) {
+      toast.error("Anda belum terdaftar di kelas aktif. Hubungi admin cabang.");
+      return;
+    }
+    if (!rescheduleForm.new_date || !rescheduleForm.new_time) {
+      toast.error("Tanggal reschedule dan jam sesi wajib diisi");
+      return;
+    }
+    setRescheduleSaving(true);
+    try {
+      await request(
+        () =>
+          api.post(API_ENDPOINTS.PORTAL_RESCHEDULE, {
+            student_id: rescheduleForm.student_id || undefined,
+            class_id: rescheduleForm.class_id,
+            tutor_id: rescheduleForm.tutor_id || undefined,
+            new_date: rescheduleForm.new_date,
+            new_time: rescheduleForm.new_time,
+            original_date: rescheduleForm.original_date || undefined,
+            reason: rescheduleForm.reason || "Reschedule dari halaman Izin",
+            leave_id: rescheduleForm.leave_id || undefined,
+          }),
+        { success: getClosingGreeting(user.role, "Jadwal berhasil di-reschedule!") }
+      );
+      setRescheduleModal(null);
+      await loadRescheduleContext();
+      refetch();
+    } catch {
+      /* toast handled */
+    } finally {
+      setRescheduleSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!showBranchFilter) return;
@@ -319,14 +425,37 @@ export default function ResourcePage({ resource: cfg }) {
       {/* 1. Header Bar: Title + Subtitle on Left, Actions on Right */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">{cfg.title}</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">{pageTitle}</h1>
           <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
-            {cfg.subtitle || `Kelola dan pantau data ${cfg.title.toLowerCase()} secara terstruktur & real-time`}
+            {cfg.subtitle || `Kelola dan pantau data ${pageTitle.toLowerCase()} secara terstruktur & real-time`}
           </p>
         </div>
 
         {/* Action Buttons Cluster */}
         <div className="flex flex-wrap items-center gap-2">
+          {isLearningReportsPage && [...STAFF, "tutor"].includes(user?.role) && (
+            <button
+              type="button"
+              onClick={() => setRoadmapModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-800 shadow-2xs hover:bg-amber-100 transition"
+            >
+              <Star size={14} className="fill-amber-400 text-amber-500" />
+              <span>Roadmap 12 Pertemuan</span>
+            </button>
+          )}
+
+          {isLeavesPage && isStudentSide && rescheduleQuota?.allowed && (
+            <button
+              type="button"
+              onClick={() => openRescheduleModal(null)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-3.5 py-2 text-xs font-bold text-sky-800 shadow-2xs hover:bg-sky-100 transition"
+              title={`Sisa jatah reschedule: ${rescheduleQuota.remaining} dari ${rescheduleQuota.maxLimit}`}
+            >
+              <CalendarClock size={15} className="text-sky-600" />
+              <span>Ambil Reschedule (Sisa {rescheduleQuota.remaining}x)</span>
+            </button>
+          )}
+
           {canDownloadExcel && (
             <button
               type="button"
@@ -353,7 +482,7 @@ export default function ResourcePage({ resource: cfg }) {
           {canCreate && (
             <button className="btn-primary !py-2 text-xs font-bold shadow-sm" onClick={() => setModal({})}>
               <Plus size={16} />
-              <span>Tambah {cfg.singular || cfg.title}</span>
+              <span>Tambah {cfg.singular || pageTitle}</span>
             </button>
           )}
         </div>
@@ -367,7 +496,7 @@ export default function ResourcePage({ resource: cfg }) {
             <Search size={16} className="pointer-events-none absolute left-3.5 top-2.5 text-slate-400" />
             <input
               className="input !pl-10 !py-2 text-xs w-full"
-              placeholder={`Cari data ${cfg.title.toLowerCase()}...`}
+              placeholder={`Cari data ${pageTitle.toLowerCase()}...`}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -479,24 +608,26 @@ export default function ResourcePage({ resource: cfg }) {
             <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
               <Calendar size={13} className="text-brand shrink-0" />
               <span className="text-slate-500 font-semibold hidden sm:inline">Periode:</span>
-              <input
-                type="date"
-                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+              <DatePickerInput
+                compact
+                showIcon={false}
                 value={startDate}
+                placeholder="dd/mm/yyyy"
                 title="Dari Tanggal"
-                onChange={(e) => {
-                  setStartDate(e.target.value);
+                onChange={(val) => {
+                  setStartDate(val);
                   setPage(1);
                 }}
               />
               <span className="text-slate-400 font-bold text-[11px]">-</span>
-              <input
-                type="date"
-                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+              <DatePickerInput
+                compact
+                showIcon={false}
                 value={endDate}
+                placeholder="dd/mm/yyyy"
                 title="Sampai Tanggal"
-                onChange={(e) => {
-                  setEndDate(e.target.value);
+                onChange={(val) => {
+                  setEndDate(val);
                   setPage(1);
                 }}
               />
@@ -554,6 +685,33 @@ export default function ResourcePage({ resource: cfg }) {
                       </button>
                     </>
                   ) : null
+              : isLeavesPage && isStudentSide && rescheduleQuota?.allowed
+              ? (row) => (
+                  <button
+                    type="button"
+                    onClick={() => openRescheduleModal(row)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-700 transition hover:bg-sky-100"
+                    title={`Ambil jadwal reschedule (Sisa kuota: ${rescheduleQuota.remaining}x)`}
+                  >
+                    <CalendarClock size={13} /> Ambil Reschedule
+                  </button>
+                )
+              : isLearningReportsPage && isParent
+              ? (row) =>
+                  row.activity_photo_url ? (
+                    <button
+                      type="button"
+                      onClick={() => setActivityDocModal(row)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-dark transition hover:bg-brand hover:text-white"
+                      title="Lihat dokumentasi foto/video saat belajar di kelas"
+                    >
+                      <Camera size={13} /> Dokumentasi Kelas
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-400">
+                      <Camera size={12} /> Belum diupload
+                    </span>
+                  )
               : undefined
           }
           onEdit={(row) => setModal({ row })}
@@ -563,7 +721,7 @@ export default function ResourcePage({ resource: cfg }) {
         <Pagination pagination={pagination} onPage={setPage} onLimit={(n) => { setLimit(n); setPage(1); }} />
       </div>
 
-      <Modal open={!!modal} title={`${modal?.row ? "Edit" : "Tambah"} ${cfg.title}`} onClose={() => setModal(null)}>
+      <Modal open={!!modal} title={`${modal?.row ? "Edit" : "Tambah"} ${pageTitle}`} onClose={() => setModal(null)}>
         {modal && (
           <ResourceForm
             fields={fields}
@@ -597,12 +755,12 @@ export default function ResourcePage({ resource: cfg }) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Bulan (YYYY-MM) *</label>
-              <input type="month" required className="input" value={initForm.report_month} onChange={(e) => setInitForm({ ...initForm, report_month: e.target.value })} />
+              <label className="mb-1 block text-sm font-semibold text-slate-700">Bulan *</label>
+              <DatePickerInput mode="month" required value={initForm.report_month} onChange={(val) => setInitForm({ ...initForm, report_month: val })} />
             </div>
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">Tanggal Laporan *</label>
-              <input type="date" required className="input" value={initForm.report_date} onChange={(e) => setInitForm({ ...initForm, report_date: e.target.value })} />
+              <DatePickerInput mode="date" required value={initForm.report_date} onChange={(val) => setInitForm({ ...initForm, report_date: val })} />
             </div>
           </div>
           <div>
@@ -661,6 +819,235 @@ export default function ResourcePage({ resource: cfg }) {
             </div>
           </form>
         )}
+      </Modal>
+      {/* Modal Roadmap 12 Pertemuan (Kelola Kurikulum & Nilai Siswa) */}
+      <Modal
+        open={roadmapModal}
+        title="Kelola Learning Journey Roadmap (12x Pertemuan)"
+        onClose={() => setRoadmapModal(false)}
+        maxWidth="max-w-5xl"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-600">
+              Pilih Siswa untuk Melihat / Input Nilai 4 Aspek (opsional jika hanya ingin edit kurikulum global):
+            </label>
+            <AsyncResourceSelect
+              endpoint={API_ENDPOINTS.STUDENTS.LIST}
+              value={roadmapStudent?.id || null}
+              initialLabel={roadmapStudent?.name || ""}
+              isClearable
+              formatOption={(s) => ({
+                value: s.id,
+                label: [s.name, s.level, s.branch_name].filter(Boolean).join(" · "),
+                raw: s,
+              })}
+              onChange={(opt) => setRoadmapStudent(opt ? opt.raw : null)}
+            />
+          </div>
+          <LearningJourneyRoadmap
+            studentId={roadmapStudent?.id}
+            studentName={roadmapStudent?.name}
+            level={roadmapStudent?.level}
+            compact
+          />
+        </div>
+      </Modal>
+
+      {/* Modal Pengambilan Reschedule dari Halaman Izin */}
+      <Modal
+        open={!!rescheduleModal}
+        title="Ambil Jadwal Reschedule"
+        onClose={() => setRescheduleModal(null)}
+      >
+        {rescheduleModal && (
+          <form onSubmit={submitReschedule} className="space-y-3.5">
+            {rescheduleQuota && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-3 text-xs text-sky-900">
+                Sisa kuota reschedule Anda: <b>{rescheduleQuota.remaining} dari {rescheduleQuota.maxLimit}x</b> ({rescheduleQuota.periodLabel}).
+              </div>
+            )}
+
+            {portalStudents.length > 1 && (
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Pilih Siswa / Kelas *</label>
+                <select
+                  required
+                  className="input text-xs"
+                  value={rescheduleForm.student_id}
+                  onChange={(e) => {
+                    const stu = portalStudents.find((s) => String(s.id) === e.target.value);
+                    setRescheduleForm({
+                      ...rescheduleForm,
+                      student_id: stu?.id || "",
+                      class_id: stu?.class_id || "",
+                      tutor_id: stu?.tutor_id || "",
+                    });
+                  }}
+                >
+                  {portalStudents.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {s.class_name || s.class_type || "Kelas"} ({s.level || "-"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Tanggal Reschedule *</label>
+                <DatePickerInput
+                  mode="date"
+                  required
+                  value={rescheduleForm.new_date}
+                  onChange={(dt) => {
+                    if (!dt) {
+                      setRescheduleForm({ ...rescheduleForm, new_date: "", new_day: "" });
+                      return;
+                    }
+                    const [y, m, d] = dt.split("-").map(Number);
+                    const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+                    setRescheduleForm({
+                      ...rescheduleForm,
+                      new_date: dt,
+                      new_day: dayNames[new Date(y, m - 1, d).getDay()] || "Senin",
+                    });
+                  }}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Jam Sesi Pengganti *</label>
+                <select
+                  required
+                  className="input text-xs"
+                  value={rescheduleForm.new_time}
+                  onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_time: e.target.value })}
+                >
+                  <option value="09:00">Sesi 1 (09:00 - 10:30)</option>
+                  <option value="10:30">Sesi 2 (10:30 - 12:00)</option>
+                  <option value="13:00">Sesi 3 (13:00 - 14:30)</option>
+                  <option value="15:00">Sesi 4 (15:00 - 16:30)</option>
+                  <option value="17:00">Sesi 5 (17:00 - 18:30)</option>
+                  <option value="19:00">Sesi 6 (19:00 - 20:30)</option>
+                </select>
+              </div>
+            </div>
+
+            {rescheduleForm.new_day && (
+              <div className="text-xs font-semibold text-slate-600">
+                Hari terpilih: <b className="text-brand-dark">{rescheduleForm.new_day}</b>
+              </div>
+            )}
+
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Catatan / Alasan Reschedule</label>
+              <textarea
+                rows={2}
+                className="input text-xs"
+                placeholder="mis. Pengganti kelas karena acara keluarga..."
+                value={rescheduleForm.reason}
+                onChange={(e) => setRescheduleForm({ ...rescheduleForm, reason: e.target.value })}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="btn-ghost" onClick={() => setRescheduleModal(null)}>
+                Batal
+              </button>
+              <button type="submit" disabled={rescheduleSaving} className="btn-primary">
+                {rescheduleSaving && <Loader2 size={15} className="animate-spin" />}
+                Konfirmasi Reschedule
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Modal Dokumentasi Foto / Video Kegiatan Kelas (Orang Tua - Laporan Belajar Harian) */}
+      <Modal
+        open={!!activityDocModal}
+        title="Dokumentasi Foto / Video Kegiatan Kelas"
+        onClose={() => setActivityDocModal(null)}
+      >
+        {activityDocModal && (() => {
+          const mediaUrl = resolveAssetUrl(activityDocModal.activity_photo_url);
+          const isVideo = /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl || "");
+          return (
+            <div className="space-y-4">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950/5">
+                {isVideo ? (
+                  <video
+                    src={mediaUrl}
+                    controls
+                    className="max-h-[420px] w-full rounded-2xl bg-black object-contain"
+                  />
+                ) : (
+                  <img
+                    src={mediaUrl}
+                    alt={`Dokumentasi kelas ${activityDocModal.class_name || ""}`}
+                    className="max-h-[420px] w-full object-contain"
+                  />
+                )}
+              </div>
+
+              <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2">
+                <div>
+                  <span className="text-slate-400">Siswa:</span>{" "}
+                  <b className="text-slate-800">{activityDocModal.student_name || "-"}</b>
+                </div>
+                <div>
+                  <span className="text-slate-400">Tanggal:</span>{" "}
+                  <b className="text-slate-800">{String(activityDocModal.report_date || "").slice(0, 10) || "-"}</b>
+                </div>
+                <div>
+                  <span className="text-slate-400">Kelas:</span>{" "}
+                  <b className="text-slate-800">{activityDocModal.class_name || "-"}</b>
+                </div>
+                <div>
+                  <span className="text-slate-400">Sesi / Waktu:</span>{" "}
+                  <b className="text-slate-800">{activityDocModal.activity_session_time || "-"}</b>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="text-slate-400">Materi Hari Ini:</span>{" "}
+                  <b className="text-slate-800">{activityDocModal.material || "-"}</b>
+                </div>
+                {activityDocModal.homework && (
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400">PR / Latihan:</span>{" "}
+                    <b className="text-slate-800">{activityDocModal.homework}</b>
+                  </div>
+                )}
+                {activityDocModal.activity_attendance_summary && (
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400">Ringkasan Kehadiran:</span>{" "}
+                    <b className="text-slate-800">{activityDocModal.activity_attendance_summary}</b>
+                  </div>
+                )}
+                {(activityDocModal.activity_notes || activityDocModal.notes) && (
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400">Catatan Tutor:</span>{" "}
+                    <span className="text-slate-700">{activityDocModal.activity_notes || activityDocModal.notes}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <a
+                  href={mediaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  <ExternalLink size={14} /> Buka File Asli
+                </a>
+                <button type="button" className="btn-primary !py-2 text-xs" onClick={() => setActivityDocModal(null)}>
+                  Tutup
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </div>
   );

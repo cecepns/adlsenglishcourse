@@ -23,7 +23,9 @@ import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getClosingGreeting, getOpeningGreeting } from "@/utils/greetings";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
+import DatePickerInput from "@/components/DatePickerInput";
 import ImageUploadField from "@/components/ImageUploadField";
+import LearningJourneyRoadmap from "@/components/LearningJourneyRoadmap";
 
 const ATT_OPTIONS = [
   { value: "hadir", label: "Hadir", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -37,6 +39,7 @@ export default function TutorDashboard() {
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedClassId, setSelectedClassId] = useState(null);
+  const [journeyStudentId, setJourneyStudentId] = useState("");
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().slice(0, 10));
 
   const [classDetail, setClassDetail] = useState(null);
@@ -544,12 +547,14 @@ export default function TutorDashboard() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="date"
-                    className="input !w-auto text-xs font-semibold"
-                    value={sessionDate}
-                    onChange={(e) => setSessionDate(e.target.value)}
-                  />
+                  <div className="w-40">
+                    <DatePickerInput
+                      mode="date"
+                      value={sessionDate}
+                      onChange={(val) => { if (val) setSessionDate(val); }}
+                      className="!py-2 !text-xs font-semibold"
+                    />
+                  </div>
                   <button type="button" onClick={markAllPresent} className="btn-ghost !py-2 text-xs">
                     <CheckCircle2 size={14} /> Tandai Semua Hadir
                   </button>
@@ -690,6 +695,38 @@ export default function TutorDashboard() {
               </div>
             )}
           </form>
+        </div>
+      )}
+
+      {/* Learning Journey Roadmap 12x Pertemuan untuk Kelas Terpilih (Sinkron dengan Admin) */}
+      {selectedClassId && rows.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xs">
+            <div className="text-xs font-bold text-slate-600">
+              Pilih Siswa untuk Input Nilai Roadmap 12 Pertemuan:
+            </div>
+            <select
+              className="input !h-9 !w-auto text-xs font-bold"
+              value={journeyStudentId || rows[0]?.student_id || ""}
+              onChange={(e) => setJourneyStudentId(e.target.value)}
+            >
+              {rows.map((s) => (
+                <option key={s.student_id} value={s.student_id}>
+                  {s.student_name || s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {(() => {
+            const activeStu = rows.find((s) => String(s.student_id) === String(journeyStudentId)) || rows[0];
+            return (
+              <LearningJourneyRoadmap
+                studentId={activeStu?.student_id}
+                studentName={activeStu?.student_name || activeStu?.name}
+                level={classDetail?.class?.level}
+              />
+            );
+          })()}
         </div>
       )}
     </div>

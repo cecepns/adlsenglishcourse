@@ -305,6 +305,7 @@ export const RESOURCES = {
       { key: "reason_choosing", label: "Alasan Memilih ADLS", type: "textarea" },
       { key: "class_type", label: "Type Kelas", type: "select", options: CLASS_TYPES },
       { key: "level", label: "Level", type: "select", options: COURSE_LEVELS, required: true },
+      { key: "pricelist", label: "Pricelist / Biaya SPP Bulanan (Rp)", type: "number" },
       classField(false, (opt, prev) => {
         if (!opt?.raw) return {};
         const patch = {};
@@ -386,13 +387,27 @@ export const RESOURCES = {
     u: STAFF,
     branchFilter: true,
     defaultDateKey: "date",
-    columns: [
-      { key: "date", label: "Tanggal", render: (v) => String(v || "").slice(0, 10) || "-" },
-      { key: "student_name", label: "Siswa", bold: true, render: (v, r) => v || (r.student_id ? `#${r.student_id}` : "-") },
-      { key: "class_name", label: "Type Kelas", render: (v, r) => v || (r.class_id ? `#${r.class_id}` : "-") },
-      { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "-") },
-      { key: "status", label: "Status", type: "badge", badgeMap: { hadir: "bg-emerald-100 text-emerald-700", izin: "bg-amber-100 text-amber-700", sakit: "bg-sky-100 text-sky-700", alpha: "bg-red-100 text-red-700" } },
-    ],
+    getColumns: (user) => {
+      const isStudent = user?.role === "siswa";
+      return [
+        { key: "date", label: "Tanggal", render: (v) => String(v || "").slice(0, 10) || "-" },
+        { key: "student_name", label: "Siswa", bold: true, render: (v, r) => v || (r.student_id ? `#${r.student_id}` : "-") },
+        { key: "class_name", label: "Type Kelas", render: (v, r) => v || (r.class_id ? `#${r.class_id}` : "-") },
+        { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "-") },
+        {
+          key: "status",
+          label: "Status",
+          type: "badge",
+          badgeMap: {
+            hadir: "bg-emerald-100 text-emerald-700",
+            izin: "bg-amber-100 text-amber-700",
+            sakit: "bg-sky-100 text-sky-700",
+            alpha: "bg-red-100 text-red-700",
+          },
+          ...(isStudent ? { render: (v) => (String(v || "").toLowerCase() === "hadir" ? "1" : "0") } : {}),
+        },
+      ];
+    },
     fields: [
       studentField((opt) => {
         if (!opt?.raw) return {};
@@ -462,6 +477,7 @@ export const RESOURCES = {
   },
   learning_reports: {
     title: "Laporan Belajar & Nilai",
+    getTitle: (user) => (user?.role === "ortu" ? "Laporan Belajar Harian" : "Laporan Belajar & Nilai"),
     icon: BookOpenCheck,
     endpoint: E.LEARNING_REPORTS,
     r: ALL,
@@ -473,22 +489,29 @@ export const RESOURCES = {
     getDefaultValues: () => ({
       report_month: new Date().toISOString().slice(0, 7),
     }),
-    getColumns: (user) => [
-      { key: "report_month", label: "Bulan" },
-      { key: "student_name", label: "Siswa", bold: true, render: (v, r) => v || (r.student_id ? `#${r.student_id}` : "-") },
-      { key: "class_name", label: "Type Kelas", render: (v) => v || "-" },
-      { key: "material", label: "Materi Pertemuan", render: (v) => v || "Menunggu input tutor" },
-      { key: "homework", label: "PR (Pekerjaan Rumah)", render: (v) => v || "-" },
-      { key: "formative_score", label: "Formatif", render: (v) => (v !== null && v !== undefined ? `${v}` : "-") },
-      {
-        key: "summative_score",
-        label: "Sumatif / UAS",
-        bold: true,
-        render: (v) => (v === null || v === undefined ? "-" : Number(v) >= 100 ? `${v} ★` : `${v}`),
-      },
-      { key: "speaking_score", label: "Speaking", render: (v) => (v !== null && v !== undefined ? `${v}` : "-") },
-      ...(user?.role === "ortu" ? [] : [{ key: "tutor_name", label: "Tutor", render: (v) => v || "-" }]),
-    ],
+    getColumns: (user) => {
+      const isParent = user?.role === "ortu";
+      return [
+        { key: "report_date", label: "Tanggal", render: (v) => String(v || "").slice(0, 10) || "-" },
+        { key: "student_name", label: "Siswa", bold: true, render: (v, r) => v || (r.student_id ? `#${r.student_id}` : "-") },
+        { key: "class_name", label: "Type Kelas", render: (v) => v || "-" },
+        { key: "material", label: "Materi Pertemuan", render: (v) => v || "Menunggu input tutor" },
+        { key: "homework", label: "PR (Pekerjaan Rumah)", render: (v) => v || "-" },
+        ...(isParent
+          ? []
+          : [
+              { key: "formative_score", label: "Formatif", render: (v) => (v !== null && v !== undefined ? `${v}` : "-") },
+              {
+                key: "summative_score",
+                label: "Sumatif / UAS",
+                bold: true,
+                render: (v) => (v === null || v === undefined ? "-" : Number(v) >= 100 ? `${v} ★` : `${v}`),
+              },
+              { key: "speaking_score", label: "Speaking", render: (v) => (v !== null && v !== undefined ? `${v}` : "-") },
+              { key: "tutor_name", label: "Tutor", render: (v) => v || "-" },
+            ]),
+      ];
+    },
     getFields: (user) => {
       const isTutor = user?.role === "tutor";
       const isStaff = STAFF.includes(user?.role);
@@ -626,29 +649,33 @@ export const RESOURCES = {
     quickApprove: true,
     branchFilter: true,
     defaultDateKey: "start_date",
+    getTitle: (user) => (user?.role === "siswa" ? "Izin" : "Izin & Cuti"),
     getDefaultValues: (user) => ({
       requester_name: user?.name || "",
       type: user?.role === "tutor" ? "cuti_tutor" : "izin_siswa",
     }),
-    columns: [
-      {
-        key: "type",
-        label: "Jenis",
-        type: "badge",
-        badgeMap: {
-          izin_siswa: "bg-sky-100 text-sky-700",
-          sakit_siswa: "bg-rose-100 text-rose-700",
-          cuti_tutor: "bg-indigo-100 text-indigo-700",
+    getColumns: (user) => {
+      const isStudentSide = ["siswa", "ortu"].includes(user?.role);
+      return [
+        {
+          key: "type",
+          label: "Jenis",
+          type: "badge",
+          badgeMap: {
+            izin_siswa: "bg-sky-100 text-sky-700",
+            sakit_siswa: "bg-rose-100 text-rose-700",
+            cuti_tutor: "bg-indigo-100 text-indigo-700",
+          },
         },
-      },
-      { key: "requester_name", label: "Pemohon", bold: true },
-      { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "-") },
-      { key: "reason", label: "Alasan" },
-      { key: "approval_notes", label: "Catatan Keputusan (ACC/Tolak)", render: (v) => v || "-" },
-      { key: "start_date", label: "Mulai", render: (v) => String(v || "").slice(0, 10) || "-" },
-      { key: "end_date", label: "Selesai", render: (v) => String(v || "").slice(0, 10) || "-" },
-      { key: "status", label: "Status", type: "badge", badgeMap: { approved: "bg-emerald-100 text-emerald-700", pending: "bg-amber-100 text-amber-700", rejected: "bg-red-100 text-red-700" } },
-    ],
+        { key: "requester_name", label: "Pemohon", bold: true },
+        { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "-") },
+        { key: "reason", label: "Alasan" },
+        { key: "approval_notes", label: "Catatan Keputusan (ACC/Tolak)", render: (v) => v || "-" },
+        { key: "start_date", label: isStudentSide ? "Tanggal Izin" : "Mulai", render: (v) => String(v || "").slice(0, 10) || "-" },
+        { key: "end_date", label: isStudentSide ? "Tanggal Reschedule" : "Selesai", render: (v) => String(v || "").slice(0, 10) || "-" },
+        { key: "status", label: "Status", type: "badge", badgeMap: { approved: "bg-emerald-100 text-emerald-700", pending: "bg-amber-100 text-amber-700", rejected: "bg-red-100 text-red-700" } },
+      ];
+    },
     getFields: (user) => {
       const isStudentSide = ["siswa", "ortu"].includes(user?.role);
       const isTutor = user?.role === "tutor";
@@ -661,8 +688,8 @@ export const RESOURCES = {
         { key: "type", label: "Jenis Pengajuan", type: "select", options: typeOptions, required: true },
         { key: "requester_name", label: isStudentSide ? "Nama Siswa" : "Nama Pemohon", required: true },
         { key: "reason", label: "Alasan / Keterangan Sakit", required: true },
-        { key: "start_date", label: "Tanggal Mulai", type: "date", required: true },
-        { key: "end_date", label: "Tanggal Selesai", type: "date" },
+        { key: "start_date", label: isStudentSide ? "Tanggal Izin" : "Tanggal Mulai", type: "date", required: true },
+        { key: "end_date", label: isStudentSide ? "Tanggal Reschedule" : "Tanggal Selesai", type: "date" },
         { key: "approval_notes", label: "Keterangan / Alasan Keputusan (Wajib jika Tolak / ACC)", type: "textarea", approveOnly: true },
         { key: "status", label: "Keputusan Admin Pusat / Owner", type: "select", options: ["pending", "approved", "rejected"], approveOnly: true },
         ...(isStudentSide || isTutor ? [] : [branchField("Cabang", false)]),

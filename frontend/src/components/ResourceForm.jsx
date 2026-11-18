@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import AsyncResourceSelect from "./AsyncResourceSelect";
+import DatePickerInput from "./DatePickerInput";
 import ImageUploadField from "./ImageUploadField";
 import MediaUploadField from "./MediaUploadField";
 
@@ -113,12 +114,19 @@ export default function ResourceForm({ fields, initial, onSubmit, onCancel, load
                 value={values[f.key] ?? ""}
                 onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
               />
+            ) : f.type === "date" || f.type === "month" ? (
+              <DatePickerInput
+                mode={f.type}
+                value={f.type === "date" ? String(values[f.key] ?? "").slice(0, 10) : String(values[f.key] ?? "").slice(0, 7)}
+                onChange={(val) => setValues({ ...values, [f.key]: val })}
+                isClearable={!f.required}
+              />
             ) : (
               <input
                 type={f.type || "text"}
                 className="input"
                 autoComplete={f.type === "password" ? "new-password" : undefined}
-                value={f.type === "date" ? String(values[f.key] ?? "").slice(0, 10) : (values[f.key] ?? "")}
+                value={values[f.key] ?? ""}
                 onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
               />
             )}

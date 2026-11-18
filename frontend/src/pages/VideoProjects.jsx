@@ -9,6 +9,7 @@ import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
 import AsyncResourceSelect from "@/components/AsyncResourceSelect";
+import DatePickerInput from "@/components/DatePickerInput";
 import MediaUploadField from "@/components/MediaUploadField";
 import Modal from "@/components/Modal";
 
@@ -277,19 +278,21 @@ export default function VideoProjects() {
             {/* Filter Rentang Tanggal */}
             <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
               <span className="text-slate-500 font-semibold hidden sm:inline">Periode:</span>
-              <input
-                type="date"
+              <DatePickerInput
+                compact
+                showIcon={false}
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+                onChange={setStartDate}
+                placeholder="dd/mm/yyyy"
                 title="Tanggal Mulai"
               />
               <span className="text-slate-400 font-bold text-[11px]">-</span>
-              <input
-                type="date"
+              <DatePickerInput
+                compact
+                showIcon={false}
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+                onChange={setEndDate}
+                placeholder="dd/mm/yyyy"
                 title="Tanggal Selesai"
               />
               {(startDate || endDate) && (
@@ -414,8 +417,8 @@ export default function VideoProjects() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Bulan (YYYY-MM) *</label>
-              <input type="month" className="input" required value={submitForm.month} onChange={(e) => setSubmitForm({ ...submitForm, month: e.target.value })} />
+              <label className="mb-1 block text-sm font-semibold text-slate-700">Bulan *</label>
+              <DatePickerInput mode="month" required value={submitForm.month} onChange={(val) => setSubmitForm({ ...submitForm, month: val })} />
             </div>
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">Judul Project *</label>

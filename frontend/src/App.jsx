@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import LessonMaterials from "@/pages/LessonMaterials";
 import Login from "@/pages/Login";
 import Meetings from "@/pages/Meetings";
+import MonthlyEvaluations from "@/pages/MonthlyEvaluations";
 import Payroll from "@/pages/Payroll";
 import PortalDashboard from "@/pages/PortalDashboard";
 import Referrals from "@/pages/Referrals";
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="bills" element={<BillsPage />} />
         <Route path="products" element={<CatalogShop />} />
         <Route path="shop" element={<CatalogShop />} />
+        <Route path="monthly-evaluations" element={<MonthlyEvaluations />} />
         <Route path="payroll" element={isPayrollAllowed ? <Payroll /> : <Navigate to="/" replace />} />
         <Route path="referrals" element={isReferralAllowed ? <Referrals /> : <Navigate to="/" replace />} />
         {genericResources.map(([key, cfg]) => (

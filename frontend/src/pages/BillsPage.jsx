@@ -28,6 +28,7 @@ import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
 import useResourceList from "@/hooks/useResourceList";
 import AsyncResourceSelect from "@/components/AsyncResourceSelect";
+import DatePickerInput from "@/components/DatePickerInput";
 import ImageUploadField from "@/components/ImageUploadField";
 import Modal from "@/components/Modal";
 import Pagination from "@/components/Pagination";
@@ -441,24 +442,26 @@ export default function BillsPage() {
             <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
               <Calendar size={13} className="text-brand shrink-0" />
               <span className="text-slate-500 font-semibold hidden sm:inline">Tempo:</span>
-              <input
-                type="date"
-                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+              <DatePickerInput
+                compact
+                showIcon={false}
                 value={startDate}
+                placeholder="dd/mm/yyyy"
                 title="Dari Tanggal"
-                onChange={(e) => {
-                  setStartDate(e.target.value);
+                onChange={(val) => {
+                  setStartDate(val);
                   setPage(1);
                 }}
               />
               <span className="text-slate-400 font-bold text-[11px]">-</span>
-              <input
-                type="date"
-                className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+              <DatePickerInput
+                compact
+                showIcon={false}
                 value={endDate}
+                placeholder="dd/mm/yyyy"
                 title="Sampai Tanggal"
-                onChange={(e) => {
-                  setEndDate(e.target.value);
+                onChange={(val) => {
+                  setEndDate(val);
                   setPage(1);
                 }}
               />
@@ -650,7 +653,7 @@ export default function BillsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">Bulan *</label>
-              <input type="month" required className="input" value={genForm.month} onChange={(e) => setGenForm({ ...genForm, month: e.target.value, due_date: `${e.target.value}-10` })} />
+              <DatePickerInput mode="month" required value={genForm.month} onChange={(val) => setGenForm({ ...genForm, month: val, due_date: val ? `${val}-10` : "" })} />
             </div>
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">Nominal SPP (Rp) *</label>
@@ -663,7 +666,7 @@ export default function BillsPage() {
           </div>
           <div>
             <label className="mb-1 block text-sm font-semibold text-slate-700">Jatuh Tempo</label>
-            <input type="date" className="input" value={genForm.due_date} onChange={(e) => setGenForm({ ...genForm, due_date: e.target.value })} />
+            <DatePickerInput mode="date" value={genForm.due_date} onChange={(val) => setGenForm({ ...genForm, due_date: val })} isClearable />
           </div>
           {isHQ && (
             <div>
@@ -713,8 +716,8 @@ export default function BillsPage() {
               <input required className="input" value={crudForm.title} onChange={(e) => setCrudForm({ ...crudForm, title: e.target.value })} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Bulan (YYYY-MM)</label>
-              <input type="month" className="input" value={crudForm.month} onChange={(e) => setCrudForm({ ...crudForm, month: e.target.value })} />
+              <label className="mb-1 block text-sm font-semibold text-slate-700">Bulan</label>
+              <DatePickerInput mode="month" value={crudForm.month} onChange={(val) => setCrudForm({ ...crudForm, month: val })} isClearable />
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -730,7 +733,7 @@ export default function BillsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">Jatuh Tempo</label>
-              <input type="date" className="input" value={crudForm.due_date} onChange={(e) => setCrudForm({ ...crudForm, due_date: e.target.value })} />
+              <DatePickerInput mode="date" value={crudForm.due_date} onChange={(val) => setCrudForm({ ...crudForm, due_date: val })} isClearable />
             </div>
             <div>
               <label className="mb-1 block text-sm font-semibold text-slate-700">Status</label>

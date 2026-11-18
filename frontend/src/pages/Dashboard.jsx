@@ -33,6 +33,7 @@ import { API_ENDPOINTS } from "@/utils/endpoints";
 import { getOpeningGreeting } from "@/utils/greetings";
 import { useAuth } from "@/context/AuthContext";
 import { DonutChart, GroupedBarChart, HorizontalBars, LineAreaChart } from "@/components/Charts";
+import DatePickerInput from "@/components/DatePickerInput";
 import Modal from "@/components/Modal";
 
 const MN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -108,9 +109,9 @@ function KpiCard({ icon: Icon, label, value, sub, color = "blue", to }) {
   );
 }
 
-function ChartCard({ title, subtitle, right, children }) {
+function ChartCard({ title, subtitle, right, className = "", children }) {
   return (
-    <div className="card p-5">
+    <div className={`card p-5 ${className}`}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="text-base font-extrabold text-slate-900">{title}</h3>
@@ -128,6 +129,11 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [branchId, setBranchId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    return `${d.getFullYear()}-${mm}`;
+  });
+  const [timetableMonth, setTimetableMonth] = useState(() => {
     const d = new Date();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     return `${d.getFullYear()}-${mm}`;
@@ -168,8 +174,11 @@ export default function Dashboard() {
 
   const loadTutorAvail = useCallback(() => {
     setLoadingTutorAvail(true);
+    const params = {};
+    if (branchId) params.branch_id = branchId;
+    if (timetableMonth) params.month = timetableMonth;
     api
-      .get(API_ENDPOINTS.TUTORS_AVAILABILITY, { params: branchId ? { branch_id: branchId } : {} })
+      .get(API_ENDPOINTS.TUTORS_AVAILABILITY, { params })
       .then((r) => {
         const payload = r.data.data;
         const tutorsList = Array.isArray(payload) ? payload : (payload?.tutors || r.data.tutors || []);
@@ -182,12 +191,15 @@ export default function Dashboard() {
         setTimetableData(null);
       })
       .finally(() => setLoadingTutorAvail(false));
-  }, [branchId]);
+  }, [branchId, timetableMonth]);
 
   useEffect(() => {
     loadStats();
+  }, [loadStats]);
+
+  useEffect(() => {
     loadTutorAvail();
-  }, [loadStats, loadTutorAvail]);
+  }, [loadTutorAvail]);
 
   const branchOptions = [
     { value: "", label: "Semua Cabang" },
@@ -213,6 +225,7 @@ export default function Dashboard() {
   const unpaidAmount = Number(unpaidStudents.amount ?? 0);
 
   const branchPaidUnpaid = stats?.branchPaidUnpaid || [];
+  const classTypeLevelBreakdown = stats?.classTypeLevelBreakdown || { branches: [], rows: [], branchTotals: {}, grandTotal: 0 };
   const marketingSources = stats?.marketingSources || [];
   const stopReasons = stats?.stopReasons || [];
   const branchGrowth = stats?.branchGrowth || { weekly: [], monthly: [] };
@@ -235,28 +248,39 @@ export default function Dashboard() {
     todos.push({ to: "/complaints", color: "text-indigo-600", label: `${stats.openComplaints} komplen berstatus open perlu ditindak` });
   }
 
-  // Siapkan data grafik pertumbuhan cabang
-  const growthData = growthView === "weekly" ? branchGrowth.weekly || [] : branchGrowth.monthly || [];
-  const growthLabels = growthData.map((d) => (growthView === "weekly" ? d.week : fmtMonth(d.month)));
-  // Ambil list semua cabang dari dataset
-  const branchIdMap = {};
-  growthData.forEach((d) => {
-    Object.keys(d.branches || {}).forEach((bid) => {
-      if (!branchIdMap[bid]) {
-        branchIdMap[bid] = d.branches[bid].name;
-      }
+  // Siapkan data grafik pertumbuhan cabang (mendukung format [{ branch_id, branch_name, timeline }])
+  const rawGrowth = growthView === "weekly" ? branchGrowth.weekly || [] : branchGrowth.monthly || [];
+  const metricKey =
+    growthMetric === "active"
+      ? "active_students"
+      : growthMetric === "new"
+      ? "new_students"
+      : "student_out";
+  let growthLabels = [];
+  let growthSeries = [];
+  if (rawGrowth.length > 0 && Array.isArray(rawGrowth[0]?.timeline)) {
+    growthLabels = rawGrowth[0].timeline.map((pt) =>
+      growthView === "weekly" ? pt.week : fmtMonth(pt.month)
+    );
+    growthSeries = rawGrowth.map((br, idx) => ({
+      name: br.branch_name,
+      color: BRANCH_PALETTE[idx % BRANCH_PALETTE.length],
+      data: (br.timeline || []).map((pt) => Number(pt[metricKey] || 0)),
+    }));
+  } else if (rawGrowth.length > 0) {
+    growthLabels = rawGrowth.map((d) => (growthView === "weekly" ? d.week : fmtMonth(d.month)));
+    const branchIdMap = {};
+    rawGrowth.forEach((d) => {
+      Object.keys(d.branches || {}).forEach((bid) => {
+        if (!branchIdMap[bid]) branchIdMap[bid] = d.branches[bid].name;
+      });
     });
-  });
-  const branchKeys = Object.keys(branchIdMap);
-
-  const growthSeries = branchKeys.map((bid, idx) => ({
-    name: branchIdMap[bid],
-    color: BRANCH_PALETTE[idx % BRANCH_PALETTE.length],
-    data: growthData.map((d) => {
-      const bObj = d.branches?.[bid] || { active: 0, new: 0, out: 0 };
-      return bObj[growthMetric] || 0;
-    }),
-  }));
+    growthSeries = Object.keys(branchIdMap).map((bid, idx) => ({
+      name: branchIdMap[bid],
+      color: BRANCH_PALETTE[idx % BRANCH_PALETTE.length],
+      data: rawGrowth.map((d) => (d.branches?.[bid]?.[growthMetric] || 0)),
+    }));
+  }
 
   return (
     <div className="space-y-5">
@@ -272,14 +296,20 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Filter Bulan (#16) */}
-            <div className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs text-white backdrop-blur-sm">
+            <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-1.5 text-xs text-white backdrop-blur-sm">
               <span className="font-semibold text-sky-200">Bulan:</span>
-              <input
-                type="month"
-                className="rounded-lg border-0 bg-white px-2 py-1 text-xs font-bold text-slate-800 shadow-sm outline-none"
+              <DatePickerInput
+                mode="month"
+                compact
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                aria-label="Pilih Bulan"
+                onChange={(val) => {
+                  if (val) {
+                    setSelectedMonth(val);
+                    setTimetableMonth(val);
+                  }
+                }}
+                className="!rounded-lg !bg-white !px-2.5 !pl-7 !py-1 !text-xs !font-bold !text-slate-800 !w-[145px] shadow-sm"
+                ariaLabel="Pilih Bulan"
               />
             </div>
 
@@ -337,8 +367,8 @@ export default function Dashboard() {
         <KpiCard
           icon={TrendingUp}
           label="Siswa Baru (Bulan Ini)"
-          value={stats ? stats.newStudents ?? 0 : "…"}
-          sub={stats ? `${stats.outStudents ?? 0} siswa berhenti (out)` : ""}
+          value={stats ? (stats.newStudents ?? stats.newStudentsThisMonth ?? 0) : "…"}
+          sub={stats ? `${stats.outStudents ?? stats.studentsOutThisMonth ?? 0} siswa berhenti (out)` : ""}
           color="emerald"
           to="/students"
         />
@@ -367,14 +397,16 @@ export default function Dashboard() {
           to="/bills"
         />
 
-        <KpiCard
-          icon={CalendarCheck}
-          label="Kehadiran Siswa"
-          value={stats ? `${stats.attendanceRate ?? 0}%` : "…"}
-          sub={stats ? `dari ${stats.attendanceTotal ?? 0} catatan absensi` : ""}
-          color="sky"
-          to="/attendance"
-        />
+        {!isOwner && (
+          <KpiCard
+            icon={CalendarCheck}
+            label="Kehadiran Siswa"
+            value={stats ? `${stats.attendanceRate ?? 0}%` : "…"}
+            sub={stats ? `dari ${stats.attendanceTotal ?? 0} catatan absensi` : ""}
+            color="sky"
+            to="/attendance"
+          />
+        )}
 
         <KpiCard
           icon={Clock}
@@ -493,6 +525,89 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="py-8 text-center text-sm text-slate-400">Belum ada data pembayaran cabang</div>
+        )}
+      </div>
+
+      {/* Tabel Informasi Tipe Kelas & Level per Cabang (Revisi Owner Hal 3) */}
+      <div className="card p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-extrabold text-slate-900">
+              Informasi Tipe Kelas &amp; Level per Cabang
+            </h3>
+            <p className="text-xs text-slate-500">
+              Total siswa aktif berdasarkan tipe kelas dan level di masing-masing cabang untuk periode {fmtMonth(selectedMonth)}
+            </p>
+          </div>
+          <Link
+            to="/classes"
+            className="inline-flex items-center gap-1 rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand hover:bg-brand-100"
+          >
+            Kelola Kelas <ChevronRight size={14} />
+          </Link>
+        </div>
+
+        {classTypeLevelBreakdown.rows?.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 bg-slate-50 uppercase text-slate-500">
+                <tr>
+                  <th className="px-3.5 py-2.5 font-bold">Type Kelas</th>
+                  <th className="px-3.5 py-2.5 font-bold">Level</th>
+                  {(classTypeLevelBreakdown.branches || []).map((br) => (
+                    <th key={br.id} className="px-3 py-2.5 text-center font-bold">
+                      {br.name}
+                    </th>
+                  ))}
+                  <th className="px-3.5 py-2.5 text-center font-bold bg-brand-50/50 text-brand-dark">
+                    Total Siswa
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {classTypeLevelBreakdown.rows.map((row, idx) => (
+                  <tr key={`${row.class_type}-${row.level}-${idx}`} className="hover:bg-slate-50/80">
+                    <td className="px-3.5 py-2.5 font-bold text-slate-800">{row.class_type}</td>
+                    <td className="px-3.5 py-2.5 text-slate-700">{row.level}</td>
+                    {(classTypeLevelBreakdown.branches || []).map((br) => {
+                      const val = Number(row.counts?.[br.id] || 0);
+                      return (
+                        <td key={br.id} className="px-3 py-2.5 text-center">
+                          <span className={val > 0 ? "font-bold text-slate-800" : "text-slate-300"}>
+                            {val}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="px-3.5 py-2.5 text-center bg-brand-50/30">
+                      <span className="rounded-full bg-brand-50 px-2.5 py-0.5 font-extrabold text-brand-dark">
+                        {row.total} siswa
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t-2 border-slate-200 bg-slate-50/90 font-extrabold text-slate-800">
+                <tr>
+                  <td colSpan={2} className="px-3.5 py-2.5 uppercase tracking-wide text-[11px] text-slate-600">
+                    Total Keseluruhan
+                  </td>
+                  {(classTypeLevelBreakdown.branches || []).map((br) => (
+                    <td key={br.id} className="px-3 py-2.5 text-center text-slate-900">
+                      {classTypeLevelBreakdown.branchTotals?.[br.id] || 0}
+                    </td>
+                  ))}
+                  <td className="px-3.5 py-2.5 text-center bg-brand-50/60 text-brand-dark">
+                    {classTypeLevelBreakdown.grandTotal || 0} siswa
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-slate-400">
+            Belum ada data siswa berdasarkan tipe kelas dan level untuk periode ini
+          </div>
         )}
       </div>
 
@@ -658,30 +773,33 @@ export default function Dashboard() {
           />
         </ChartCard>
 
-        {/* Rekap Kehadiran Siswa */}
-        <ChartCard
-          title="Rekap Kehadiran Siswa"
-          subtitle="Distribusi status absensi seluruh sesi"
-          right={
-            <Link to="/attendance" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
-              Absensi Siswa <ChevronRight size={14} />
-            </Link>
-          }
-        >
-          <DonutChart
-            centerValue={`${stats?.attendanceRate ?? 0}%`}
-            centerLabel="Tingkat Hadir"
-            segments={[
-              { label: "Hadir", value: att.hadir, color: "#16a34a" },
-              { label: "Izin", value: att.izin, color: "#f59e0b" },
-              { label: "Sakit", value: att.sakit, color: "#0ea5e9" },
-              { label: "Alpha", value: att.alpha, color: "#ef4444" },
-            ]}
-          />
-        </ChartCard>
+        {/* Rekap Kehadiran Siswa (disembunyikan untuk Owner) */}
+        {!isOwner && (
+          <ChartCard
+            title="Rekap Kehadiran Siswa"
+            subtitle="Distribusi status absensi seluruh sesi"
+            right={
+              <Link to="/attendance" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+                Absensi Siswa <ChevronRight size={14} />
+              </Link>
+            }
+          >
+            <DonutChart
+              centerValue={`${stats?.attendanceRate ?? 0}%`}
+              centerLabel="Tingkat Hadir"
+              segments={[
+                { label: "Hadir", value: att.hadir, color: "#16a34a" },
+                { label: "Izin", value: att.izin, color: "#f59e0b" },
+                { label: "Sakit", value: att.sakit, color: "#0ea5e9" },
+                { label: "Alpha", value: att.alpha, color: "#ef4444" },
+              ]}
+            />
+          </ChartCard>
+        )}
 
         {/* #12 Tutor Berprestasi + Informasi Jumlah Siswa yang Diajar */}
         <ChartCard
+          className={isOwner ? "lg:col-span-2" : ""}
           title="Tutor Berprestasi & Beban Mengajar"
           subtitle="Tingkat ketepatan waktu & total siswa yang diajar oleh masing-masing tutor"
           right={
@@ -761,9 +879,23 @@ export default function Dashboard() {
       {/* #20 & #6 Ketersediaan Jadwal Kosong Tutor (Menggantikan Ringkasan Kelas & Format Matrix Timetable PDF Hal 2) */}
       <ChartCard
         title="Ketersediaan Jadwal Kosong Tutor"
-        subtitle="Sistem real-time pemantauan slot mengajar kosong, jadwal per cabang & sesi, serta deteksi bentrok"
+        subtitle={`Sistem real-time pemantauan slot mengajar kosong, jadwal per cabang & sesi (${fmtMonth(timetableMonth)})`}
         right={
           <div className="flex flex-wrap items-center gap-2">
+            {/* Sortir Bulan & Tahun (PDF Hal 7) */}
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs">
+              <span className="font-bold text-slate-500">Periode:</span>
+              <DatePickerInput
+                mode="month"
+                compact
+                value={timetableMonth}
+                onChange={(val) => {
+                  if (val) setTimetableMonth(val);
+                }}
+                className="!w-[120px] !font-bold !text-slate-800"
+                title="Pilih Bulan & Tahun Jadwal"
+              />
+            </div>
             <Link
               to="/classes"
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
@@ -839,7 +971,7 @@ export default function Dashboard() {
                 <table className="w-full min-w-[760px] border-collapse text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-100 text-slate-700 font-bold">
-                      <th className="w-36 border-r border-slate-200 px-3 py-3 uppercase tracking-wider text-[11px]">
+                      <th className="w-48 border-r border-slate-200 px-3 py-3 uppercase tracking-wider text-[11px]">
                         Sesi / Waktu
                       </th>
                       {(timetableData.branches || []).map((b) => (
@@ -851,16 +983,41 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {(timetableData.slots || []).map((slot, idx) => {
-                      const isAfterLunchBreak = slot.session === 3;
+                    {(timetableData.slots || []).map((slot) => {
                       const branches = timetableData.branches || [];
+                      // Semua tutor yang masih memiliki jadwal kosong di sesi & hari ini (PDF Hal 7)
+                      const freeInSession = tutorAvail.filter((t) =>
+                        t.empty_slots?.some((s) => s.day === selectedTimetableDay && s.session === slot.session)
+                      );
 
                       return (
                         <tr key={slot.session} className="hover:bg-slate-50/50">
-                          {/* Sesi / Jam */}
+                          {/* Sesi / Jam + Daftar Tutor Jadwal Kosong di Sesi Ini */}
                           <td className="border-r border-slate-200 bg-slate-50/80 px-3 py-2.5 align-top">
                             <div className="font-bold text-slate-800">Sesi {slot.session}</div>
                             <div className="text-[11px] font-medium text-slate-500">{slot.label}</div>
+                            <div className="mt-2 border-t border-slate-200/80 pt-1.5">
+                              <div className="text-[10px] font-bold text-emerald-700 mb-1">
+                                Tutor Kosong ({freeInSession.length}):
+                              </div>
+                              {freeInSession.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {freeInSession.map((t) => (
+                                    <button
+                                      key={t.id}
+                                      type="button"
+                                      onClick={() => setAvailModalTutor(t)}
+                                      className="rounded-md border border-emerald-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-emerald-900 hover:border-emerald-400 hover:bg-emerald-50 transition"
+                                      title={`Lihat detail jadwal ${t.name}`}
+                                    >
+                                      {t.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] italic text-slate-400">Semua tutor terisi</span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Branches columns */}
@@ -903,7 +1060,7 @@ export default function Dashboard() {
                                         <div className="mt-1 flex items-center justify-between gap-1 border-t border-blue-100/80 pt-1 text-[10px]">
                                           <span className="text-slate-500 truncate" title={bi.level}>{bi.level || "-"}</span>
                                           <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 font-bold text-blue-900">
-                                            <Users size={10} /> {bi.student_count || 0} Siswa
+                                            <Users size={10} /> {bi.student_count ?? 0} Siswa
                                           </span>
                                         </div>
                                       </Link>
@@ -1046,7 +1203,9 @@ export default function Dashboard() {
                     <div key={i} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 text-xs">
                       <div>
                         <div className="font-bold text-slate-800">{b.day} ({b.time || b.time_range})</div>
-                        <div className="text-slate-500">{b.class_name} · {b.class_type} · <span className="font-semibold text-slate-700">{b.student_count || 0} Siswa</span></div>
+                        <div className="text-slate-500">
+                          {b.class_name} {b.level ? `· ${b.level}` : ""} · <span className="font-bold text-slate-700">{b.student_count ?? 0} Siswa</span>
+                        </div>
                       </div>
                       <span className="rounded bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">Terisi</span>
                     </div>
@@ -1069,7 +1228,7 @@ export default function Dashboard() {
                         key={i}
                         className="rounded-lg border border-emerald-100 bg-emerald-50/50 px-2 py-1 text-center text-[11px] font-semibold text-emerald-800"
                       >
-                        {e.day} {e.time_range}
+                        {e.day} {e.time || e.time_range}
                       </span>
                     ))}
                   </div>

@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
 import useResourceList from "@/hooks/useResourceList";
 import AsyncResourceSelect from "@/components/AsyncResourceSelect";
+import DatePickerInput from "@/components/DatePickerInput";
 import Modal from "@/components/Modal";
 import Pagination from "@/components/Pagination";
 
@@ -199,25 +200,27 @@ export default function Referrals() {
 
           <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
             <span className="text-slate-500 font-semibold hidden sm:inline">Periode:</span>
-            <input
-              type="date"
+            <DatePickerInput
+              compact
+              showIcon={false}
               value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
+              onChange={(val) => {
+                setStartDate(val);
                 setPage(1);
               }}
-              className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+              placeholder="dd/mm/yyyy"
               title="Tanggal Mulai"
             />
             <span className="text-slate-400 font-bold text-[11px]">-</span>
-            <input
-              type="date"
+            <DatePickerInput
+              compact
+              showIcon={false}
               value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
+              onChange={(val) => {
+                setEndDate(val);
                 setPage(1);
               }}
-              className="bg-transparent text-xs text-slate-700 outline-none font-medium cursor-pointer"
+              placeholder="dd/mm/yyyy"
               title="Tanggal Selesai"
             />
             {(startDate || endDate) && (

@@ -28,6 +28,7 @@ export default function AudioListening() {
   const [saving, setSaving] = useState(false);
 
   const canManage = [...STAFF, "tutor"].includes(user.role);
+  const isScopedLearner = ["siswa", "ortu"].includes(user.role);
 
   const load = async () => {
     setLoading(true);
@@ -36,7 +37,7 @@ export default function AudioListening() {
         params: {
           limit: 100,
           search: debounced || undefined,
-          level: levelFilter === "Semua" ? undefined : levelFilter,
+          level: isScopedLearner || levelFilter === "Semua" ? undefined : levelFilter,
         },
       });
       setRows(data.data || []);
@@ -164,23 +165,32 @@ export default function AudioListening() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-bold text-slate-400 uppercase mr-1">Level:</span>
-          {LEVELS.map((lv) => (
-            <button
-              key={lv}
-              type="button"
-              onClick={() => setLevelFilter(lv)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                levelFilter === lv
-                  ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              {lv}
-            </button>
-          ))}
-        </div>
+        {!isScopedLearner ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-400 uppercase mr-1">Level:</span>
+            {LEVELS.map((lv) => (
+              <button
+                key={lv}
+                type="button"
+                onClick={() => setLevelFilter(lv)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                  levelFilter === lv
+                    ? "bg-gradient-to-r from-brand-dark via-brand to-sky-700 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {lv}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-dark">
+            <Headphones size={14} />{" "}
+            {user.role === "ortu"
+              ? "Menampilkan audio listening khusus kelas ananda"
+              : "Menampilkan audio listening khusus level Anda"}
+          </div>
+        )}
       </div>
 
       {loading ? (

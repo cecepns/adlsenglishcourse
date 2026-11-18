@@ -43,6 +43,16 @@ export const API_ENDPOINTS = {
   EXPENSES: crud("/expenses"),
   LEARNING_REPORTS: crud("/learning_reports"),
   LEARNING_REPORTS_INIT_CLASS: "/learning_reports/init-class",
+  LEARNING_JOURNEY: {
+    GET: "/learning-journey",
+    TEMPLATE: "/learning-journey/template",
+    SCORES: (studentId) => `/learning-journey/scores/${studentId}`,
+  },
+  MONTHLY_EVALUATIONS: {
+    GET: "/monthly-evaluations",
+    DESIGN: "/monthly-evaluations/design",
+    SCORES: "/monthly-evaluations/scores",
+  },
   ACHIEVEMENTS: "/achievements",
   ACHIEVEMENTS_CLAIM: "/achievements/claim",
   AUDIO_MATERIALS: crud("/audio_materials"),

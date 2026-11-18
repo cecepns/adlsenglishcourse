@@ -34,6 +34,7 @@ import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
 import AsyncResourceSelect from "@/components/AsyncResourceSelect";
+import DatePickerInput from "@/components/DatePickerInput";
 import ImageUploadField from "@/components/ImageUploadField";
 import Modal from "@/components/Modal";
 import ProductImage from "@/components/ProductImage";
@@ -650,19 +651,21 @@ export default function CatalogShop() {
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
                 <span className="font-semibold text-slate-500">Periode:</span>
-                <input
-                  type="date"
+                <DatePickerInput
+                  compact
+                  showIcon={false}
                   value={orderStartDate}
-                  onChange={(e) => setOrderStartDate(e.target.value)}
-                  className="bg-transparent text-xs outline-none"
+                  onChange={setOrderStartDate}
+                  placeholder="dd/mm/yyyy"
                   title="Tanggal Mulai"
                 />
                 <span className="text-slate-400">s/d</span>
-                <input
-                  type="date"
+                <DatePickerInput
+                  compact
+                  showIcon={false}
                   value={orderEndDate}
-                  onChange={(e) => setOrderEndDate(e.target.value)}
-                  className="bg-transparent text-xs outline-none"
+                  onChange={setOrderEndDate}
+                  placeholder="dd/mm/yyyy"
                   title="Tanggal Selesai"
                 />
                 {(orderStartDate || orderEndDate) && (

@@ -42,6 +42,9 @@ import { getClosingGreeting, getOpeningGreeting } from "@/utils/greetings";
 import { request } from "@/utils/request";
 import { CLASS_TYPES, COURSE_LEVELS } from "@/config/resources";
 import { useAuth } from "@/context/AuthContext";
+import DatePickerInput from "@/components/DatePickerInput";
+import LearningJourneyRoadmap from "@/components/LearningJourneyRoadmap";
+import MonthlyEvaluationTable from "@/components/MonthlyEvaluationTable";
 import Modal from "@/components/Modal";
 
 const rp = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
@@ -53,6 +56,9 @@ export default function PortalDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [monthlyEval, setMonthlyEval] = useState(null);
   const [branches, setBranches] = useState([]);
   const [availableClasses, setAvailableClasses] = useState([]);
   const [previewPhoto, setPreviewPhoto] = useState(null);
@@ -88,16 +94,28 @@ export default function PortalDashboard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(API_ENDPOINTS.PORTAL_SUMMARY, {
-        params: selectedStudentId ? { student_id: selectedStudentId } : {},
-      });
-      setData(res.data.data);
+      const params = {};
+      if (selectedStudentId) params.student_id = selectedStudentId;
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+
+      const evalMonth = startDate ? startDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+      const [sumRes, evalRes] = await Promise.all([
+        api.get(API_ENDPOINTS.PORTAL_SUMMARY, { params }),
+        isParent
+          ? api.get(API_ENDPOINTS.MONTHLY_EVALUATIONS.GET, {
+              params: { month: evalMonth, student_id: selectedStudentId || undefined },
+            }).catch(() => ({ data: { data: null } }))
+          : Promise.resolve({ data: { data: null } }),
+      ]);
+      setData(sumRes.data.data);
+      setMonthlyEval(evalRes.data.data || null);
     } catch {
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [selectedStudentId]);
+  }, [selectedStudentId, startDate, endDate, isParent]);
 
   useEffect(() => {
     load();
@@ -335,23 +353,60 @@ export default function PortalDashboard() {
               </p>
             )}
           </div>
-          <div className="flex flex-wrap gap-2 self-start">
-            {isParent && (
+          <div className="flex flex-col items-start gap-2.5 lg:items-end">
+            <div className="flex flex-wrap gap-2">
+              {isParent && (
+                <button
+                  type="button"
+                  onClick={() => setChildModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-extrabold text-brand-dark shadow-sm transition hover:bg-sky-50"
+                >
+                  <Plus size={14} /> Tambah Anak
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setChildModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-extrabold text-brand-dark shadow-sm transition hover:bg-sky-50"
+                onClick={load}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-white/25"
               >
-                <Plus size={14} /> Tambah Anak
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh Data
               </button>
-            )}
-            <button
-              type="button"
-              onClick={load}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-white/25"
-            >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh Data
-            </button>
+            </div>
+
+            {/* Filter Periode DatePicker (PDF Ortu Hal 1) */}
+            <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm">
+              <Calendar size={13} className="text-brand shrink-0" />
+              <span className="font-bold text-slate-500">Periode:</span>
+              <DatePickerInput
+                compact
+                showIcon={false}
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="dd/mm/yyyy"
+                title="Tanggal Mulai"
+              />
+              <span className="text-slate-400 font-bold">-</span>
+              <DatePickerInput
+                compact
+                showIcon={false}
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="dd/mm/yyyy"
+                title="Tanggal Selesai"
+              />
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-200"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -392,8 +447,8 @@ export default function PortalDashboard() {
         </div>
       )}
 
-      {/* KPI Cards Row (Per #2: Hapus Nilai UAS 100 untuk Kelas Karyawan) */}
-      <div className={`grid grid-cols-2 gap-4 ${isParent ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+      {/* KPI Cards Row (Per #2: Hapus Nilai UAS 100 & Tagihan SPP untuk Siswa / Karyawan) */}
+      <div className={`grid grid-cols-2 gap-4 ${isParent ? "lg:grid-cols-4" : "lg:grid-cols-2"}`}>
         <Link to="/attendance" className="card p-4 transition hover:border-brand/40 hover:shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
@@ -404,41 +459,98 @@ export default function PortalDashboard() {
           <div className="mt-2 text-2xl font-extrabold text-slate-900">{att.rate}%</div>
           <div className="text-xs text-slate-500">{att.hadir} hadir dari {att.total} sesi</div>
         </Link>
-        <div className="card p-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
-            <Receipt size={16} className="text-rose-600" /> Tagihan SPP
-          </div>
-          <div className="mt-2 text-2xl font-extrabold text-slate-900">{rp(bills.unpaidAmount)}</div>
-          <div className="text-xs text-slate-500">{bills.unpaidCount} belum lunas · {bills.verifikasiCount} verifikasi</div>
-        </div>
+        {isParent && (() => {
+          const hasUnpaid = Boolean(bills.hasUnpaidSpp || bills.unpaidCount > 0);
+          const displayNominal = hasUnpaid
+            ? (bills.unpaidAmount > 0 ? bills.unpaidAmount : (bills.latestPricelist || 0))
+            : (bills.latestPricelist || bills.unpaidAmount || 0);
+          return (
+            <Link
+              to="/bills"
+              className={`card p-4 transition ${
+                hasUnpaid
+                  ? "animate-pulse border-2 border-red-500 bg-red-50/90 shadow-md shadow-red-200 hover:border-red-600"
+                  : "hover:border-brand/40 hover:shadow-sm"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <div className={`flex items-center gap-2 text-xs font-bold uppercase ${hasUnpaid ? "text-red-700" : "text-slate-500"}`}>
+                  <Receipt size={16} className={hasUnpaid ? "text-red-600" : "text-rose-600"} /> Tagihan SPP
+                </div>
+                {hasUnpaid ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-black uppercase text-white">
+                    Belum Bayar
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-emerald-700">Lunas ✓</span>
+                )}
+              </div>
+              <div className={`mt-2 text-2xl font-extrabold ${hasUnpaid ? "text-red-700" : "text-slate-900"}`}>
+                {rp(displayNominal)}
+              </div>
+              <div className={`text-xs font-medium ${hasUnpaid ? "text-red-600" : "text-slate-500"}`}>
+                {bills.latestPricelist > 0
+                  ? `Pricelist SPP: ${rp(bills.latestPricelist)} · ${bills.unpaidCount} belum lunas`
+                  : `${bills.unpaidCount} belum lunas · ${bills.verifikasiCount} verifikasi`}
+              </div>
+            </Link>
+          );
+        })()}
         {/* Tampilkan Nilai UAS 100 HANYA untuk Orang Tua (anak), tidak untuk kelas karyawan (#2) */}
         {isParent && (
-          <div className="card p-4">
+          <Link to="/achievements" className="card p-4 transition hover:border-brand/40 hover:shadow-sm">
             <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
               <Trophy size={16} className="text-amber-600" /> Nilai UAS 100
             </div>
             <div className="mt-2 text-2xl font-extrabold text-slate-900">{ach.uas100Count}x</div>
             <div className="text-xs text-slate-500">Progres Free SPP: {ach.progressToNext} / 20</div>
-          </div>
+          </Link>
         )}
-        <div className="card p-4">
+        <Link to="/videos" className="card p-4 transition hover:border-brand/40 hover:shadow-sm">
           <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
             <Film size={16} className="text-indigo-600" /> Project Video
           </div>
           <div className="mt-2 text-2xl font-extrabold text-slate-900">{data?.videoCount ?? 0}</div>
           <div className="text-xs text-slate-500">Video bulanan terkumpul</div>
-        </div>
+        </Link>
       </div>
 
       {/* Quick Actions */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link to="/bills" className="card flex items-center gap-3 p-4 transition hover:border-brand">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600"><CreditCard size={20} /></span>
-          <div>
-            <div className="text-sm font-bold text-slate-900">Bayar SPP (PT ADLS)</div>
-            <div className="text-xs text-slate-500">Lihat rekening & upload bukti</div>
-          </div>
-        </Link>
+        {isParent ? (
+          <Link
+            to="/bills"
+            className={`card flex items-center gap-3 p-4 transition ${
+              bills.hasUnpaidSpp || bills.unpaidCount > 0
+                ? "animate-pulse border-2 border-red-500 bg-red-50/90 shadow-md shadow-red-200 hover:border-red-600"
+                : "hover:border-brand"
+            }`}
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              bills.hasUnpaidSpp || bills.unpaidCount > 0 ? "bg-red-600 text-white" : "bg-rose-50 text-rose-600"
+            }`}>
+              <CreditCard size={20} />
+            </span>
+            <div className="min-w-0">
+              <div className={`text-sm font-bold ${bills.hasUnpaidSpp || bills.unpaidCount > 0 ? "text-red-800" : "text-slate-900"}`}>
+                Bayar SPP (PT ADLS)
+              </div>
+              <div className={`text-xs ${bills.hasUnpaidSpp || bills.unpaidCount > 0 ? "font-bold text-red-600" : "text-slate-500"}`}>
+                {bills.hasUnpaidSpp || bills.unpaidCount > 0
+                  ? `Belum lunas: ${rp(bills.unpaidAmount || bills.latestPricelist)}`
+                  : "Lihat rekening & upload bukti"}
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <Link to="/audio" className="card flex items-center gap-3 p-4 transition hover:border-brand">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><Headphones size={20} /></span>
+            <div>
+              <div className="text-sm font-bold text-slate-900">Audio Listening</div>
+              <div className="text-xs text-slate-500">Audio latihan khusus level Anda</div>
+            </div>
+          </Link>
+        )}
         <Link to="/videos" className="card flex items-center gap-3 p-4 transition hover:border-brand">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Film size={20} /></span>
           <div>
@@ -446,24 +558,24 @@ export default function PortalDashboard() {
             <div className="text-xs text-slate-500">Tugas video tiap bulan</div>
           </div>
         </Link>
-        {!isParent ? (
-          <Link to="/meetings" className="card flex items-center gap-3 p-4 transition hover:border-brand">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><Video size={20} /></span>
+        {isParent ? (
+          <Link to="/monthly-evaluations" className="card flex items-center gap-3 p-4 transition hover:border-brand">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><BookOpenCheck size={20} /></span>
             <div>
-              <div className="text-sm font-bold text-slate-900">Class Meeting Online</div>
-              <div className="text-xs text-slate-500">Gabung sesi kelas online</div>
+              <div className="text-sm font-bold text-slate-900">Laporan Belajar Bulanan</div>
+              <div className="text-xs text-slate-500">Lembar evaluasi kompetensi ananda</div>
             </div>
           </Link>
         ) : (
           <Link to="/leaves" className="card flex items-center gap-3 p-4 transition hover:border-brand">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><CalendarOff size={20} /></span>
             <div>
-              <div className="text-sm font-bold text-slate-900">Izin / Ket. Sakit Anak</div>
+              <div className="text-sm font-bold text-slate-900">Ajukan Izin &amp; Reschedule</div>
               <div className="text-xs text-slate-500">Ajukan izin tidak masuk kelas</div>
             </div>
           </Link>
         )}
-        <Link to="/shop" className="card flex items-center gap-3 p-4 transition hover:border-brand">
+        <Link to="/products" className="card flex items-center gap-3 p-4 transition hover:border-brand">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><ShoppingBag size={20} /></span>
           <div>
             <div className="text-sm font-bold text-slate-900">Order Produk ADLS</div>
@@ -472,78 +584,14 @@ export default function PortalDashboard() {
         </Link>
       </div>
 
-      {/* Learning Journey Roadmap (Peta Perjalanan Belajar dengan Bintang Emas di Ujung - PDF Hal 2) */}
-      <div className="card overflow-hidden border border-brand/20 bg-gradient-to-br from-white via-sky-50/20 to-brand-50/30 p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3.5">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-                <Star size={18} className="fill-amber-400 text-amber-500" />
-              </span>
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">
-                  Learning Journey Roadmap · Perjalanan Belajar Siswa
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Tahapan progres pembelajaran intensif ADLS hingga kelulusan level dan sertifikat resmi
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-bold text-slate-700 shadow-sm">
-            <span>Level: <b className="text-brand">{primary?.level || "Basic"}</b></span>
-            <span>· Status: <b className="text-emerald-700">{primary?.course_completed ? "Tuntas Lulus ⭐" : "Sedang Berjalan"}</b></span>
-          </div>
-        </div>
-
-        {/* Visual Roadmap Stepper with Golden Star Finish */}
-        <div className="mt-6 px-2 sm:px-6">
-          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 md:gap-2">
-            {/* Connecting Line */}
-            <div className="hidden md:block absolute left-8 right-8 top-5 h-1 bg-gradient-to-r from-emerald-500 via-sky-500 to-amber-400 z-0 rounded-full" />
-
-            {/* Steps */}
-            {[
-              { step: 1, title: "Level Placement", sub: "Pendaftaran & Kelas", done: true, icon: CheckCircle2 },
-              { step: 2, title: "Active Attendance", sub: `${att.rate}% Kehadiran`, done: att.rate >= 50, icon: CalendarCheck },
-              { step: 3, title: "Speaking Practice", sub: `${recentReports.length} Laporan Belajar`, done: recentReports.length > 0, icon: BookOpenCheck },
-              { step: 4, title: "Monthly Video", sub: `${data?.videoCount ?? 0} Project Video`, done: (data?.videoCount ?? 0) > 0, icon: Film },
-              { step: 5, title: "Sumatif & UAS", sub: "Evaluasi Akhir", done: Boolean(primary?.course_completed || (recentReports.some(r => r.summative_score))), icon: Award },
-              { step: 6, title: "Graduation Star", sub: primary?.course_completed ? "Selesai & Lulus!" : "Target Kelulusan", done: Boolean(primary?.course_completed), isStar: true },
-            ].map((node, i) => (
-              <div key={i} className="relative z-10 flex md:flex-col items-center gap-3 md:gap-2 text-left md:text-center flex-1">
-                <div
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-sm transition duration-300 ${
-                    node.isStar
-                      ? node.done
-                        ? "bg-amber-400 text-amber-900 ring-4 ring-amber-300/50 scale-110 animate-bounce"
-                        : "bg-amber-100 text-amber-600 border-2 border-dashed border-amber-400"
-                      : node.done
-                      ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
-                      : "bg-white text-slate-400 border-2 border-slate-300"
-                  }`}
-                >
-                  {node.isStar ? (
-                    <Star size={22} className="fill-amber-400 text-amber-800" />
-                  ) : node.done ? (
-                    <Check size={20} className="stroke-[2.5]" />
-                  ) : (
-                    <span className="text-xs font-black">{node.step}</span>
-                  )}
-                </div>
-                <div>
-                  <div className={`text-xs font-extrabold ${node.done ? "text-slate-900" : "text-slate-600"}`}>
-                    {node.title}
-                  </div>
-                  <div className="text-[11px] text-slate-600 font-medium">
-                    {node.sub}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Learning Journey Roadmap (Bulanan Jan–Des untuk Ortu, 12x Pertemuan untuk Siswa) */}
+      <LearningJourneyRoadmap
+        studentId={primary?.id}
+        studentName={primary?.name}
+        level={primary?.level}
+        courseCompleted={primary?.course_completed}
+        variant={isParent ? "monthly" : "meetings"}
+      />
 
       {/* Dokumentasi Foto Aktivitas Kelas Terkini (Laporan Nyata untuk Orang Tua) */}
       <div className="card overflow-hidden">
@@ -619,47 +667,69 @@ export default function PortalDashboard() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="card p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">
-                PR & Hasil Ujian (Formatif / Sumatif)
-              </h3>
-              <p className="text-xs text-slate-500">Laporan materi, tugas, dan evaluasi bulanan</p>
+        {isParent ? (
+          /* PDF Ortu Hal 8: Diganti menjadi Evaluasi Bulanan */
+          <div className="card p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Evaluasi Bulanan</h3>
+                <p className="text-xs text-slate-500">Lembar evaluasi pencapaian kompetensi bulanan ananda</p>
+              </div>
+              <Link to="/monthly-evaluations" className="text-xs font-bold text-brand hover:underline">
+                Lihat Semua →
+              </Link>
             </div>
-            <Link to="/learning_reports" className="text-xs font-bold text-brand hover:underline">Lihat Semua</Link>
+            <MonthlyEvaluationTable
+              title={monthlyEval?.title || "LEMBAR EVALUASI BULANAN"}
+              structure={monthlyEval?.structure || []}
+              scores={monthlyEval?.scores || {}}
+              editable={false}
+              compact
+            />
           </div>
-          {recentReports.length === 0 ? (
-            <div className="py-8 text-center text-sm text-slate-400">
-              <BookOpenCheck size={32} className="mx-auto mb-2" />
-              Belum ada laporan belajar terbaru
+        ) : (
+          <div className="card p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  PR &amp; Hasil Ujian (Formatif / Sumatif)
+                </h3>
+                <p className="text-xs text-slate-500">Laporan materi, tugas, dan evaluasi bulanan</p>
+              </div>
+              <Link to="/learning_reports" className="text-xs font-bold text-brand hover:underline">Lihat Semua</Link>
             </div>
-          ) : (
-            <div className="space-y-2.5">
-              {recentReports.map((r) => (
-                <div key={r.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-brand">{r.report_month} · {r.student_name}</span>
-                    <span className="text-slate-400">{r.class_name || "-"}</span>
+            {recentReports.length === 0 ? (
+              <div className="py-8 text-center text-sm text-slate-400">
+                <BookOpenCheck size={32} className="mx-auto mb-2" />
+                Belum ada laporan belajar terbaru
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {recentReports.map((r) => (
+                  <div key={r.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-brand">{r.report_month} · {r.student_name}</span>
+                      <span className="text-slate-400">{r.class_name || "-"}</span>
+                    </div>
+                    <div className="mt-1 text-sm font-bold text-slate-800">{r.material || "Evaluasi Bulanan"}</div>
+                    {r.homework && <div className="mt-1 text-xs font-semibold text-amber-700">Tugas/PR: {r.homework}</div>}
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700">
+                        Formatif: <b>{r.formative_score ?? "-"}</b>
+                      </span>
+                      <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700">
+                        Sumatif/UAS: <b>{r.summative_score ?? "-"}</b>
+                      </span>
+                      <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700">
+                        Speaking: <b>{r.speaking_score ?? "-"}</b>
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm font-bold text-slate-800">{r.material || "Evaluasi Bulanan"}</div>
-                  {r.homework && <div className="mt-1 text-xs font-semibold text-amber-700">Tugas/PR: {r.homework}</div>}
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700">
-                      Formatif: <b>{r.formative_score ?? "-"}</b>
-                    </span>
-                    <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700">
-                      Sumatif/UAS: <b>{r.summative_score ?? "-"}</b>
-                    </span>
-                    <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700">
-                      Speaking: <b>{r.speaking_score ?? "-"}</b>
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="space-y-5">
           {/* #2 Hapus informasi Reward 20x untuk Kelas Karyawan */}
@@ -993,14 +1063,17 @@ export default function PortalDashboard() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase text-slate-700">Tanggal Pengganti *</label>
-                    <input
-                      type="date"
+                    <DatePickerInput
+                      mode="date"
                       required
-                      className="input"
                       value={rescheduleForm.reschedule_date}
-                      onChange={(e) => {
-                        const dt = e.target.value;
-                        const dayIdx = new Date(dt).getDay();
+                      onChange={(dt) => {
+                        if (!dt) {
+                          setRescheduleForm({ ...rescheduleForm, reschedule_date: "" });
+                          return;
+                        }
+                        const [y, m, d] = dt.split("-").map(Number);
+                        const dayIdx = new Date(y, m - 1, d).getDay();
                         const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
                         setRescheduleForm({
                           ...rescheduleForm,

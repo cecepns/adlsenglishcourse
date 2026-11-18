@@ -15,7 +15,10 @@ import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { useAuth } from "@/context/AuthContext";
 import { exportToExcel } from "@/utils/exportExcel";
+import DatePickerInput from "@/components/DatePickerInput";
 import toast from "react-hot-toast";
+
+const rp = (n) => (Number(n || 0) > 0 ? "Rp " + Number(n).toLocaleString("id-ID") : "-");
 
 export default function StudentsDatabase() {
   const { user } = useAuth();
@@ -24,6 +27,7 @@ export default function StudentsDatabase() {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [branches, setBranches] = useState([]);
@@ -55,7 +59,7 @@ export default function StudentsDatabase() {
   }, [branchFilter, startDate, endDate]);
 
   const filtered = useMemo(() => {
-    return data.filter((row) => {
+    const list = data.filter((row) => {
       const q = search.toLowerCase();
       const matchSearch =
         !search ||
@@ -67,15 +71,22 @@ export default function StudentsDatabase() {
       const matchPay = !paymentFilter || row.payment_status === paymentFilter;
       return matchSearch && matchPay;
     });
-  }, [data, search, paymentFilter]);
+    return [...list].sort((a, b) => {
+      const da = a.joined_at || "";
+      const db = b.joined_at || "";
+      return sortOrder === "asc" ? da.localeCompare(db) : db.localeCompare(da);
+    });
+  }, [data, search, paymentFilter, sortOrder]);
 
   const exportCsv = () => {
     if (!filtered.length) return toast.error("Tidak ada data untuk diekspor");
     const cols = [
       { key: "no", label: "No." },
       { key: "student_name", label: "Student Names" },
+      { key: "joined_at", label: "Join Date" },
       { key: "class_name", label: "Class" },
       { key: "branch_name", label: "Branch" },
+      { key: "pricelist", label: "Pricelist" },
       { key: "payment_status", label: "Payment" },
       { key: "payment_method", label: "Payment Method" },
       { key: "date_of_payment", label: "Date Of Payment" },
@@ -93,8 +104,10 @@ export default function StudentsDatabase() {
     const dataToExport = filtered.map((r, idx) => ({
       no: idx + 1,
       student_name: r.student_name || "",
+      joined_at: r.joined_at || "",
       class_name: r.class_name || "",
       branch_name: r.branch_name || "",
+      pricelist: Number(r.pricelist || 0) > 0 ? rp(r.pricelist) : "-",
       payment_status: r.payment_status || "Not Paid",
       payment_method: r.payment_method || "",
       date_of_payment: r.date_of_payment || "",
@@ -116,33 +129,69 @@ export default function StudentsDatabase() {
     <div className="space-y-5">
       {/* Header Banner */}
       <div className="rounded-2xl bg-gradient-to-r from-brand-dark via-brand to-sky-700 p-6 text-white shadow-md">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-amber-200">
               <FileSpreadsheet size={14} /> Database Rekapitulasi Siswa
             </div>
             <h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Rekap Database Siswa ADLS</h1>
             <p className="mt-1 text-sm text-sky-100 max-w-2xl">
-              Tabel rekapitulasi data siswa, status pembayaran SPP (Paid / Not Paid), jadwal hari mengajar, dan Tutor PIC secara komprehensif.
+              Tabel rekapitulasi data siswa, pricelist SPP, status pembayaran (Paid / Not Paid), jadwal hari mengajar, dan Tutor PIC secara komprehensif.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={exportCsv}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-brand-dark shadow-sm transition hover:bg-sky-50"
-            >
-              <Download size={15} />
-              <span>Export Excel / CSV</span>
-            </button>
-            <button
-              onClick={loadData}
-              disabled={loading}
-              className="rounded-xl bg-white/15 p-2.5 text-white hover:bg-white/20 transition disabled:opacity-50"
-              title="Refresh Data"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            </button>
+          <div className="flex flex-col items-start gap-2.5 lg:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={exportCsv}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-brand-dark shadow-sm transition hover:bg-sky-50"
+              >
+                <Download size={15} />
+                <span>Export Excel / CSV</span>
+              </button>
+              <button
+                onClick={loadData}
+                disabled={loading}
+                className="rounded-xl bg-white/15 p-2.5 text-white hover:bg-white/20 transition disabled:opacity-50"
+                title="Refresh Data"
+              >
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              </button>
+            </div>
+
+            {/* Filter Tanggal di Banner (PDF Hal 4) */}
+            <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-white/15 px-3 py-1.5 text-xs text-white backdrop-blur-sm">
+              <span className="font-bold text-sky-100">Tanggal:</span>
+              <DatePickerInput
+                compact
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Tgl Mulai"
+                className="!rounded-lg !bg-white !px-2 !pl-6 !py-1 !text-xs !font-semibold !text-slate-800 !w-[112px]"
+                title="Tanggal Mulai"
+              />
+              <span className="text-sky-200">s/d</span>
+              <DatePickerInput
+                compact
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="Tgl Selesai"
+                className="!rounded-lg !bg-white !px-2 !pl-6 !py-1 !text-xs !font-semibold !text-slate-800 !w-[112px]"
+                title="Tanggal Selesai"
+              />
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  className="ml-1 rounded-lg bg-white/20 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/30"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -184,37 +233,14 @@ export default function StudentsDatabase() {
             <option value="Not Paid">Hanya Not Paid (Belum Lunas)</option>
           </select>
 
-          {/* Date Range Filter */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
-            <span className="font-semibold text-slate-500">Tgl Gabung:</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent text-xs outline-none"
-              title="Tanggal Mulai"
-            />
-            <span className="text-slate-400">s/d</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent text-xs outline-none"
-              title="Tanggal Selesai"
-            />
-            {(startDate || endDate) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
-                }}
-                className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-300"
-              >
-                Reset
-              </button>
-            )}
-          </div>
+          <select
+            className="input !h-9.5 !w-auto text-xs rounded-xl"
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          >
+            <option value="desc">Urutkan: Tanggal Terbaru</option>
+            <option value="asc">Urutkan: Tanggal Terlama</option>
+          </select>
         </div>
       </div>
 
@@ -228,6 +254,7 @@ export default function StudentsDatabase() {
                 <th className="border-r border-slate-200 px-4 py-3 font-extrabold min-w-[170px]">Student Names</th>
                 <th className="border-r border-slate-200 px-4 py-3 font-extrabold min-w-[150px]">Class</th>
                 <th className="border-r border-slate-200 px-3 py-3 font-extrabold text-center min-w-[80px]">Branch</th>
+                <th className="border-r border-slate-200 px-3 py-3 font-extrabold text-right min-w-[115px] bg-emerald-50/70">Pricelist</th>
                 <th className="border-r border-slate-200 px-3 py-3 font-extrabold text-center min-w-[90px]">Payment</th>
                 <th className="border-r border-slate-200 px-3 py-3 font-extrabold text-center min-w-[100px]">Payment Method</th>
                 <th className="border-r border-slate-200 px-3 py-3 font-extrabold text-center min-w-[80px]">Date Of Payment</th>
@@ -242,13 +269,13 @@ export default function StudentsDatabase() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-slate-400">
+                  <td colSpan={14} className="py-12 text-center text-slate-400">
                     Memuat data rekap siswa...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-slate-400">
+                  <td colSpan={14} className="py-12 text-center text-slate-400">
                     Tidak ada data siswa ditemukan.
                   </td>
                 </tr>
@@ -263,14 +290,20 @@ export default function StudentsDatabase() {
                       <td className="border-r border-slate-100 px-3 py-2.5 text-center font-bold text-slate-500">
                         {idx + 1}
                       </td>
-                      <td className="border-r border-slate-100 px-4 py-2.5 font-bold text-slate-900">
-                        {r.student_name}
+                      <td className="border-r border-slate-100 px-4 py-2.5">
+                        <div className="font-bold text-slate-900">{r.student_name}</div>
+                        {r.joined_at && (
+                          <div className="text-[10px] text-slate-400">Gabung: {r.joined_at}</div>
+                        )}
                       </td>
                       <td className="border-r border-slate-100 px-4 py-2.5 text-slate-800">
                         {r.class_name}
                       </td>
                       <td className="border-r border-slate-100 px-3 py-2.5 text-center font-semibold text-slate-600">
                         {r.branch_name}
+                      </td>
+                      <td className="border-r border-slate-100 px-3 py-2.5 text-right font-extrabold text-emerald-800 bg-emerald-50/20 whitespace-nowrap">
+                        {rp(r.pricelist)}
                       </td>
                       <td className="border-r border-slate-100 px-3 py-2.5 text-center">
                         {isPaid ? (

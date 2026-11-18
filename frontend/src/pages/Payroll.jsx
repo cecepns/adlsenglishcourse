@@ -8,6 +8,7 @@ import { getClosingGreeting } from "@/utils/greetings";
 import { exportToExcel } from "@/utils/exportExcel";
 import { request } from "@/utils/request";
 import { useAuth } from "@/context/AuthContext";
+import DatePickerInput from "@/components/DatePickerInput";
 import Modal from "@/components/Modal";
 
 const STAFF = ["owner", "admin_pusat", "admin_cabang"];
@@ -154,7 +155,9 @@ export default function Payroll() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-xs font-bold text-slate-600">Pilih Periode:</span>
-            <input type="month" className="input !w-44 !py-1.5 text-xs font-semibold" value={month} onChange={(e) => setMonth(e.target.value)} />
+            <div className="w-44">
+              <DatePickerInput mode="month" value={month} onChange={(val) => { if (val) setMonth(val); }} className="!py-2 !text-xs font-semibold" />
+            </div>
             {isHQ && branches.length > 0 && (
               <div className="w-48">
                 <Select

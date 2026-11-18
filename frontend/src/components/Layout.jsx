@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { api } from "@/utils/api";
+import { API_ENDPOINTS } from "@/utils/endpoints";
 import {
   Banknote,
   BookOpenCheck,
@@ -45,22 +47,38 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: [...STAFF, "siswa", "ortu"], end: true },
   { to: "/", label: "Portal Tutor", icon: LayoutDashboard, roles: ["tutor"], end: true },
   { to: "/tutor_attendance", label: "Riwayat Absensi Tutor", icon: Clock, roles: [...STAFF, "tutor"] },
-  { to: "/attendance", label: "Absensi Siswa", icon: CalendarCheck, roles: ALL },
+  { to: "/attendance", label: "Absensi Siswa", icon: CalendarCheck, roles: ["admin_pusat", "admin_cabang", "tutor", "siswa", "ortu"] },
   { to: "/students", label: "Siswa", icon: GraduationCap, roles: [...STAFF, "tutor"] },
   { to: "/students-database", label: "Database Siswa (Rekap)", icon: TableProperties, roles: [...STAFF, "tutor"] },
-  { to: "/classes", label: "Kelas", icon: School, roles: ALL },
-  { to: "/meetings", label: "Meeting Online", icon: Video, roles: [...STAFF, "tutor", "siswa"] },
+  { to: "/classes", label: "Kelas", icon: School, roles: [...STAFF, "tutor"] },
+  {
+    to: "/monthly-evaluations",
+    label: "Design Laporan Belajar Setiap Kelas Bulanan",
+    parentLabel: "Laporan Belajar Bulanan",
+    studentLabel: "Laporan Belajar Bulanan",
+    tutorLabel: "Laporan Belajar Bulanan",
+    icon: BookOpenCheck,
+    roles: ALL,
+  },
+  { to: "/meetings", label: "Meeting Online", icon: Video, roles: [...STAFF, "tutor"] },
   { to: "/audio", label: "Audio Listening", icon: Headphones, roles: ALL },
   { to: "/lesson_materials", label: "Materi Pembelajaran", icon: FileText, roles: [...STAFF, "tutor"] },
-  { to: "/learning_reports", label: "Laporan Belajar", icon: BookOpenCheck, roles: ALL },
+  {
+    to: "/learning_reports",
+    label: "Laporan Belajar",
+    parentLabel: "Laporan Belajar Harian",
+    studentLabel: "Laporan Belajar Harian",
+    icon: CalendarCheck,
+    roles: ALL,
+  },
   { to: "/videos", label: "Project Video", icon: Film, roles: ALL },
-  { to: "/achievements", label: "Prestasi Nilai 100", icon: Trophy, roles: ALL },
-  { to: "/bills", label: "Tagihan SPP", icon: Receipt, roles: ALL },
-  { to: "/referrals", label: "Komisi Referral", icon: Gift, roles: [...STAFF, "siswa", "ortu"] },
+  { to: "/achievements", label: "Prestasi Nilai 100", icon: Trophy, roles: [...STAFF, "tutor", "ortu"] },
+  { to: "/bills", label: "Tagihan SPP", icon: Receipt, roles: [...STAFF, "tutor", "ortu"] },
+  { to: "/referrals", label: "Komisi Referral", icon: Gift, roles: [...STAFF, "ortu"] },
   { to: "/products", label: "Katalog & Order", icon: ShoppingBag, roles: ALL },
   { to: "/payroll", label: "Payroll Tutor", icon: Banknote, roles: ["owner", "admin_pusat"] },
   { to: "/expenses", label: "Pengeluaran", icon: Wallet, roles: STAFF },
-  { to: "/leaves", label: "Izin & Cuti", icon: CalendarOff, roles: ALL },
+  { to: "/leaves", label: "Izin & Cuti", studentLabel: "Izin", icon: CalendarOff, roles: ["owner", "admin_pusat", "admin_cabang", "tutor", "siswa"] },
   { to: "/complaints", label: "Komplen", icon: MessageSquareWarning, roles: ALL },
   { to: "/announcements", label: "Pusat Informasi", icon: Megaphone, roles: ALL },
   { to: "/users", label: "Manajemen Users", icon: UserCog, roles: STAFF },
@@ -70,6 +88,22 @@ const NAV_ITEMS = [
 export default function Layout() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [childrenNames, setChildrenNames] = useState(user?.children_names || []);
+
+  useEffect(() => {
+    if (user?.role === "ortu") {
+      if (user?.children_names?.length) {
+        setChildrenNames(user.children_names);
+      } else {
+        api
+          .get(API_ENDPOINTS.MY_STUDENTS)
+          .then((r) => setChildrenNames((r.data.data || []).map((s) => s.name).filter(Boolean)))
+          .catch(() => {});
+      }
+    }
+  }, [user?.role, user?.children_names]);
+
+  const childrenLabel = childrenNames.join(", ");
 
   const linkClass = ({ isActive }) =>
     `flex items-center gap-3.5 rounded-xl px-4 py-3 text-base font-semibold transition-all ${
@@ -112,18 +146,33 @@ export default function Layout() {
         </div>
 
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-4" onClick={() => setOpen(false)}>
-          {items.map((item) => (
-            <NavLink key={item.to + item.label} to={item.to} end={item.end} className={linkClass}>
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+          {items.map((item) => {
+            const label =
+              user.role === "siswa" && item.studentLabel
+                ? item.studentLabel
+                : user.role === "ortu" && item.parentLabel
+                ? item.parentLabel
+                : user.role === "tutor" && item.tutorLabel
+                ? item.tutorLabel
+                : item.label;
+            return (
+              <NavLink key={item.to + label} to={item.to} end={item.end} className={linkClass}>
+                <item.icon size={20} className="shrink-0" />
+                <span className="leading-snug">{label}</span>
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="shrink-0 border-t border-slate-100 p-4">
           <div className="rounded-xl bg-gradient-to-r from-brand-50 to-sky-50 px-3.5 py-2.5 border border-brand-light/30">
             <div className="truncate text-sm font-bold text-slate-800">{user.name}</div>
-            <div className="mt-0.5 text-xs font-semibold text-brand">
+            {user.role === "ortu" && childrenLabel && (
+              <div className="mt-0.5 truncate text-xs font-bold text-brand-dark" title={childrenLabel}>
+                {childrenLabel}
+              </div>
+            )}
+            <div className="mt-0.5 text-[11px] font-semibold text-brand">
               {ROLE_LABELS[user.role] || user.role}
               {user.branch_name ? ` · ${user.branch_name}` : user.role === "tutor" ? " · Multi-Cabang" : ""}
             </div>
@@ -144,8 +193,15 @@ export default function Layout() {
             <span className="text-base font-extrabold text-brand-dark sm:text-lg">ADLS English Course</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="text-sm font-semibold text-slate-700">{user.name}</span>
+            <div className="hidden items-center gap-2.5 sm:flex">
+              <div className="text-right leading-tight">
+                <div className="text-sm font-bold text-slate-800">{user.name}</div>
+                {user.role === "ortu" && childrenLabel && (
+                  <div className="max-w-[220px] truncate text-[11px] font-semibold text-brand" title={`Siswa: ${childrenLabel}`}>
+                    {childrenLabel}
+                  </div>
+                )}
+              </div>
               <span className="rounded-full bg-gradient-to-r from-brand-dark via-brand to-sky-700 px-3 py-1 text-xs font-bold text-white shadow-sm">
                 {ROLE_LABELS[user.role] || user.role}
                 {user.branch_name ? ` · ${user.branch_name}` : ""}

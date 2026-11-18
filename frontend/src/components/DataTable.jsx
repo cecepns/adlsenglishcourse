@@ -8,7 +8,8 @@ function renderCell(c, r) {
   if (c.type === "branch-badges") return <BranchBadges row={r} />;
   if (c.type === "badge") {
     const cls = c.badgeMap?.[val] || "bg-slate-100 text-slate-700";
-    return <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${cls}`}>{val || "-"}</span>;
+    const text = c.render ? c.render(val, r) : (val || "-");
+    return <span title={typeof val === "string" ? val : undefined} className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${cls}`}>{text}</span>;
   }
   const content = c.render ? c.render(val, r) : (val ?? "-");
   return c.bold ? <span className="font-semibold text-slate-800">{content}</span> : content;
@@ -18,6 +19,7 @@ export default function DataTable({ columns, rows, loading, error, canEdit, sort
   if (error) return <div className="p-8 text-center text-red-600">{error} <button className="ml-2 underline" onClick={onRetry}>Coba lagi</button></div>;
   if (loading) return <div className="space-y-2.5 p-5">{[...Array(5)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}</div>;
   if (!rows.length) return <div className="flex flex-col items-center gap-2 p-12 text-slate-400"><Inbox size={40} /><span>Belum ada data</span></div>;
+  const showActions = Boolean(canEdit || quickActions);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
@@ -49,7 +51,7 @@ export default function DataTable({ columns, rows, loading, error, canEdit, sort
                 </th>
               );
             })}
-            {canEdit && <th className="px-4 py-3.5 text-right font-bold">Aksi</th>}
+            {showActions && <th className="px-4 py-3.5 text-right font-bold">Aksi</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -60,11 +62,15 @@ export default function DataTable({ columns, rows, loading, error, canEdit, sort
                   {renderCell(c, r)}
                 </td>
               ))}
-              {canEdit && (
+              {showActions && (
                 <td className="whitespace-nowrap px-4 py-3 text-right">
-                  {quickActions && <span className="mr-1.5 inline-flex items-center gap-1">{quickActions(r)}</span>}
-                  <button className="mr-2 rounded-lg p-1.5 text-brand transition hover:bg-brand-50" onClick={() => onEdit(r)} aria-label="Edit" title="Edit"><Pencil size={16} /></button>
-                  <button className="rounded-lg p-1.5 text-red-500 transition hover:bg-red-50" onClick={() => onDelete(r)} aria-label="Hapus" title="Hapus"><Trash2 size={16} /></button>
+                  {quickActions && <span className={canEdit ? "mr-1.5 inline-flex items-center gap-1" : "inline-flex items-center gap-1"}>{quickActions(r)}</span>}
+                  {canEdit && (
+                    <>
+                      <button className="mr-2 rounded-lg p-1.5 text-brand transition hover:bg-brand-50" onClick={() => onEdit(r)} aria-label="Edit" title="Edit"><Pencil size={16} /></button>
+                      <button className="rounded-lg p-1.5 text-red-500 transition hover:bg-red-50" onClick={() => onDelete(r)} aria-label="Hapus" title="Hapus"><Trash2 size={16} /></button>
+                    </>
+                  )}
                 </td>
               )}
             </tr>
