@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import Select from "react-select";
 import {
   ArrowRight,
+  BookOpenCheck,
   Calendar,
   CalendarClock,
   CalendarPlus,
@@ -712,6 +713,17 @@ export default function ResourcePage({ resource: cfg }) {
                       <Camera size={12} /> Belum diupload
                     </span>
                   )
+              : isLearningReportsPage && user?.role === "tutor"
+              ? (row) => (
+                  <Link
+                    to={`/monthly-evaluations?student_id=${row.student_id}&month=${row.report_month || new Date().toISOString().slice(0, 7)}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-gradient-to-r from-brand-dark via-brand to-sky-700 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:opacity-95"
+                    title="Isi lembar evaluasi bulanan siswa"
+                  >
+                    <BookOpenCheck size={13} />
+                    <span>Isi Nilai Bulanan</span>
+                  </Link>
+                )
               : undefined
           }
           onEdit={(row) => setModal({ row })}

@@ -52,10 +52,10 @@ export default function App() {
         <Route path="meetings" element={user?.role === "ortu" ? <Navigate to="/" replace /> : <Meetings />} />
         <Route path="audio" element={<AudioListening />} />
         <Route path="lesson_materials" element={<LessonMaterials />} />
-        <Route path="students-database" element={<StudentsDatabase />} />
+        <Route path="students-database" element={isStaff ? <StudentsDatabase /> : <Navigate to="/" replace />} />
         <Route path="videos" element={<VideoProjects />} />
         <Route path="achievements" element={<Achievements />} />
-        <Route path="bills" element={<BillsPage />} />
+        <Route path="bills" element={user?.role === "tutor" ? <Navigate to="/" replace /> : <BillsPage />} />
         <Route path="products" element={<CatalogShop />} />
         <Route path="shop" element={<CatalogShop />} />
         <Route path="monthly-evaluations" element={<MonthlyEvaluations />} />

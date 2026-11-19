@@ -1,3 +1,4 @@
+import React from "react";
 import {
   BookOpenCheck,
   Building2,
@@ -258,7 +259,7 @@ export const RESOURCES = {
     title: "Siswa",
     icon: GraduationCap,
     endpoint: E.STUDENTS,
-    r: [...STAFF, "tutor"],
+    r: STAFF,
     c: STAFF,
     u: STAFF,
     branchFilter: true,
@@ -392,7 +393,20 @@ export const RESOURCES = {
       return [
         { key: "date", label: "Tanggal", render: (v) => String(v || "").slice(0, 10) || "-" },
         { key: "student_name", label: "Siswa", bold: true, render: (v, r) => v || (r.student_id ? `#${r.student_id}` : "-") },
-        { key: "class_name", label: "Type Kelas", render: (v, r) => v || (r.class_id ? `#${r.class_id}` : "-") },
+        {
+          key: "class_name",
+          label: "Type & Level Kelas",
+          render: (v, r) => {
+            const cls = v || (r.class_id ? `#${r.class_id}` : "-");
+            const lvl = r.level || r.class_level;
+            return React.createElement(
+              "div",
+              null,
+              React.createElement("span", { className: "font-semibold text-slate-800" }, cls),
+              lvl ? React.createElement("div", { className: "text-xs font-medium text-slate-500" }, lvl) : null
+            );
+          },
+        },
         { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "-") },
         {
           key: "status",
@@ -477,7 +491,7 @@ export const RESOURCES = {
   },
   learning_reports: {
     title: "Laporan Belajar & Nilai",
-    getTitle: (user) => (user?.role === "ortu" ? "Laporan Belajar Harian" : "Laporan Belajar & Nilai"),
+    getTitle: (user) => (user?.role === "ortu" ? "Laporan Belajar Harian" : user?.role === "tutor" ? "Laporan Belajar Bulanan" : "Laporan Belajar & Nilai"),
     icon: BookOpenCheck,
     endpoint: E.LEARNING_REPORTS,
     r: ALL,
@@ -491,13 +505,38 @@ export const RESOURCES = {
     }),
     getColumns: (user) => {
       const isParent = user?.role === "ortu";
+      const isTutor = user?.role === "tutor";
       return [
         { key: "report_date", label: "Tanggal", render: (v) => String(v || "").slice(0, 10) || "-" },
         { key: "student_name", label: "Siswa", bold: true, render: (v, r) => v || (r.student_id ? `#${r.student_id}` : "-") },
-        { key: "class_name", label: "Type Kelas", render: (v) => v || "-" },
+        {
+          key: "class_name",
+          label: isTutor ? "Type, Level & Jadwal Kelas" : "Type Kelas",
+          render: (v, r) => {
+            if (isTutor) {
+              const parts = [
+                r.class_name || v,
+                r.class_level || r.level,
+                r.schedule || [r.day_1, r.time_start && r.time_end ? `${r.time_start} - ${r.time_end}` : ""].filter(Boolean).join(" "),
+                r.branch_name,
+              ].filter(Boolean);
+              return React.createElement(
+                "div",
+                { className: "max-w-xs text-xs font-semibold text-slate-800" },
+                parts.join(" · ")
+              );
+            }
+            return React.createElement(
+              "div",
+              null,
+              React.createElement("span", { className: "font-semibold text-slate-800" }, v || "-"),
+              r.class_level ? React.createElement("div", { className: "text-xs text-slate-500" }, r.class_level) : null
+            );
+          },
+        },
         { key: "material", label: "Materi Pertemuan", render: (v) => v || "Menunggu input tutor" },
         { key: "homework", label: "PR (Pekerjaan Rumah)", render: (v) => v || "-" },
-        ...(isParent
+        ...(isParent || isTutor
           ? []
           : [
               { key: "formative_score", label: "Formatif", render: (v) => (v !== null && v !== undefined ? `${v}` : "-") },
@@ -545,7 +584,7 @@ export const RESOURCES = {
     title: "Tagihan SPP",
     icon: Receipt,
     endpoint: E.BILLS,
-    r: ALL,
+    r: [...STAFF, "siswa", "ortu"],
     c: STAFF,
     u: STAFF,
     branchFilter: true,

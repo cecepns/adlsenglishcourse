@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import {
   BookOpenCheck,
   Building2,
+  Calendar,
   Camera,
   CheckCircle2,
   Clock,
@@ -17,6 +18,7 @@ import {
   Sparkles,
   Users,
   Video,
+  X,
 } from "lucide-react";
 import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
@@ -26,6 +28,8 @@ import { useAuth } from "@/context/AuthContext";
 import DatePickerInput from "@/components/DatePickerInput";
 import ImageUploadField from "@/components/ImageUploadField";
 import LearningJourneyRoadmap from "@/components/LearningJourneyRoadmap";
+import Modal from "@/components/Modal";
+import MonthlyEvaluationTable from "@/components/MonthlyEvaluationTable";
 
 const ATT_OPTIONS = [
   { value: "hadir", label: "Hadir", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -63,6 +67,88 @@ export default function TutorDashboard() {
     notes: "",
   });
   const [submittingPhoto, setSubmittingPhoto] = useState(false);
+
+  // Filter Rentang Tanggal Banner (PDF Hal 1 - Revisi Tutor)
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  // Modal Lembar Penilaian Evaluasi Bulanan (PDF Hal 2 - Revisi Tutor)
+  const [evalModal, setEvalModal] = useState(null);
+
+  // Aturan Periode Penilaian Bulanan (PDF Hal 2: fungsi aktif tgl 20-31 setiap bulannya)
+  const todayDayNum = new Date().getDate();
+  const isEvaluationWindow = todayDayNum >= 20 && todayDayNum <= 31;
+
+  const openEvaluationModal = async (student) => {
+    const evalMonth = sessionDate ? sessionDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+    setEvalModal({
+      student,
+      month: evalMonth,
+      structure: [],
+      scores: {},
+      notes: "",
+      title: `LEMBAR EVALUASI BULANAN`,
+      loading: true,
+      saving: false,
+    });
+    try {
+      const { data } = await api.get(API_ENDPOINTS.MONTHLY_EVALUATIONS.GET, {
+        params: {
+          student_id: student.student_id || student.id,
+          class_id: selectedClassId,
+          month: evalMonth,
+        },
+      });
+      const d = data.data || {};
+      setEvalModal((prev) =>
+        prev
+          ? {
+              ...prev,
+              title: d.title || `LEMBAR EVALUASI ${evalMonth}`,
+              structure: d.structure || [],
+              scores: d.scores || {},
+              notes: d.notes || "",
+              loading: false,
+            }
+          : null
+      );
+    } catch {
+      toast.error("Gagal memuat template lembar evaluasi bulanan");
+      setEvalModal((prev) => (prev ? { ...prev, loading: false } : null));
+    }
+  };
+
+  const handleScoreChange = (crId, val) => {
+    setEvalModal((prev) =>
+      prev
+        ? {
+            ...prev,
+            scores: { ...prev.scores, [crId]: val },
+          }
+        : null
+    );
+  };
+
+  const saveEvaluationModal = async () => {
+    if (!evalModal) return;
+    setEvalModal((prev) => ({ ...prev, saving: true }));
+    try {
+      await request(
+        () =>
+          api.put(API_ENDPOINTS.MONTHLY_EVALUATIONS.SCORES, {
+            student_id: evalModal.student.student_id || evalModal.student.id,
+            class_id: selectedClassId,
+            month: evalModal.month,
+            scores: evalModal.scores,
+            notes: evalModal.notes,
+          }),
+        { success: getClosingGreeting("tutor", "Penilaian evaluasi bulanan siswa berhasil disimpan & tersinkron ke akun orang tua!") }
+      );
+      setEvalModal(null);
+    } catch {
+      setEvalModal((prev) => ({ ...prev, saving: false }));
+    }
+  };
 
   const loadPhotos = useCallback(async (clsId) => {
     if (!clsId) return setActivityPhotos([]);
@@ -257,20 +343,58 @@ export default function TutorDashboard() {
               </span>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 self-start">
-            <Link to="/audio" className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-white/25">
-              <Headphones size={14} /> Audio Listening
-            </Link>
-            <Link to="/meetings" className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-white/25">
-              <Video size={14} /> Meeting Online
-            </Link>
-            <button
-              type="button"
-              onClick={loadOverview}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-extrabold text-brand-dark shadow-sm transition hover:bg-sky-50"
-            >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
-            </button>
+          <div className="flex flex-col items-start gap-2.5 sm:items-end self-start">
+            <div className="flex flex-wrap gap-2">
+              <Link to="/audio" className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-white/25">
+                <Headphones size={14} /> Audio Listening
+              </Link>
+              <Link to="/meetings" className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-white/25">
+                <Video size={14} /> Meeting Online
+              </Link>
+              <button
+                type="button"
+                onClick={loadOverview}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-extrabold text-brand-dark shadow-sm transition hover:bg-sky-50"
+              >
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+              </button>
+            </div>
+
+            {/* Date Range Picker Pill (PDF Hal 1 - Tambahkan periode seperti ini) */}
+            <div className="inline-flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/15 px-3 py-1.5 text-xs text-white backdrop-blur-xs">
+              <Calendar size={13} className="text-amber-300 shrink-0" />
+              <span className="font-bold text-sky-100 hidden sm:inline">Periode:</span>
+              <DatePickerInput
+                compact
+                showIcon={false}
+                value={startDate}
+                placeholder="dd/mm/yyyy"
+                className="!text-white placeholder:text-sky-200"
+                onChange={(val) => setStartDate(val)}
+              />
+              <span className="text-sky-200 font-bold text-[11px]">-</span>
+              <DatePickerInput
+                compact
+                showIcon={false}
+                value={endDate}
+                placeholder="dd/mm/yyyy"
+                className="!text-white placeholder:text-sky-200"
+                onChange={(val) => setEndDate(val)}
+              />
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  className="rounded-md p-0.5 text-sky-200 hover:bg-white/20 hover:text-white transition"
+                  title="Reset Rentang Tanggal"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -602,10 +726,7 @@ export default function TutorDashboard() {
                     <tr>
                       <th className="px-4 py-3 font-bold">No & Nama Siswa</th>
                       <th className="px-4 py-3 font-bold">Absensi</th>
-                      <th className="px-3 py-3 font-bold w-24">Formatif</th>
-                      <th className="px-3 py-3 font-bold w-24">Sumatif / UAS</th>
-                      <th className="px-3 py-3 font-bold w-24">Speaking</th>
-                      <th className="px-4 py-3 font-bold min-w-[200px]">Catatan Perkembangan</th>
+                      <th className="px-4 py-3 font-bold min-w-[220px]">Laporan Belajar Bulanan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -620,11 +741,6 @@ export default function TutorDashboard() {
                               <div className="font-bold text-slate-900">{s.name}</div>
                               <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                                 <span>{s.level || "-"}</span>
-                                {s.report_id && (
-                                  <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">
-                                    Kolom Nilai Siap
-                                  </span>
-                                )}
                               </div>
                             </div>
                           </div>
@@ -647,46 +763,25 @@ export default function TutorDashboard() {
                             ))}
                           </div>
                         </td>
-                        <td className="px-3 py-2.5">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            placeholder="0-100"
-                            className="input !px-2.5 !py-1.5 text-center text-xs font-bold"
-                            value={s.formative_score}
-                            onChange={(e) => updateRow(s.student_id, { formative_score: e.target.value })}
-                          />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            placeholder="0-100"
-                            className="input !px-2.5 !py-1.5 text-center text-xs font-bold"
-                            value={s.summative_score}
-                            onChange={(e) => updateRow(s.student_id, { summative_score: e.target.value })}
-                          />
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            placeholder="0-100"
-                            className="input !px-2.5 !py-1.5 text-center text-xs font-bold"
-                            value={s.speaking_score}
-                            onChange={(e) => updateRow(s.student_id, { speaking_score: e.target.value })}
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            className="input !px-2.5 !py-1.5 text-xs"
-                            placeholder="Catatan / materi khusus siswa..."
-                            value={s.notes}
-                            onChange={(e) => updateRow(s.student_id, { notes: e.target.value })}
-                          />
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col items-start gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEvaluationModal(s)}
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-dark via-brand to-sky-700 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:opacity-95"
+                              title="Buka lembar penilaian evaluasi bulanan siswa"
+                            >
+                              <BookOpenCheck size={14} />
+                              <span>Berikan Penilaian Bulanan</span>
+                            </button>
+                            <span className="text-[10px] font-medium text-slate-500">
+                              {isEvaluationWindow ? (
+                                <span className="font-bold text-emerald-700">● Periode Aktif (Tgl 20-31)</span>
+                              ) : (
+                                <span className="text-amber-700">Periode pengisian: Tgl 20-31 bulanan</span>
+                              )}
+                            </span>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -729,6 +824,111 @@ export default function TutorDashboard() {
           })()}
         </div>
       )}
+
+      {/* Modal Lembar Penilaian Evaluasi Bulanan Siswa (PDF Hal 2 - Revisi Tutor) */}
+      <Modal
+        open={Boolean(evalModal)}
+        title={evalModal?.title || "Lembar Evaluasi Bulanan Siswa"}
+        onClose={() => setEvalModal(null)}
+        maxWidth="max-w-4xl"
+      >
+        {evalModal && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200 p-3.5 text-xs">
+              <div className="space-y-1">
+                <div className="font-extrabold text-slate-900 text-sm">
+                  {evalModal.student.student_name || evalModal.student.name}
+                </div>
+                <div className="text-slate-500">
+                  Kelas: <span className="font-semibold text-slate-800">{classDetail?.class?.name || "Kelas"}</span> · Level: <span className="font-semibold text-brand-dark">{classDetail?.class?.level || "-"}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-brand-light/70 px-2.5 py-1 text-[11px] font-bold text-brand-dark">
+                  Periode: {evalModal.month}
+                </span>
+                {isEvaluationWindow ? (
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+                    ● Periode Pengisian Aktif (Tgl 20-31)
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800">
+                    Pengisian tanggal 20-31 bulanan
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {evalModal.loading ? (
+              <div className="flex items-center justify-center py-12 text-slate-400">
+                <Loader2 className="animate-spin mr-2" size={20} />
+                <span>Memuat lembar evaluasi bulanan...</span>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-xl bg-sky-50 border border-sky-200 px-3.5 py-2.5 text-xs text-sky-900">
+                  Klik kotak pada kolom <b>(1) Needs Stimulation</b>, <b>(2) Beginning to Develop</b>, <b>(3) Developing as Expected</b>, atau <b>(4) Very Good</b> pada setiap target kompetensi untuk memberikan penilaian.
+                </div>
+
+                <MonthlyEvaluationTable
+                  title={evalModal.title}
+                  structure={evalModal.structure}
+                  scores={evalModal.scores}
+                  editable={true}
+                  onScoreChange={handleScoreChange}
+                />
+
+                <div className="space-y-1.5 pt-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Catatan Perkembangan Siswa / Notes for Parents (Opsional):
+                  </label>
+                  <textarea
+                    rows={3}
+                    className="input text-xs"
+                    placeholder="Tuliskan catatan perkembangan dan pesan motivasi untuk ananda dan orang tua..."
+                    value={evalModal.notes || ""}
+                    onChange={(e) =>
+                      setEvalModal((prev) => (prev ? { ...prev, notes: e.target.value } : null))
+                    }
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+                  <Link
+                    to={`/monthly-evaluations?student_id=${evalModal.student.student_id || evalModal.student.id}&month=${evalModal.month}`}
+                    className="text-xs font-bold text-brand hover:underline inline-flex items-center gap-1"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink size={13} />
+                    Buka Halaman Penuh Master Penilaian Bulanan
+                  </Link>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEvalModal(null)}
+                      className="btn-secondary !py-2 !text-xs"
+                      disabled={evalModal.saving}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveEvaluationModal}
+                      disabled={evalModal.saving}
+                      className="btn-primary !py-2 !text-xs"
+                    >
+                      {evalModal.saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      Simpan &amp; Sinkron ke Ortu
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
