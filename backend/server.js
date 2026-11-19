@@ -847,28 +847,29 @@ app.get("/api/portal/certificate/:studentId", auth, can([...STAFF, "siswa", "ort
 // #7 Fitur Reschedule Khusus Kelas Private
 app.get("/api/portal/reschedule-quota", auth, can(["siswa", "ortu"]), wrap(async (req, res) => {
   const isEmployee = req.user.role === "siswa";
+  const studentId = req.query.student_id ? Number(req.query.student_id) : null;
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  let maxLimit = 2;
+  let maxLimit = isEmployee ? 6 : 2;
   let usedCount = 0;
-  let periodLabel = `Bulan ${currentMonth}`;
+  let periodLabel = isEmployee ? "Periode 3 Bulan Terakhir" : `Bulan ${currentMonth}`;
 
   if (isEmployee) {
-    maxLimit = 6;
-    periodLabel = "Periode 3 Bulan Terakhir";
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const [[r]] = await pool.query(
-      "SELECT COUNT(*) cnt FROM class_reschedules WHERE user_id=? AND created_at >= ?",
-      [req.user.id, ninetyDaysAgo]
+      studentId
+        ? "SELECT COUNT(*) cnt FROM class_reschedules WHERE (student_id=? OR user_id=?) AND created_at >= ?"
+        : "SELECT COUNT(*) cnt FROM class_reschedules WHERE user_id=? AND created_at >= ?",
+      studentId ? [studentId, req.user.id, ninetyDaysAgo] : [req.user.id, ninetyDaysAgo]
     );
     usedCount = Number(r.cnt || 0);
   } else {
-    maxLimit = 2;
-    periodLabel = `Bulan ${currentMonth}`;
     const [[r]] = await pool.query(
-      "SELECT COUNT(*) cnt FROM class_reschedules WHERE user_id=? AND month=?",
-      [req.user.id, currentMonth]
+      studentId
+        ? "SELECT COUNT(*) cnt FROM class_reschedules WHERE (student_id=? OR user_id=?) AND month=?"
+        : "SELECT COUNT(*) cnt FROM class_reschedules WHERE user_id=? AND month=?",
+      studentId ? [studentId, req.user.id, currentMonth] : [req.user.id, currentMonth]
     );
     usedCount = Number(r.cnt || 0);
   }
@@ -884,6 +885,11 @@ app.get("/api/portal/reschedule-quota", auth, can(["siswa", "ortu"]), wrap(async
       remaining,
       periodLabel,
       allowed: remaining > 0,
+      monthUsed: usedCount,
+      monthMax: maxLimit,
+      monthRemaining: remaining,
+      threeMonthRemaining: isEmployee ? remaining : 0,
+      threeMonthMax: isEmployee ? maxLimit : 6,
     },
   });
 }));
@@ -893,26 +899,73 @@ app.post("/api/portal/reschedule", auth, can(["siswa", "ortu"]), wrap(async (req
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  const studentId = Number(req.body.student_id);
-  const classId = Number(req.body.class_id);
-  const tutorId = Number(req.body.tutor_id);
-  const newDate = clean(req.body.new_date);
-  const newTime = clean(req.body.new_time);
+  let studentId = Number(req.body.student_id) || 0;
+  let classId = Number(req.body.class_id) || 0;
+  let tutorId = Number(req.body.tutor_id) || 0;
+
+  // Resolve student & class if missing
+  let stu = null;
+  if (studentId) {
+    const [[s]] = await pool.query(
+      `SELECT s.*, c.tutor_id AS class_tutor_id, COALESCE(c.class_type, c.name, s.class_type) AS resolved_class_type
+       FROM students s
+       LEFT JOIN classes c ON c.id=s.class_id
+       WHERE s.id=?`,
+      [studentId]
+    );
+    stu = s;
+    if (stu) {
+      if (!classId && stu.class_id) classId = Number(stu.class_id);
+      if (!tutorId && stu.class_tutor_id) tutorId = Number(stu.class_tutor_id);
+    }
+  }
+
+  // Parse and normalize date: support both YYYY-MM-DD and DD/MM/YYYY
+  const rawDate = clean(req.body.new_date) || clean(req.body.reschedule_date);
+  let newDate = null;
+  if (rawDate) {
+    const m1 = String(rawDate).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    const m2 = String(rawDate).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m1) {
+      newDate = `${m1[1]}-${String(m1[2]).padStart(2, "0")}-${String(m1[3]).padStart(2, "0")}`;
+    } else if (m2) {
+      newDate = `${m2[3]}-${String(m2[2]).padStart(2, "0")}-${String(m2[1]).padStart(2, "0")}`;
+    } else {
+      newDate = rawDate;
+    }
+  }
+
+  // Parse and normalize time: support new_time or new_time_start + new_time_end
+  const newTimeStart = clean(req.body.new_time_start);
+  const newTimeEnd = clean(req.body.new_time_end);
+  const rawTime = clean(req.body.new_time);
+  const newTime = rawTime || (newTimeStart && newTimeEnd ? `${newTimeStart} - ${newTimeEnd}` : newTimeStart);
+
   const originalDate = clean(req.body.original_date);
   const originalTime = clean(req.body.original_time);
   const reason = clean(req.body.reason);
 
-  if (!classId || !newDate || !newTime) {
-    return fail(res, 400, "Kelas, tanggal baru, dan jam sesi baru wajib diisi");
+  if (!newDate || !newTime) {
+    return fail(res, 400, "Tanggal baru dan jam sesi baru wajib diisi");
+  }
+
+  if (!classId && !studentId) {
+    return fail(res, 400, "Kelas atau data siswa wajib dipilih");
   }
 
   // 1. Verify class is Private or user is employee
-  const [[cls]] = await pool.query(
-    "SELECT c.*, COALESCE(c.class_type, c.name) AS class_type FROM classes c WHERE c.id=?",
-    [classId]
-  );
-  if (!cls) return fail(res, 404, "Kelas tidak ditemukan");
-  const isPrivate = /private/i.test(cls.class_type || cls.name || "");
+  let cls = null;
+  if (classId) {
+    const [[c]] = await pool.query(
+      "SELECT c.*, COALESCE(c.class_type, c.name) AS class_type FROM classes c WHERE c.id=?",
+      [classId]
+    );
+    cls = c;
+    if (cls && !tutorId && cls.tutor_id) tutorId = Number(cls.tutor_id);
+  }
+
+  const classTypeStr = cls?.class_type || cls?.name || stu?.resolved_class_type || stu?.class_type || "";
+  const isPrivate = /private/i.test(classTypeStr);
   if (!isPrivate && !isEmployee) {
     return fail(res, 400, "Fitur reschedule mandiri hanya berlaku untuk Kelas Private");
   }
@@ -923,14 +976,18 @@ app.post("/api/portal/reschedule", auth, can(["siswa", "ortu"]), wrap(async (req
   if (isEmployee) {
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const [[r]] = await pool.query(
-      "SELECT COUNT(*) cnt FROM class_reschedules WHERE user_id=? AND created_at >= ?",
-      [req.user.id, ninetyDaysAgo]
+      studentId
+        ? "SELECT COUNT(*) cnt FROM class_reschedules WHERE (student_id=? OR user_id=?) AND created_at >= ?"
+        : "SELECT COUNT(*) cnt FROM class_reschedules WHERE user_id=? AND created_at >= ?",
+      studentId ? [studentId, req.user.id, ninetyDaysAgo] : [req.user.id, ninetyDaysAgo]
     );
     usedCount = Number(r.cnt || 0);
   } else {
     const [[r]] = await pool.query(
-      "SELECT COUNT(*) cnt FROM class_reschedules WHERE user_id=? AND month=?",
-      [req.user.id, currentMonth]
+      studentId
+        ? "SELECT COUNT(*) cnt FROM class_reschedules WHERE (student_id=? OR user_id=?) AND month=?"
+        : "SELECT COUNT(*) cnt FROM class_reschedules WHERE user_id=? AND month=?",
+      studentId ? [studentId, req.user.id, currentMonth] : [req.user.id, currentMonth]
     );
     usedCount = Number(r.cnt || 0);
   }
@@ -946,20 +1003,23 @@ app.post("/api/portal/reschedule", auth, can(["siswa", "ortu"]), wrap(async (req
   }
 
   // 3. Verify tutor availability (anti-bentrok)
-  const targetTutorId = tutorId || cls.tutor_id;
-  if (targetTutorId) {
-    const dObj = new Date(newDate);
+  const targetTutorId = tutorId || (cls && cls.tutor_id) || 0;
+  if (targetTutorId && newDate) {
     const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-    const targetDay = dayNames[dObj.getDay()];
+    const [y, m, d] = newDate.split("-").map(Number);
+    const targetDay = (y && m && d)
+      ? dayNames[new Date(y, m - 1, d).getDay()]
+      : dayNames[new Date(newDate).getDay()] || clean(req.body.new_day) || "Senin";
 
     const [tutClasses] = await pool.query(
       "SELECT id, name, class_type, day_1, day_2, day_3, time_start, time_end FROM classes WHERE tutor_id=? AND id<>?",
-      [targetTutorId, classId]
+      [targetTutorId, classId || 0]
     );
-    const newStartMins = parseTimeMinute(newTime);
-    const newEndMins = newStartMins !== null ? newStartMins + 90 : null;
 
-    if (newStartMins !== null && newEndMins !== null) {
+    const newStartMins = parseTimeMinute(newTimeStart || newTime);
+    const newEndMins = parseTimeMinute(newTimeEnd) || (newStartMins !== null ? newStartMins + 90 : null);
+
+    if (newStartMins !== null && newEndMins !== null && targetDay) {
       for (const tc of tutClasses) {
         const tcDays = [tc.day_1, tc.day_2, tc.day_3].filter(Boolean).map((x) => String(x).toLowerCase());
         if (tcDays.includes(targetDay.toLowerCase())) {
@@ -983,7 +1043,7 @@ app.post("/api/portal/reschedule", auth, can(["siswa", "ortu"]), wrap(async (req
     [
       studentId || 0,
       req.user.id,
-      classId,
+      classId || 0,
       targetTutorId || 0,
       currentMonth,
       originalDate || null,

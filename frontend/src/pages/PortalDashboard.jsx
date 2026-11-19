@@ -228,16 +228,24 @@ export default function PortalDashboard() {
       toast.error("Pilih tanggal pengganti");
       return;
     }
+    if (!rescheduleForm.new_time_start || !rescheduleForm.new_time_end) {
+      toast.error("Jam mulai dan jam selesai wajib diisi");
+      return;
+    }
     setSubmittingReschedule(true);
     try {
       await request(
         () =>
           api.post(API_ENDPOINTS.PORTAL_RESCHEDULE, {
             student_id: rescheduleModal.id,
+            class_id: rescheduleModal.class_id || 0,
+            tutor_id: rescheduleModal.tutor_id || 0,
+            new_date: rescheduleForm.reschedule_date,
             reschedule_date: rescheduleForm.reschedule_date,
             new_day: rescheduleForm.new_day,
             new_time_start: rescheduleForm.new_time_start,
             new_time_end: rescheduleForm.new_time_end,
+            new_time: `${rescheduleForm.new_time_start} - ${rescheduleForm.new_time_end}`,
             reason: rescheduleForm.reason,
           }),
         { success: getClosingGreeting(user.role, "Sesi kelas private berhasil di-reschedule!") }
@@ -1045,15 +1053,15 @@ export default function PortalDashboard() {
                   </ul>
                   {rescheduleQuota && (
                     <div className="mt-2.5 flex flex-wrap gap-2 border-t border-sky-200/80 pt-2 font-bold text-slate-800">
-                      <span className="rounded bg-white px-2 py-0.5 shadow-sm">
-                        Terpakai Bulan Ini: {rescheduleQuota.monthUsed} / {rescheduleQuota.monthMax} kali
+                      <span className="rounded bg-white px-2 py-0.5 shadow-xs">
+                        Terpakai Bulan Ini: {rescheduleQuota.monthUsed ?? rescheduleQuota.usedCount ?? 0} / {rescheduleQuota.monthMax ?? rescheduleQuota.maxLimit ?? (user.role === "siswa" ? 6 : 2)} kali
                       </span>
-                      <span className="rounded bg-white px-2 py-0.5 shadow-sm">
-                        Sisa Kuota Bulan Ini: {rescheduleQuota.monthRemaining} kali
+                      <span className="rounded bg-white px-2 py-0.5 shadow-xs">
+                        Sisa Kuota: {rescheduleQuota.monthRemaining ?? rescheduleQuota.remaining ?? 0} kali
                       </span>
-                      {rescheduleQuota.isEmployee && (
-                        <span className="rounded bg-white px-2 py-0.5 shadow-sm">
-                          Sisa 3 Bulan: {rescheduleQuota.threeMonthRemaining} / {rescheduleQuota.threeMonthMax} kali
+                      {(rescheduleQuota.isEmployee || user.role === "siswa") && (
+                        <span className="rounded bg-white px-2 py-0.5 shadow-xs">
+                          Kuota 3 Bulan: {rescheduleQuota.threeMonthRemaining ?? rescheduleQuota.remaining ?? 0} / {rescheduleQuota.threeMonthMax ?? rescheduleQuota.maxLimit ?? 6} kali
                         </span>
                       )}
                     </div>
@@ -1132,10 +1140,15 @@ export default function PortalDashboard() {
                     Batal
                   </button>
                   <button
+                    type="submit"
                     className="btn-primary"
                     disabled={
                       submittingReschedule ||
-                      (rescheduleQuota && rescheduleQuota.monthRemaining <= 0)
+                      (rescheduleQuota && (
+                        rescheduleQuota.remaining !== undefined
+                          ? rescheduleQuota.remaining <= 0
+                          : (rescheduleQuota.monthRemaining !== undefined && rescheduleQuota.monthRemaining <= 0)
+                      ))
                     }
                   >
                     {submittingReschedule && <Loader2 size={15} className="animate-spin" />}
