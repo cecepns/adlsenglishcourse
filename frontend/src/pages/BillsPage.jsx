@@ -15,6 +15,7 @@ import {
   Plus,
   Receipt,
   Search,
+  Settings,
   Trash2,
   X,
   XCircle,
@@ -91,6 +92,19 @@ export default function BillsPage() {
     branch_id: null,
     branch_name: "",
   });
+
+  // Bank Account Management Modal
+  const [manageBankModal, setManageBankModal] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [editingBank, setEditingBank] = useState(null);
+  const [bankForm, setBankForm] = useState({
+    bank_name: "BSI",
+    account_number: "7239458167",
+    account_holder: "PT. Adls Solusi Indonesia",
+    company_name: "PT. Adls Solusi Indonesia",
+  });
+  const [savingBank, setSavingBank] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const debounced = useDebounce(search, 300);
@@ -173,9 +187,99 @@ export default function BillsPage() {
     toast.success(`Nomor rekening disalin: ${text}`);
   };
 
+  const fetchBankInfo = async () => {
+    try {
+      const r = await api.get(API_ENDPOINTS.BILLS_BANK_INFO);
+      setBankInfo(r.data.data);
+    } catch {}
+  };
+
+  const openManageBankModal = async () => {
+    setManageBankModal(true);
+    setEditingBank(null);
+    setBankForm({
+      bank_name: "BSI",
+      account_number: "7239458167",
+      account_holder: bankInfo?.company || "PT. Adls Solusi Indonesia",
+      company_name: bankInfo?.company || "PT. Adls Solusi Indonesia",
+    });
+    setLoadingAccounts(true);
+    try {
+      const res = await api.get(API_ENDPOINTS.BILLS_BANK_ACCOUNTS);
+      setBankAccounts(res.data.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal memuat daftar rekening");
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
+  const startEditBank = (acc) => {
+    setEditingBank(acc);
+    setBankForm({
+      bank_name: acc.bank_name || acc.bank || "",
+      account_number: acc.account_number || acc.number || "",
+      account_holder: acc.account_holder || acc.holder || "",
+      company_name: acc.company_name || bankInfo?.company || "PT. Adls Solusi Indonesia",
+    });
+  };
+
+  const cancelEditBank = () => {
+    setEditingBank(null);
+    setBankForm({
+      bank_name: "BSI",
+      account_number: "7239458167",
+      account_holder: bankInfo?.company || "PT. Adls Solusi Indonesia",
+      company_name: bankInfo?.company || "PT. Adls Solusi Indonesia",
+    });
+  };
+
+  const handleSaveBank = async (e) => {
+    e.preventDefault();
+    if (!bankForm.bank_name?.trim() || !bankForm.account_number?.trim() || !bankForm.account_holder?.trim()) {
+      toast.error("Nama Bank, Nomor Rekening, dan Atas Nama wajib diisi");
+      return;
+    }
+    setSavingBank(true);
+    try {
+      if (editingBank?.id) {
+        await api.put(API_ENDPOINTS.BILLS_BANK_ACCOUNT(editingBank.id), bankForm);
+        toast.success("Rekening berhasil diperbarui");
+      } else {
+        await api.post(API_ENDPOINTS.BILLS_BANK_ACCOUNTS, bankForm);
+        toast.success("Rekening berhasil ditambahkan");
+      }
+      const res = await api.get(API_ENDPOINTS.BILLS_BANK_ACCOUNTS);
+      setBankAccounts(res.data.data || []);
+      await fetchBankInfo();
+      cancelEditBank();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal menyimpan rekening");
+    } finally {
+      setSavingBank(false);
+    }
+  };
+
+  const handleDeleteBank = async (acc) => {
+    if (!window.confirm(`Hapus rekening ${acc.bank_name || acc.bank} (${acc.account_number || acc.number})?`)) return;
+    try {
+      await api.delete(API_ENDPOINTS.BILLS_BANK_ACCOUNT(acc.id));
+      toast.success("Rekening berhasil dihapus");
+      const res = await api.get(API_ENDPOINTS.BILLS_BANK_ACCOUNTS);
+      setBankAccounts(res.data.data || []);
+      await fetchBankInfo();
+      if (editingBank?.id === acc.id) cancelEditBank();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal menghapus rekening");
+    }
+  };
+
   const openPay = (bill) => {
     setPayModal(bill);
-    setPayForm({ payment_method: "Transfer BCA PT ADLS", proof: bill.proof || "", notes: "" });
+    const defaultMethod = bankInfo?.accounts?.[0]
+      ? `Transfer ${bankInfo.accounts[0].bank} (${bankInfo.accounts[0].number})`
+      : "Transfer BSI (7239458167)";
+    setPayForm({ payment_method: defaultMethod, proof: bill.proof || "", notes: "" });
   };
 
   const submitPay = async (e) => {
@@ -376,13 +480,14 @@ export default function BillsPage() {
               </div>
               <p className="mt-0.5 text-xs text-slate-500">Mohon transfer pembayaran SPP dan produk resmi hanya ke rekening berikut:</p>
             </div>
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               {bankInfo.accounts.map((a) => (
                 <button
-                  key={a.number}
+                  key={a.id || a.number}
                   type="button"
                   onClick={() => copyAcc(a.number)}
-                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-left text-xs shadow-sm transition hover:border-brand"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-left text-xs shadow-sm transition hover:border-brand hover:bg-brand-50/20"
+                  title="Klik untuk salin no rekening"
                 >
                   <div>
                     <div className="font-extrabold text-brand-dark">{a.bank}: {a.number}</div>
@@ -391,6 +496,17 @@ export default function BillsPage() {
                   <Copy size={14} className="text-brand" />
                 </button>
               ))}
+              {isStaff && (
+                <button
+                  type="button"
+                  onClick={openManageBankModal}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-brand/60 bg-white/90 px-3 py-2 text-xs font-bold text-brand shadow-2xs hover:bg-brand hover:text-white transition"
+                  title="Kelola daftar nomor rekening resmi"
+                >
+                  <Settings size={14} />
+                  <span>Kelola Rekening</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -619,14 +735,23 @@ export default function BillsPage() {
                 <span>{payModal.student_name}</span>
                 <span className="text-brand-dark">{rp(Math.max(0, Number(payModal.amount || 0) - Number(payModal.discount || 0)))}</span>
               </div>
-              <p className="mt-1 text-xs text-slate-500">Transfer ke rekening resmi PT ADLS English Course (BCA 1234-567-890 / Mandiri 130-00-9876543-2) lalu unggah bukti transfer di bawah ini.</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Transfer ke rekening resmi {bankInfo?.company || "PT. Adls Solusi Indonesia"} (
+                {bankInfo?.accounts?.map((a) => `${a.bank} ${a.number} a.n. ${a.holder}`).join(" / ") || "BSI 7239458167 a.n. PT. Adls Solusi Indonesia"}
+                ) lalu unggah bukti transfer di bawah ini.
+              </p>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-semibold text-slate-700">Metode Transfer PT ADLS</label>
+              <label className="mb-1 block text-sm font-semibold text-slate-700">Metode Transfer Rekening Resmi</label>
               <select className="input" value={payForm.payment_method} onChange={(e) => setPayForm({ ...payForm, payment_method: e.target.value })}>
-                <option value="Transfer BCA PT ADLS">Transfer BCA PT ADLS</option>
-                <option value="Transfer Mandiri PT ADLS">Transfer Mandiri PT ADLS</option>
-                <option value="QRIS PT ADLS">QRIS PT ADLS</option>
+                {bankInfo?.accounts?.map((a) => (
+                  <option key={a.id || a.number} value={`Transfer ${a.bank} (${a.number})`}>
+                    Transfer {a.bank} - {a.number} ({a.holder})
+                  </option>
+                ))}
+                <option value="QRIS PT. Adls Solusi Indonesia">QRIS PT. Adls Solusi Indonesia</option>
+                <option value="Cash / Tunai">Cash / Tunai</option>
+                <option value="Lainnya">Lainnya</option>
               </select>
             </div>
             <div>
@@ -753,6 +878,183 @@ export default function BillsPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal Kelola Rekening Resmi */}
+      <Modal
+        open={manageBankModal}
+        title="Kelola Rekening Resmi Pembayaran"
+        onClose={() => { setManageBankModal(false); cancelEditBank(); }}
+      >
+        <div className="space-y-4">
+          {/* List of Existing Accounts */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Daftar Rekening Resmi ({bankAccounts.length})
+              </h4>
+            </div>
+
+            {loadingAccounts ? (
+              <div className="flex items-center justify-center p-6 text-slate-400">
+                <Loader2 size={18} className="animate-spin mr-2" /> Memuat daftar rekening...
+              </div>
+            ) : bankAccounts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                Belum ada rekening yang terdaftar. Tambahkan rekening baru di formulir bawah.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
+                {bankAccounts.map((acc) => (
+                  <div
+                    key={acc.id}
+                    className={`flex items-center justify-between rounded-xl border p-3 transition ${
+                      editingBank?.id === acc.id
+                        ? "border-brand bg-brand-50/50 shadow-xs"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center rounded-md bg-brand-100 px-2 py-0.5 text-xs font-extrabold text-brand-dark">
+                          {acc.bank_name || acc.bank}
+                        </span>
+                        <span className="font-mono text-sm font-bold text-slate-900">
+                          {acc.account_number || acc.number}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        a.n. <span className="font-semibold text-slate-700">{acc.account_holder || acc.holder}</span>
+                        {acc.company_name && acc.company_name !== (acc.account_holder || acc.holder) && (
+                          <span className="text-[11px] text-slate-400"> ({acc.company_name})</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditBank(acc)}
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand transition"
+                        title="Edit Rekening"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBank(acc)}
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 transition"
+                        title="Hapus Rekening"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Form Tambah / Edit */}
+          <form onSubmit={handleSaveBank} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-brand-dark">
+                {editingBank ? `Edit Rekening: ${editingBank.bank_name}` : "Tambah / Perbarui Rekening"}
+              </span>
+              {editingBank && (
+                <button
+                  type="button"
+                  onClick={cancelEditBank}
+                  className="text-xs text-slate-500 hover:text-slate-800 underline"
+                >
+                  Batal Edit (Mode Tambah)
+                </button>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Pilihan Cepat Bank</label>
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {["BSI", "BCA", "Mandiri", "BRI", "BNI", "CIMB Niaga", "Permata"].map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => setBankForm({ ...bankForm, bank_name: b })}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      bankForm.bank_name === b
+                        ? "bg-brand text-white shadow-2xs"
+                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {b}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Nama Bank *</label>
+                <input
+                  required
+                  className="input !py-1.5 text-xs"
+                  placeholder="mis. BSI"
+                  value={bankForm.bank_name}
+                  onChange={(e) => setBankForm({ ...bankForm, bank_name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Nomor Rekening *</label>
+                <input
+                  required
+                  className="input !py-1.5 text-xs font-mono"
+                  placeholder="mis. 7239458167"
+                  value={bankForm.account_number}
+                  onChange={(e) => setBankForm({ ...bankForm, account_number: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Atas Nama (A.N.) *</label>
+                <input
+                  required
+                  className="input !py-1.5 text-xs"
+                  placeholder="mis. PT. Adls Solusi Indonesia"
+                  value={bankForm.account_holder}
+                  onChange={(e) => setBankForm({ ...bankForm, account_holder: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Lembaga / Perusahaan</label>
+                <input
+                  className="input !py-1.5 text-xs"
+                  placeholder="mis. PT. Adls Solusi Indonesia"
+                  value={bankForm.company_name}
+                  onChange={(e) => setBankForm({ ...bankForm, company_name: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                className="btn-ghost !py-1.5 !text-xs"
+                onClick={() => { setManageBankModal(false); cancelEditBank(); }}
+              >
+                Tutup
+              </button>
+              <button
+                type="submit"
+                className="btn-primary !py-1.5 !text-xs"
+                disabled={savingBank}
+              >
+                {savingBank && <Loader2 size={13} className="animate-spin mr-1" />}
+                {editingBank ? "Simpan Perubahan" : "Simpan Rekening"}
+              </button>
+            </div>
+          </form>
+        </div>
       </Modal>
     </div>
   );

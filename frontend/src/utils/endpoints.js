@@ -34,6 +34,8 @@ export const API_ENDPOINTS = {
   TUTOR_SUBSTITUTES: crud("/tutor-substitutes"),
   BILLS: crud("/bills"),
   BILLS_BANK_INFO: "/bills/bank-info",
+  BILLS_BANK_ACCOUNTS: "/bills/bank-accounts",
+  BILLS_BANK_ACCOUNT: (id) => `/bills/bank-accounts/${id}`,
   BILLS_GENERATE: "/bills/generate",
   BILLS_PAY: (id) => `/bills/${id}/pay`,
   BILLS_PAY_CASH: (id) => `/bills/${id}/pay-cash`,

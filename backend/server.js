@@ -21,11 +21,27 @@ const pool = mysql.createPool({ host: process.env.DB_HOST, user: process.env.DB_
 const STAFF = ["owner", "admin_pusat", "admin_cabang"], ALL = [...STAFF, "tutor", "siswa", "ortu"], HQ = ["owner", "admin_pusat"];
 const BRANCH_USER_ROLES = ["tutor", "siswa", "ortu"];
 const BANK_INFO = {
-  company: "PT ADLS English Course",
+  company: "PT. Adls Solusi Indonesia",
   accounts: [
-    { bank: "BCA", number: "1234-567-890", holder: "PT ADLS English Course" },
-    { bank: "Mandiri", number: "130-00-9876543-2", holder: "PT ADLS English Course" },
+    { bank: "BSI", number: "7239458167", holder: "PT. Adls Solusi Indonesia" },
   ],
+};
+
+const getBankInfoHelper = async () => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, bank_name AS bank, account_number AS number, account_holder AS holder, company_name, is_active FROM bank_accounts WHERE is_active=1 ORDER BY id ASC"
+    );
+    if (rows && rows.length > 0) {
+      return {
+        company: rows[0].company_name || BANK_INFO.company,
+        accounts: rows,
+      };
+    }
+  } catch (err) {
+    // Fall back to default constant if table doesn't exist yet
+  }
+  return BANK_INFO;
 };
 
 // Resource config: kolom di-whitelist (anti SQL injection), semua query pakai placeholder.
@@ -770,7 +786,7 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
       videoCount,
       activityPhotos,
       announcements,
-      bankInfo: BANK_INFO,
+      bankInfo: await getBankInfoHelper(),
     },
   });
 }));
@@ -1923,7 +1939,77 @@ app.post("/api/achievements/claim", auth, can(STAFF), wrap(async (req, res) => {
 }));
 
 // Billing Actions (Generate, Pay to PT ADLS, Verify) & Referral Apply
-app.get("/api/bills/bank-info", auth, (_, res) => res.json({ success: true, data: BANK_INFO }));
+app.get("/api/bills/bank-info", auth, wrap(async (_, res) => {
+  const info = await getBankInfoHelper();
+  res.json({ success: true, data: info });
+}));
+
+app.get("/api/bills/bank-accounts", auth, can(STAFF), wrap(async (_, res) => {
+  const [rows] = await pool.query("SELECT * FROM bank_accounts ORDER BY id ASC");
+  res.json({ success: true, data: rows });
+}));
+
+app.post("/api/bills/bank-accounts", auth, can(STAFF), wrap(async (req, res) => {
+  const bankName = clean(req.body.bank_name || req.body.bank);
+  const accountNumber = clean(req.body.account_number || req.body.number);
+  const accountHolder = clean(req.body.account_holder || req.body.holder);
+  const companyName = clean(req.body.company_name || req.body.company) || "PT. Adls Solusi Indonesia";
+  if (!bankName || !accountNumber || !accountHolder) {
+    return fail(res, 400, "Nama bank, nomor rekening, dan nama pemilik rekening wajib diisi");
+  }
+  const [result] = await pool.query(
+    "INSERT INTO bank_accounts(bank_name, account_number, account_holder, company_name, is_active) VALUES (?, ?, ?, ?, 1)",
+    [bankName, accountNumber, accountHolder, companyName]
+  );
+  res.status(201).json({
+    success: true,
+    message: "Rekening bank berhasil ditambahkan",
+    data: {
+      id: result.insertId,
+      bank_name: bankName,
+      account_number: accountNumber,
+      account_holder: accountHolder,
+      company_name: companyName,
+      is_active: 1,
+    },
+  });
+}));
+
+app.put("/api/bills/bank-accounts/:id", auth, can(STAFF), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const bankName = clean(req.body.bank_name || req.body.bank);
+  const accountNumber = clean(req.body.account_number || req.body.number);
+  const accountHolder = clean(req.body.account_holder || req.body.holder);
+  const companyName = clean(req.body.company_name || req.body.company) || "PT. Adls Solusi Indonesia";
+  const isActive = req.body.is_active !== undefined ? (req.body.is_active ? 1 : 0) : 1;
+  if (!bankName || !accountNumber || !accountHolder) {
+    return fail(res, 400, "Nama bank, nomor rekening, dan nama pemilik rekening wajib diisi");
+  }
+  await pool.query(
+    "UPDATE bank_accounts SET bank_name=?, account_number=?, account_holder=?, company_name=?, is_active=? WHERE id=?",
+    [bankName, accountNumber, accountHolder, companyName, isActive, id]
+  );
+  res.json({
+    success: true,
+    message: "Rekening bank berhasil diperbarui",
+    data: {
+      id,
+      bank_name: bankName,
+      account_number: accountNumber,
+      account_holder: accountHolder,
+      company_name: companyName,
+      is_active: isActive,
+    },
+  });
+}));
+
+app.delete("/api/bills/bank-accounts/:id", auth, can(STAFF), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const [[existing]] = await pool.query("SELECT id FROM bank_accounts WHERE id=?", [id]);
+  if (!existing) return fail(res, 404, "Rekening bank tidak ditemukan");
+  await pool.query("DELETE FROM bank_accounts WHERE id=?", [id]);
+  res.json({ success: true, message: "Rekening bank berhasil dihapus" });
+}));
 
 app.post("/api/bills/generate", auth, can(STAFF), wrap(async (req, res) => {
   const month = clean(req.body.month) || getServerNowParts().date.slice(0, 7);
@@ -3475,6 +3561,27 @@ async function ensureSchema() {
   await ensureCol("bills", "paid_at", "DATE NULL");
   await ensureCol("bills", "notes", "VARCHAR(255) NULL");
   await ensureCol("bills", "is_cash", "TINYINT(1) DEFAULT 0");
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS bank_accounts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    bank_name VARCHAR(60) NOT NULL,
+    account_number VARCHAR(60) NOT NULL,
+    account_holder VARCHAR(120) NOT NULL,
+    company_name VARCHAR(120) NULL DEFAULT 'PT. Adls Solusi Indonesia',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`).catch(() => {});
+
+  try {
+    await pool.query("DELETE FROM bank_accounts WHERE bank_name IN ('BCA', 'Mandiri') AND account_number IN ('1234-567-890', '130-00-9876543-2')").catch(() => {});
+    const [[bCount]] = await pool.query("SELECT COUNT(*) n FROM bank_accounts");
+    if (!bCount || !bCount.n) {
+      await pool.query(
+        "INSERT INTO bank_accounts(bank_name, account_number, account_holder, company_name, is_active) VALUES ('BSI', '7239458167', 'PT. Adls Solusi Indonesia', 'PT. Adls Solusi Indonesia', 1)"
+      );
+    }
+  } catch {}
 
   await ensureCol("leaves", "user_id", "INT NULL");
   await ensureCol("leaves", "approval_notes", "TEXT NULL");
