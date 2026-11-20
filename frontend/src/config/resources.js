@@ -271,6 +271,18 @@ export const RESOURCES = {
       { key: "parent_phone", label: "WhatsApp" },
       { key: "class_name", label: "Type Kelas", render: (v, r) => v || r.class_type || (r.class_id ? `#${r.class_id}` : "-") },
       { key: "level", label: "Level" },
+      { key: "tshirt_size", label: "Ukuran Kaos" },
+      {
+        key: "registration_fee_status",
+        label: "Biaya Pendaftaran",
+        type: "badge",
+        badgeMap: {
+          paid: "bg-emerald-100 text-emerald-800",
+          unpaid: "bg-amber-100 text-amber-800",
+          pending: "bg-amber-100 text-amber-800",
+        },
+        render: (v) => (v === "paid" ? "Lunas" : "Belum Bayar (Menunggu ACC)"),
+      },
       { key: "branch_name", label: "Cabang", render: (v, r) => v || (r.branch_id ? `#${r.branch_id}` : "-") },
       {
         key: "course_completed",
@@ -335,6 +347,8 @@ export const RESOURCES = {
       },
       { key: "completed_at", label: "Tanggal Selesai Course", type: "date" },
       { key: "certificate_url", label: "Upload File E-Sertifikat Khusus (opsional PDF/Gambar)", type: "pdf-or-image" },
+      { key: "tshirt_size", label: "Ukuran T-Shirt", type: "select", options: ["Anak (S)", "Anak (M)", "Anak (L)", "S", "M", "L", "XL", "XXL"] },
+      { key: "registration_fee_status", label: "Status Biaya Pendaftaran", type: "select", options: [{ value: "paid", label: "Lunas" }, { value: "unpaid", label: "Belum Bayar (Menunggu ACC)" }] },
       { key: "status", label: "Status Siswa", type: "select", options: status },
     ],
   },
@@ -402,8 +416,53 @@ export const RESOURCES = {
             return React.createElement(
               "div",
               null,
-              React.createElement("span", { className: "font-semibold text-slate-800" }, cls),
+              React.createElement("div", { className: "font-semibold text-slate-800" }, cls),
               lvl ? React.createElement("div", { className: "text-xs font-medium text-slate-500" }, lvl) : null
+            );
+          },
+        },
+        {
+          key: "total_hadir",
+          label: "Total Kehadiran",
+          render: (v, r) => {
+            const cnt = Number(r.total_hadir ?? 0);
+            return React.createElement(
+              "span",
+              { className: "inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 shadow-2xs" },
+              `${cnt}x Hadir`
+            );
+          },
+        },
+        {
+          key: "total_tidak_hadir",
+          label: "Total Ketidakhadiran",
+          render: (v, r) => {
+            const cnt = Number(r.total_tidak_hadir ?? 0);
+            return React.createElement(
+              "span",
+              { className: "inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800 shadow-2xs" },
+              `${cnt}x Absen`
+            );
+          },
+        },
+        {
+          key: "karyawan_status",
+          label: "Status Kelas Karyawan",
+          render: (_, r) => {
+            const isKaryawan = /karyawan/i.test(r.level || "") || /karyawan/i.test(r.class_name || "") || /karyawan/i.test(r.resolved_class_type || "");
+            if (!isKaryawan) return "-";
+            const total = Number(r.total_hadir || 0) + Number(r.total_tidak_hadir || 0);
+            if (total >= 10) {
+              return React.createElement(
+                "div",
+                { className: "rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-black text-white shadow-sm text-center" },
+                `🚨 ${total}x Pertemuan (Segera Buatkan Sertifikat!)`
+              );
+            }
+            return React.createElement(
+              "div",
+              { className: "text-xs font-bold text-slate-600" },
+              `Pertemuan: ${total}/10`
             );
           },
         },

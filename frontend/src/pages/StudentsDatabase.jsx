@@ -10,6 +10,7 @@ import {
   Building2,
   Calendar,
   RefreshCw,
+  Edit3,
 } from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
@@ -31,6 +32,45 @@ export default function StudentsDatabase() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [branches, setBranches] = useState([]);
+  const [editPriceStudent, setEditPriceStudent] = useState(null);
+  const [newPrice, setNewPrice] = useState("");
+  const [effectiveMonth, setEffectiveMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [savingPrice, setSavingPrice] = useState(false);
+
+  const openEditPrice = (student) => {
+    setEditPriceStudent(student);
+    setNewPrice(student.pricelist || "");
+    const now = new Date();
+    setEffectiveMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+  };
+
+  const handleSavePrice = async (e) => {
+    e?.preventDefault();
+    if (!editPriceStudent) return;
+    if (Number(newPrice) < 0 || isNaN(Number(newPrice))) {
+      return toast.error("Nominal pricelist tidak valid");
+    }
+    if (!effectiveMonth) {
+      return toast.error("Pilih bulan mulai berlaku");
+    }
+    setSavingPrice(true);
+    try {
+      await api.put(`/api/students/${editPriceStudent.id}/pricelist`, {
+        price: Number(newPrice),
+        effective_month: effectiveMonth,
+      });
+      toast.success(`Pricelist berhasil diperbarui! Berlaku mulai ${effectiveMonth} ke atas.`);
+      setEditPriceStudent(null);
+      loadData();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Gagal menyimpan perubahan pricelist");
+    } finally {
+      setSavingPrice(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -85,6 +125,7 @@ export default function StudentsDatabase() {
       { key: "student_name", label: "Student Names" },
       { key: "joined_at", label: "Join Date" },
       { key: "class_name", label: "Class" },
+      { key: "level", label: "Class Level" },
       { key: "branch_name", label: "Branch" },
       { key: "pricelist", label: "Pricelist" },
       { key: "payment_status", label: "Payment" },
@@ -106,6 +147,7 @@ export default function StudentsDatabase() {
       student_name: r.student_name || "",
       joined_at: r.joined_at || "",
       class_name: r.class_name || "",
+      level: r.level || "-",
       branch_name: r.branch_name || "",
       pricelist: Number(r.pricelist || 0) > 0 ? rp(r.pricelist) : "-",
       payment_status: r.payment_status || "Not Paid",
@@ -297,13 +339,30 @@ export default function StudentsDatabase() {
                         )}
                       </td>
                       <td className="border-r border-slate-100 px-4 py-2.5 text-slate-800">
-                        {r.class_name}
+                        <div className="font-semibold text-slate-900">{r.class_name || "-"}</div>
+                        {r.level && r.level !== "-" && (
+                          <span className="inline-block mt-0.5 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-brand border border-sky-200">
+                            {r.level}
+                          </span>
+                        )}
                       </td>
                       <td className="border-r border-slate-100 px-3 py-2.5 text-center font-semibold text-slate-600">
                         {r.branch_name}
                       </td>
                       <td className="border-r border-slate-100 px-3 py-2.5 text-right font-extrabold text-emerald-800 bg-emerald-50/20 whitespace-nowrap">
-                        {rp(r.pricelist)}
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span>{rp(r.pricelist)}</span>
+                          {user?.role === "owner" && (
+                            <button
+                              type="button"
+                              onClick={() => openEditPrice(r)}
+                              title="Ubah Pricelist & Jadwalkan Bulan Efektif (Khusus Owner)"
+                              className="inline-flex items-center justify-center p-1 rounded-md text-emerald-700 hover:text-emerald-950 hover:bg-emerald-200/80 transition"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="border-r border-slate-100 px-3 py-2.5 text-center">
                         {isPaid ? (
@@ -358,6 +417,96 @@ export default function StudentsDatabase() {
           </div>
         </div>
       </div>
+
+      {/* Modal Ubah Pricelist Siswa (Khusus Owner) */}
+      {editPriceStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Ubah Pricelist Siswa</h3>
+                <p className="text-xs text-slate-500">Khusus Owner ADLS</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditPriceStudent(null)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold leading-none p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePrice} className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-600">Nama Siswa</label>
+                <div className="mt-1 rounded-xl bg-slate-100 px-3.5 py-2 text-sm font-bold text-slate-800">
+                  {editPriceStudent.student_name}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600">Cabang & Kelas</label>
+                <div className="mt-1 rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-medium text-slate-700">
+                  {editPriceStudent.branch_name} · {editPriceStudent.class_name} ({editPriceStudent.level || "-"})
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">Pricelist Baru (Rp) *</label>
+                <input
+                  type="number"
+                  step="5000"
+                  min="0"
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value)}
+                  placeholder="Contoh: 150000"
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                  required
+                />
+                <div className="mt-1 text-[11px] text-slate-500">
+                  Harga saat ini: <b>{rp(editPriceStudent.pricelist)}</b>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">Berlaku Mulai Bulan *</label>
+                <input
+                  type="month"
+                  value={effectiveMonth}
+                  onChange={(e) => setEffectiveMonth(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                  required
+                />
+                <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
+                  💡 <b>Contoh:</b> Jika memilih <b>{effectiveMonth}</b>, maka bulan-bulan sebelumnya tetap memakai harga lama, sedangkan <b>{effectiveMonth} ke atas</b> memakai harga baru <b>({rp(newPrice)})</b>.
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-sky-50 border border-sky-200 p-3 text-xs text-sky-800 leading-relaxed">
+                ℹ️ Ketika harga disimpan, otomatis mengganti dan mensinkronkan semua data yang ada di semua akun (Cabang, Orang Tua, dan Admin).
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={savingPrice}
+                  onClick={() => setEditPriceStudent(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPrice}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-extrabold text-white shadow hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {savingPrice ? "Menyimpan…" : "SAVE"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

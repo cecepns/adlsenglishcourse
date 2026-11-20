@@ -12,6 +12,7 @@ import {
   Headphones,
   Image as ImageIcon,
   Loader2,
+  Play,
   RefreshCw,
   Save,
   School,
@@ -250,7 +251,7 @@ export default function TutorDashboard() {
   const handleSavePhoto = async (e) => {
     e.preventDefault();
     if (!photoForm.photo_url) {
-      toast.error("Foto dokumentasi kegiatan wajib diunggah");
+      toast.error("Dokumentasi kegiatan (foto/video) wajib diunggah");
       return;
     }
     setSubmittingPhoto(true);
@@ -269,7 +270,7 @@ export default function TutorDashboard() {
             homework: sharedHomework,
             notes: photoForm.notes,
           }),
-        { success: getClosingGreeting("tutor", "Foto kegiatan kelas berhasil dikirim & terhubung ke orang tua!") }
+        { success: getClosingGreeting("tutor", "Dokumentasi kegiatan kelas (foto/video) berhasil dikirim & terhubung ke orang tua!") }
       );
       setPhotoForm({ photo_url: "", session_time: "", attendance_summary: "", notes: "" });
       loadPhotos(selectedClassId);
@@ -551,10 +552,10 @@ export default function TutorDashboard() {
                 </span>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">
-                    Dokumentasi Foto Kegiatan Kelas (Terkirim ke Ortu)
+                    Dokumentasi Foto & Video Kegiatan Kelas (Terkirim ke Ortu)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Kirim foto kegiatan per pertemuan ke Portal Orang Tua agar mereka dapat melihat bukti kehadiran & aktivitas belajar putra-putrinya secara nyata.
+                    Kirim foto atau video kegiatan per pertemuan ke Portal Orang Tua agar mereka dapat melihat bukti kehadiran & aktivitas belajar putra-putrinya secara nyata.
                   </p>
                 </div>
               </div>
@@ -565,13 +566,15 @@ export default function TutorDashboard() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
-                  Foto Kegiatan Belajar di Kelas *
+                  Foto / Video Kegiatan Belajar di Kelas *
                 </label>
                 <ImageUploadField
                   allowPdf={false}
+                  allowVideo={true}
                   value={photoForm.photo_url}
                   onChange={(url) => setPhotoForm({ ...photoForm, photo_url: url })}
-                  placeholder="Unggah foto suasana kelas / murid belajar..."
+                  placeholder="Unggah foto atau video suasana kelas / murid belajar..."
+                  buttonLabel="Upload Foto / Video"
                 />
               </div>
 
@@ -621,32 +624,53 @@ export default function TutorDashboard() {
               <button
                 type="submit"
                 disabled={submittingPhoto || !photoForm.photo_url}
-                className="btn-primary shrink-0 !py-2 text-xs"
+                className="btn-primary shrink-0 !py-2 text-xs font-bold"
               >
                 {submittingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-                Kirim Foto Dokumentasi ke Ortu
+                Kirim Dokumentasi ke Ortu
               </button>
             </div>
           </form>
 
-          {/* Galeri Riwayat Foto Sesi Kelas Ini */}
+          {/* Galeri Riwayat Foto/Video Sesi Kelas Ini */}
           {activityPhotos.length > 0 && (
             <div className="mt-4 border-t border-slate-200/80 pt-3">
               <div className="mb-2 text-xs font-bold text-slate-700">
-                Dokumentasi Pertemuan Sebelumnya ({activityPhotos.length} foto):
+                Dokumentasi Pertemuan Sebelumnya ({activityPhotos.length} dokumentasi):
               </div>
               <div className="flex gap-2.5 overflow-x-auto pb-1">
-                {activityPhotos.map((p) => (
-                  <div key={p.id} className="relative group shrink-0 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
-                    <img
-                      src={resolveAssetUrl(p.photo_url)}
-                      alt="Kegiatan Kelas"
-                      className="h-24 w-full rounded-lg object-cover"
-                    />
-                    <div className="mt-1 text-[11px] font-bold text-slate-800 truncate">{p.session_date}</div>
-                    <div className="text-[10px] text-slate-500 truncate">{p.session_time || p.attendance_summary || "Sesi Selesai"}</div>
-                  </div>
-                ))}
+                {activityPhotos.map((p) => {
+                  const isVid = /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(p.photo_url || "");
+                  return (
+                    <div key={p.id} className="relative group shrink-0 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+                      <div className="relative h-24 w-full rounded-lg overflow-hidden bg-slate-900">
+                        {isVid ? (
+                          <>
+                            <video
+                              src={resolveAssetUrl(p.photo_url)}
+                              className="h-full w-full object-cover opacity-90"
+                              muted
+                              playsInline
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-xs">
+                                <Play size={13} className="ml-0.5 fill-white" />
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <img
+                            src={resolveAssetUrl(p.photo_url)}
+                            alt="Kegiatan Kelas"
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="mt-1 text-[11px] font-bold text-slate-800 truncate">{p.session_date}</div>
+                      <div className="text-[10px] text-slate-500 truncate">{p.session_time || p.attendance_summary || (isVid ? "Video Kelas" : "Sesi Selesai")}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

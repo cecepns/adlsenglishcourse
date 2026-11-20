@@ -22,6 +22,18 @@ import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { CLASS_TYPES, COURSE_LEVELS, MARKETING_SOURCES } from "@/config/resources";
 import { useAuth } from "@/context/AuthContext";
+import DatePickerInput from "@/components/DatePickerInput";
+
+const TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+const RELIGIONS = [
+  "Islam",
+  "Kristen Protestan",
+  "Katolik",
+  "Hindu",
+  "Buddha",
+  "Konghucu",
+  "Lainnya",
+];
 
 export default function Login() {
   const { user, login, register } = useAuth();
@@ -40,6 +52,7 @@ export default function Login() {
     school_origin: "",
     school_grade: "",
     religion: "Islam",
+    tshirt_size: "M",
     housing_complex: "",
     address: "",
     phone: "",
@@ -60,7 +73,20 @@ export default function Login() {
   });
 
   const [children, setChildren] = useState([
-    { name: "", nickname: "", class_type: "Regular", level: COURSE_LEVELS[0], branch_id: "" },
+    {
+      name: "",
+      nickname: "",
+      gender: "Laki-laki",
+      birth_place: "",
+      birth_date: "",
+      school_origin: "",
+      school_grade: "",
+      religion: "Islam",
+      tshirt_size: "M",
+      class_type: "Regular",
+      level: COURSE_LEVELS[0],
+      branch_id: "",
+    },
   ]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -116,7 +142,20 @@ export default function Login() {
   const addChildRow = () => {
     setChildren((prev) => [
       ...prev,
-      { name: "", nickname: "", class_type: reg.class_type || "Regular", level: COURSE_LEVELS[0], branch_id: reg.branch_id || "" },
+      {
+        name: "",
+        nickname: "",
+        gender: "Laki-laki",
+        birth_place: "",
+        birth_date: "",
+        school_origin: "",
+        school_grade: "",
+        religion: reg.religion || "Islam",
+        tshirt_size: reg.tshirt_size || "M",
+        class_type: reg.class_type || "Regular",
+        level: COURSE_LEVELS[0],
+        branch_id: reg.branch_id || "",
+      },
     ]);
   };
 
@@ -149,12 +188,22 @@ export default function Login() {
           .map((c) => ({
             name: c.name.trim(),
             nickname: c.nickname?.trim() || null,
+            gender: c.gender || "Laki-laki",
+            birth_place: c.birth_place || null,
+            birth_date: c.birth_date || null,
+            school_origin: c.school_origin || null,
+            school_grade: c.school_grade || null,
+            religion: c.religion || reg.religion || "Islam",
+            tshirt_size: c.tshirt_size || reg.tshirt_size || "M",
             class_type: c.class_type || reg.class_type || "Regular",
             level: c.level || reg.level,
             branch_id: c.branch_id ? Number(c.branch_id) : (reg.branch_id ? Number(reg.branch_id) : null),
           }));
       }
-      await register(payload);
+      const res = await register(payload);
+      if (res?.pending_approval) {
+        setMode("login");
+      }
     } catch {
       /* toast handled */
     } finally {
@@ -443,6 +492,17 @@ export default function Login() {
               ) : (
                 /* REGISTRATION FORM */
                 <form onSubmit={submitRegister} className="space-y-3.5 max-h-[72vh] overflow-y-auto pr-1">
+                  {/* Notice ACC Admin Cabang */}
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950 leading-relaxed flex items-start gap-2 shadow-sm">
+                    <span className="text-base leading-none">⚠️</span>
+                    <div>
+                      <span className="font-extrabold text-amber-950">Konfirmasi & ACC Admin Cabang:</span>
+                      <p className="mt-0.5 text-[11px] text-amber-900 font-medium">
+                        Formulir pendaftaran akan diverifikasi dan di-ACC oleh Admin Cabang setelah konfirmasi pembayaran pendaftaran agar data siswa aktif di sistem.
+                      </p>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-600">
                       Daftar Sebagai *
@@ -488,10 +548,15 @@ export default function Login() {
                           value={reg.class_type}
                           onChange={(e) => setReg({ ...reg, class_type: e.target.value })}
                         >
-                          {CLASS_TYPES.map((ct) => (
-                            <option key={ct} value={ct}>{ct}</option>
-                          ))}
+                          <option value="Regular">Regular</option>
+                          <option value="Intensive">Intensive</option>
+                          <option value="Private">Private (Jadwal Fleksibel)</option>
                         </select>
+                        <p className="mt-1 text-[10px] text-brand font-medium">
+                          {reg.class_type === "Private"
+                            ? "✨ Private: Jadwal fleksibel & jatah reschedule hingga 2x per bulan"
+                            : "Kelas Reguler / Intensive terstruktur"}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -517,9 +582,14 @@ export default function Login() {
                           onChange={(e) => setReg({ ...reg, nickname: e.target.value })}
                         />
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
+
+                      {/* Level Kelas dengan penjelasan */}
+                      <div>
+                        <label className="mb-1 block text-[11px] font-bold text-slate-600">
+                          Level Kelas (Pilih level kelas agar ketemu tutor yang pas) *
+                        </label>
                         <select
-                          className="input !py-2 text-xs"
+                          className="input !py-2 text-xs font-semibold"
                           value={reg.level}
                           onChange={(e) => setReg({ ...reg, level: e.target.value })}
                         >
@@ -527,15 +597,85 @@ export default function Login() {
                             <option key={lv} value={lv}>{lv}</option>
                           ))}
                         </select>
-                        <select
-                          className="input !py-2 text-xs"
-                          value={reg.gender}
-                          onChange={(e) => setReg({ ...reg, gender: e.target.value })}
-                        >
-                          <option value="Laki-laki">Laki-laki</option>
-                          <option value="Perempuan">Perempuan</option>
-                        </select>
                       </div>
+
+                      {/* Tempat & Tanggal Lahir */}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <input
+                          className="input !py-2 text-xs"
+                          placeholder="Tempat Lahir (Kota)"
+                          value={reg.birth_place}
+                          onChange={(e) => setReg({ ...reg, birth_place: e.target.value })}
+                        />
+                        <DatePickerInput
+                          value={reg.birth_date}
+                          onChange={(val) => setReg({ ...reg, birth_date: val })}
+                          placeholder="Tanggal Lahir (dd/mm/yyyy)"
+                          className="!py-2 text-xs"
+                        />
+                      </div>
+
+                      {/* Size T-Shirt, Jenis Kelamin, Agama */}
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <div>
+                          <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">
+                            Size T-Shirt
+                          </label>
+                          <select
+                            className="input !py-1.5 text-xs font-bold"
+                            value={reg.tshirt_size}
+                            onChange={(e) => setReg({ ...reg, tshirt_size: e.target.value })}
+                          >
+                            {TSHIRT_SIZES.map((sz) => (
+                              <option key={sz} value={sz}>{sz}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">
+                            Jenis Kelamin
+                          </label>
+                          <select
+                            className="input !py-1.5 text-xs"
+                            value={reg.gender}
+                            onChange={(e) => setReg({ ...reg, gender: e.target.value })}
+                          >
+                            <option value="Laki-laki">Laki-laki</option>
+                            <option value="Perempuan">Perempuan</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">
+                            Agama
+                          </label>
+                          <select
+                            className="input !py-1.5 text-xs"
+                            value={reg.religion}
+                            onChange={(e) => setReg({ ...reg, religion: e.target.value })}
+                          >
+                            {RELIGIONS.map((rel) => (
+                              <option key={rel} value={rel}>{rel}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Asal Sekolah & Kelas */}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <input
+                          className="input !py-2 text-xs"
+                          placeholder="Asal Sekolah / Kampus / Instansi"
+                          value={reg.school_origin}
+                          onChange={(e) => setReg({ ...reg, school_origin: e.target.value })}
+                        />
+                        <input
+                          className="input !py-2 text-xs"
+                          placeholder="Kelas / Semester di Sekolah"
+                          value={reg.school_grade}
+                          onChange={(e) => setReg({ ...reg, school_grade: e.target.value })}
+                        />
+                      </div>
+
                       <input
                         className="input !py-2 text-xs"
                         placeholder="Asal Perumahan / Wilayah Tempat Tinggal"
@@ -573,10 +713,38 @@ export default function Login() {
                           />
                           <input
                             className="input !py-2 text-xs"
+                            placeholder="Pekerjaan Ayah"
+                            value={reg.parent_father_job}
+                            onChange={(e) => setReg({ ...reg, parent_father_job: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <input
+                            className="input !py-2 text-xs"
                             placeholder="Nama Ibu"
                             value={reg.parent_mother_name}
                             onChange={(e) => setReg({ ...reg, parent_mother_name: e.target.value })}
                           />
+                          <input
+                            className="input !py-2 text-xs"
+                            placeholder="Pekerjaan Ibu"
+                            value={reg.parent_mother_job}
+                            onChange={(e) => setReg({ ...reg, parent_mother_job: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">
+                            Agama Orang Tua
+                          </label>
+                          <select
+                            className="input !py-1.5 text-xs"
+                            value={reg.religion}
+                            onChange={(e) => setReg({ ...reg, religion: e.target.value })}
+                          >
+                            {RELIGIONS.map((rel) => (
+                              <option key={rel} value={rel}>{rel}</option>
+                            ))}
+                          </select>
                         </div>
                         <input
                           className="input !py-2 text-xs"
@@ -628,24 +796,105 @@ export default function Login() {
                               )}
                             </div>
                             <div className="grid gap-2 sm:grid-cols-2">
-                              <select
+                              <div>
+                                <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">
+                                  Type Kelas *
+                                </label>
+                                <select
+                                  className="input !py-1.5 text-xs"
+                                  value={child.class_type}
+                                  onChange={(e) => updateChildRow(idx, { class_type: e.target.value })}
+                                >
+                                  <option value="Regular">Regular</option>
+                                  <option value="Intensive">Intensive</option>
+                                  <option value="Private">Private (Jadwal Fleksibel)</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">
+                                  Level Kelas (Agar ketemu tutor pas) *
+                                </label>
+                                <select
+                                  className="input !py-1.5 text-xs"
+                                  value={child.level}
+                                  onChange={(e) => updateChildRow(idx, { level: e.target.value })}
+                                >
+                                  {COURSE_LEVELS.map((lv) => (
+                                    <option key={lv} value={lv}>{lv}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* Tempat & Tanggal Lahir Anak */}
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <input
                                 className="input !py-1.5 text-xs"
-                                value={child.class_type}
-                                onChange={(e) => updateChildRow(idx, { class_type: e.target.value })}
-                              >
-                                {CLASS_TYPES.map((ct) => (
-                                  <option key={ct} value={ct}>Type: {ct}</option>
-                                ))}
-                              </select>
-                              <select
+                                placeholder="Tempat Lahir Anak"
+                                value={child.birth_place}
+                                onChange={(e) => updateChildRow(idx, { birth_place: e.target.value })}
+                              />
+                              <DatePickerInput
+                                value={child.birth_date}
+                                onChange={(val) => updateChildRow(idx, { birth_date: val })}
+                                placeholder="Tanggal Lahir Anak"
+                                className="!py-1.5 text-xs"
+                              />
+                            </div>
+
+                            {/* Size T-Shirt, Jenis Kelamin, Agama Anak */}
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              <div>
+                                <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">Size T-Shirt</label>
+                                <select
+                                  className="input !py-1.5 text-xs font-bold"
+                                  value={child.tshirt_size}
+                                  onChange={(e) => updateChildRow(idx, { tshirt_size: e.target.value })}
+                                >
+                                  {TSHIRT_SIZES.map((sz) => (
+                                    <option key={sz} value={sz}>{sz}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">Jenis Kelamin</label>
+                                <select
+                                  className="input !py-1.5 text-xs"
+                                  value={child.gender}
+                                  onChange={(e) => updateChildRow(idx, { gender: e.target.value })}
+                                >
+                                  <option value="Laki-laki">Laki-laki</option>
+                                  <option value="Perempuan">Perempuan</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="mb-0.5 block text-[10px] font-bold text-slate-500 uppercase">Agama</label>
+                                <select
+                                  className="input !py-1.5 text-xs"
+                                  value={child.religion}
+                                  onChange={(e) => updateChildRow(idx, { religion: e.target.value })}
+                                >
+                                  {RELIGIONS.map((rel) => (
+                                    <option key={rel} value={rel}>{rel}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* Asal Sekolah & Kelas di Sekolah */}
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <input
                                 className="input !py-1.5 text-xs"
-                                value={child.level}
-                                onChange={(e) => updateChildRow(idx, { level: e.target.value })}
-                              >
-                                {COURSE_LEVELS.map((lv) => (
-                                  <option key={lv} value={lv}>{lv}</option>
-                                ))}
-                              </select>
+                                placeholder="Asal Sekolah Anak"
+                                value={child.school_origin}
+                                onChange={(e) => updateChildRow(idx, { school_origin: e.target.value })}
+                              />
+                              <input
+                                className="input !py-1.5 text-xs"
+                                placeholder="Kelas Berapa di Sekolah"
+                                value={child.school_grade}
+                                onChange={(e) => updateChildRow(idx, { school_grade: e.target.value })}
+                              />
                             </div>
                           </div>
                         ))}

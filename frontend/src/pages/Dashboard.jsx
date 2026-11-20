@@ -241,7 +241,16 @@ export default function Dashboard() {
     todos.push({
       to: "/bills",
       color: "text-rose-600",
-      label: `${stats.unpaidBills} tagihan SPP belum lunas (${rp(stats.unpaidAmount)})`,
+      label: isOwner
+        ? `${stats.unpaidBills} tagihan SPP belum lunas (${rp(stats.unpaidAmount)})`
+        : `${stats.unpaidBills} tagihan SPP belum lunas`,
+    });
+  }
+  if (stats?.pendingRegistrations > 0) {
+    todos.push({
+      to: "/students",
+      color: "text-purple-600",
+      label: `${stats.pendingRegistrations} pendaftaran siswa baru menunggu verifikasi / ACC admin`,
     });
   }
   if (isHQ && stats?.openComplaints > 0) {
@@ -380,7 +389,9 @@ export default function Dashboard() {
           value={stats ? `${paidTotalCount} Siswa` : "…"}
           sub={
             stats
-              ? `Cash: ${paidCashCount} · Transfer: ${paidTransferCount} (${rp(paidTotalAmount)})`
+              ? isOwner
+                ? `Cash: ${paidCashCount} · Transfer: ${paidTransferCount} (${rp(paidTotalAmount)})`
+                : `Cash: ${paidCashCount} · Transfer: ${paidTransferCount}`
               : ""
           }
           color="emerald"
@@ -392,7 +403,7 @@ export default function Dashboard() {
           icon={UserX}
           label="Siswa Belum Bayar"
           value={stats ? `${unpaidCount} Siswa` : "…"}
-          sub={stats ? `Tunggakan: ${rp(unpaidAmount)}` : ""}
+          sub={stats ? (isOwner ? `Tunggakan: ${rp(unpaidAmount)}` : "") : ""}
           color="rose"
           to="/bills"
         />
@@ -426,14 +437,16 @@ export default function Dashboard() {
           to="/classes"
         />
 
-        <KpiCard
-          icon={TrendingDown}
-          label="Total Pengeluaran"
-          value={stats ? rp(stats.totalExpenses) : "…"}
-          sub={stats ? `Top ${topExpenses.length} kategori pengeluaran` : ""}
-          color="amber"
-          to="/expenses"
-        />
+        {isOwner && (
+          <KpiCard
+            icon={TrendingDown}
+            label="Total Pengeluaran"
+            value={stats ? rp(stats.totalExpenses) : "…"}
+            sub={stats ? `Top ${topExpenses.length} kategori pengeluaran` : ""}
+            color="amber"
+            to="/expenses"
+          />
+        )}
       </div>
 
       {/* Action Todos */}
@@ -485,7 +498,7 @@ export default function Dashboard() {
                   <th className="px-3.5 py-2.5 text-center font-bold">Paid (Transfer)</th>
                   <th className="px-3.5 py-2.5 text-center font-bold">Total Paid</th>
                   <th className="px-3.5 py-2.5 text-center font-bold">Unpaid Student</th>
-                  <th className="px-3.5 py-2.5 text-right font-bold">Tunggakan</th>
+                  {isOwner && <th className="px-3.5 py-2.5 text-right font-bold">Tunggakan</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -501,10 +514,10 @@ export default function Dashboard() {
                     <tr key={b.branch_id} className="hover:bg-slate-50/80">
                       <td className="px-3.5 py-2 font-bold text-slate-800">{b.branch_name}</td>
                       <td className="px-3.5 py-2 text-center text-slate-700">
-                        <b>{cashCnt}</b> <span className="text-[11px] text-slate-400">({shortRp(cashAmt)})</span>
+                        <b>{cashCnt}</b>{isOwner && <span className="text-[11px] text-slate-400"> ({shortRp(cashAmt)})</span>}
                       </td>
                       <td className="px-3.5 py-2 text-center text-slate-700">
-                        <b>{transferCnt}</b> <span className="text-[11px] text-slate-400">({shortRp(transferAmt)})</span>
+                        <b>{transferCnt}</b>{isOwner && <span className="text-[11px] text-slate-400"> ({shortRp(transferAmt)})</span>}
                       </td>
                       <td className="px-3.5 py-2 text-center">
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800">
@@ -516,7 +529,7 @@ export default function Dashboard() {
                           {unpCount} siswa
                         </span>
                       </td>
-                      <td className="px-3.5 py-2 text-right font-bold text-rose-600">{rp(unpAmt)}</td>
+                      {isOwner && <td className="px-3.5 py-2 text-right font-bold text-rose-600">{rp(unpAmt)}</td>}
                     </tr>
                   );
                 })}
@@ -731,30 +744,32 @@ export default function Dashboard() {
 
       {/* Row: Pemasukan SPP, Top Expenses, Rekap Kehadiran, & Top Tutors */}
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Pemasukan SPP per Bulan */}
-        <ChartCard
-          title="Pemasukan SPP per Bulan"
-          subtitle="Perbandingan tagihan terbayar vs belum lunas"
-          right={
-            <Link to="/bills" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
-              Kelola Tagihan SPP <ChevronRight size={14} />
-            </Link>
-          }
-        >
-          <GroupedBarChart
-            labels={billMonths.map((m) => fmtMonth(m.month))}
-            formatValue={shortRp}
-            series={[
-              { name: "Terbayar", color: "#16a34a", data: billMonths.map((m) => m.paid) },
-              { name: "Belum Lunas", color: "#f59e0b", data: billMonths.map((m) => m.unpaid) },
-            ]}
-          />
-        </ChartCard>
+        {/* Pemasukan SPP per Bulan (Khusus Owner) */}
+        {isOwner && (
+          <ChartCard
+            title="Pemasukan SPP per Bulan"
+            subtitle="Perbandingan tagihan terbayar vs belum lunas"
+            right={
+              <Link to="/bills" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+                Kelola Tagihan SPP <ChevronRight size={14} />
+              </Link>
+            }
+          >
+            <GroupedBarChart
+              labels={billMonths.map((m) => fmtMonth(m.month))}
+              formatValue={shortRp}
+              series={[
+                { name: "Terbayar", color: "#16a34a", data: billMonths.map((m) => m.paid) },
+                { name: "Belum Lunas", color: "#f59e0b", data: billMonths.map((m) => m.unpaid) },
+              ]}
+            />
+          </ChartCard>
+        )}
 
         {/* Total Top 4 Expenses */}
         <ChartCard
           title="Total Top 4 Expenses ADLS"
-          subtitle={`Total keseluruhan pengeluaran: ${rp(stats?.totalExpenses)}`}
+          subtitle={isOwner ? `Total keseluruhan pengeluaran: ${rp(stats?.totalExpenses)}` : "Top 4 kategori pengeluaran"}
           right={
             <Link to="/expenses" className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline">
               Kelola Pengeluaran <ChevronRight size={14} />
@@ -768,7 +783,7 @@ export default function Dashboard() {
               sub: `${e.items} transaksi`,
               color: ["#e11d48", "#f59e0b", "#2a5885", "#6366f1"][idx % 4],
             }))}
-            formatValue={rp}
+            formatValue={isOwner ? rp : (v) => `${v > 0 ? "Tercatat" : "-"}`}
             emptyText="Belum ada data pengeluaran"
           />
         </ChartCard>

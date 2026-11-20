@@ -15,7 +15,7 @@ function renderCell(c, r) {
   return c.bold ? <span className="font-semibold text-slate-800">{content}</span> : content;
 }
 
-export default function DataTable({ columns, rows, loading, error, canEdit, sortKey, sortOrder, onSort, quickActions, onEdit, onDelete, onRetry }) {
+export default function DataTable({ columns, rows, loading, error, canEdit, sortKey, sortOrder, onSort, quickActions, onEdit, onDelete, onRetry, rowClassName }) {
   if (error) return <div className="p-8 text-center text-red-600">{error} <button className="ml-2 underline" onClick={onRetry}>Coba lagi</button></div>;
   if (loading) return <div className="space-y-2.5 p-5">{[...Array(5)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}</div>;
   if (!rows.length) return <div className="flex flex-col items-center gap-2 p-12 text-slate-400"><Inbox size={40} /><span>Belum ada data</span></div>;
@@ -55,26 +55,29 @@ export default function DataTable({ columns, rows, loading, error, canEdit, sort
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {rows.map((r) => (
-            <tr key={r.id} className="transition hover:bg-slate-50/80">
-              {columns.map((c) => (
-                <td key={c.key} className={`${c.nowrap ? "whitespace-nowrap " : ""}px-4 py-3 text-slate-700`}>
-                  {renderCell(c, r)}
-                </td>
-              ))}
-              {showActions && (
-                <td className="whitespace-nowrap px-4 py-3 text-right">
-                  {quickActions && <span className={canEdit ? "mr-1.5 inline-flex items-center gap-1" : "inline-flex items-center gap-1"}>{quickActions(r)}</span>}
-                  {canEdit && (
-                    <>
-                      <button className="mr-2 rounded-lg p-1.5 text-brand transition hover:bg-brand-50" onClick={() => onEdit(r)} aria-label="Edit" title="Edit"><Pencil size={16} /></button>
-                      <button className="rounded-lg p-1.5 text-red-500 transition hover:bg-red-50" onClick={() => onDelete(r)} aria-label="Hapus" title="Hapus"><Trash2 size={16} /></button>
-                    </>
-                  )}
-                </td>
-              )}
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const extraCls = typeof rowClassName === "function" ? rowClassName(r) : "";
+            return (
+              <tr key={r.id} className={`transition hover:bg-slate-50/80 ${extraCls}`}>
+                {columns.map((c) => (
+                  <td key={c.key} className={`${c.nowrap ? "whitespace-nowrap " : ""}px-4 py-3 text-slate-700`}>
+                    {renderCell(c, r)}
+                  </td>
+                ))}
+                {showActions && (
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    {quickActions && <span className={canEdit ? "mr-1.5 inline-flex items-center gap-1" : "inline-flex items-center gap-1"}>{quickActions(r)}</span>}
+                    {canEdit && (
+                      <>
+                        <button className="mr-2 rounded-lg p-1.5 text-brand transition hover:bg-brand-50" onClick={() => onEdit(r)} aria-label="Edit" title="Edit"><Pencil size={16} /></button>
+                        <button className="rounded-lg p-1.5 text-red-500 transition hover:bg-red-50" onClick={() => onDelete(r)} aria-label="Hapus" title="Hapus"><Trash2 size={16} /></button>
+                      </>
+                    )}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

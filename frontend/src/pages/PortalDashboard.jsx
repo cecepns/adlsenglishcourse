@@ -25,6 +25,7 @@ import {
   Loader2,
   MapPin,
   Megaphone,
+  Play,
   Plus,
   Printer,
   Receipt,
@@ -601,18 +602,18 @@ export default function PortalDashboard() {
         variant={isParent ? "monthly" : "meetings"}
       />
 
-      {/* Dokumentasi Foto Aktivitas Kelas Terkini (Laporan Nyata untuk Orang Tua) */}
+      {/* Dokumentasi Foto & Video Aktivitas Kelas Terkini (Laporan Nyata untuk Orang Tua) */}
       <div className="card overflow-hidden">
         <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-brand-50/40 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
               <Camera size={18} className="text-brand" />
               <h3 className="text-base font-extrabold text-slate-900">
-                Dokumentasi Foto Aktivitas Kelas Terkini
+                Dokumentasi Foto & Video Aktivitas Kelas Terkini
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Foto dokumentasi langsung dari tutor di kelas setiap pertemuan. Memastikan siswa hadir & aktif belajar secara nyata.
+              Foto dan video dokumentasi langsung dari tutor di kelas setiap pertemuan. Memastikan siswa hadir & aktif belajar secara nyata.
             </p>
           </div>
           <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-800 self-start">
@@ -624,25 +625,46 @@ export default function PortalDashboard() {
           {(!data?.activityPhotos || data.activityPhotos.length === 0) ? (
             <div className="flex flex-col items-center justify-center p-8 text-center text-slate-400">
               <ImageIcon size={36} className="mb-2 text-slate-300" />
-              <p className="text-xs font-semibold text-slate-600">Belum ada dokumentasi foto kegiatan kelas</p>
-              <p className="text-[11px] text-slate-400">Foto dokumentasi yang dikirim oleh tutor saat sesi belajar akan muncul otomatis di sini.</p>
+              <p className="text-xs font-semibold text-slate-600">Belum ada dokumentasi kegiatan kelas</p>
+              <p className="text-[11px] text-slate-400">Foto atau video dokumentasi yang dikirim oleh tutor saat sesi belajar akan muncul otomatis di sini.</p>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {data.activityPhotos.map((photo) => (
-                <div key={photo.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
-                  <div className="relative aspect-video w-full overflow-hidden bg-slate-100 cursor-pointer" onClick={() => setPreviewPhoto(photo)}>
-                    <img
-                      src={resolveAssetUrl(photo.photo_url)}
-                      alt="Dokumentasi Kelas"
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-3">
-                      <span className="text-xs font-bold text-white flex items-center gap-1">
-                        <Eye size={13} /> Lihat Foto Penuh
-                      </span>
+              {data.activityPhotos.map((photo) => {
+                const isVid = /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(photo.photo_url || "");
+                return (
+                  <div key={photo.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
+                    <div className="relative aspect-video w-full overflow-hidden bg-slate-950 cursor-pointer" onClick={() => setPreviewPhoto(photo)}>
+                      {isVid ? (
+                        <>
+                          <video
+                            src={resolveAssetUrl(photo.photo_url)}
+                            className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-105"
+                            muted
+                            playsInline
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand/90 text-white shadow-lg backdrop-blur-xs transition group-hover:scale-110">
+                              <Play size={20} className="ml-0.5 fill-white" />
+                            </span>
+                          </div>
+                          <div className="absolute top-2 right-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-xs">
+                            ▶ Video
+                          </div>
+                        </>
+                      ) : (
+                        <img
+                          src={resolveAssetUrl(photo.photo_url)}
+                          alt="Dokumentasi Kelas"
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-3">
+                        <span className="text-xs font-bold text-white flex items-center gap-1">
+                          <Eye size={13} /> {isVid ? "Putar Video Penuh" : "Lihat Foto Penuh"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
                   <div className="p-3.5 space-y-1.5 text-xs">
                     <div className="flex items-center justify-between gap-1 text-[11px] text-slate-500">
                       <span className="font-bold text-slate-700">{photo.session_date}</span>
@@ -668,9 +690,10 @@ export default function PortalDashboard() {
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
+        )}
         </div>
       </div>
 
@@ -1203,48 +1226,70 @@ export default function PortalDashboard() {
         )}
       </Modal>
 
-      {/* Modal Preview Foto Kegiatan Belajar */}
-      <Modal open={!!previewPhoto} title="Dokumentasi Pertemuan Kelas" onClose={() => setPreviewPhoto(null)}>
-        {previewPhoto && (
-          <div className="space-y-3.5">
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
-              <img
-                src={resolveAssetUrl(previewPhoto.photo_url)}
-                alt="Dokumentasi Kelas"
-                className="max-h-[65vh] w-full object-contain mx-auto"
-              />
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3.5 text-xs space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="font-extrabold text-slate-900 text-sm">{previewPhoto.class_name}</span>
-                <span className="font-bold text-brand">{previewPhoto.branch_name || "ADLS"}</span>
+      {/* Modal Preview Foto / Video Kegiatan Belajar */}
+      <Modal
+        open={!!previewPhoto}
+        title={
+          /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(previewPhoto?.photo_url || "")
+            ? "Dokumentasi Video Kegiatan Belajar"
+            : "Dokumentasi Foto Pertemuan Kelas"
+        }
+        onClose={() => setPreviewPhoto(null)}
+      >
+        {previewPhoto && (() => {
+          const isVid = /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(previewPhoto.photo_url || "");
+          const mediaUrl = resolveAssetUrl(previewPhoto.photo_url);
+          return (
+            <div className="space-y-3.5">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
+                {isVid ? (
+                  <video
+                    src={mediaUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-[65vh] w-full rounded-2xl object-contain mx-auto"
+                  />
+                ) : (
+                  <img
+                    src={mediaUrl}
+                    alt="Dokumentasi Kelas"
+                    className="max-h-[65vh] w-full object-contain mx-auto"
+                  />
+                )}
               </div>
-              <div className="text-slate-600">
-                Sesi: <b>{previewPhoto.session_date}</b> {previewPhoto.session_time && `· ${previewPhoto.session_time}`}
+              <div className="rounded-xl bg-slate-50 p-3.5 text-xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-slate-900 text-sm">{previewPhoto.class_name}</span>
+                  <span className="font-bold text-brand">{previewPhoto.branch_name || "ADLS"}</span>
+                </div>
+                <div className="text-slate-600">
+                  Sesi: <b>{previewPhoto.session_date}</b> {previewPhoto.session_time && `· ${previewPhoto.session_time}`}
+                </div>
+                {previewPhoto.attendance_summary && (
+                  <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 font-bold text-emerald-800">
+                    {previewPhoto.attendance_summary}
+                  </div>
+                )}
+                {previewPhoto.material && (
+                  <div className="text-slate-700">
+                    <span className="font-semibold text-slate-900">Materi:</span> {previewPhoto.material}
+                  </div>
+                )}
+                {previewPhoto.notes && (
+                  <div className="text-slate-600 italic">
+                    "{previewPhoto.notes}"
+                  </div>
+                )}
               </div>
-              {previewPhoto.attendance_summary && (
-                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 font-bold text-emerald-800">
-                  {previewPhoto.attendance_summary}
-                </div>
-              )}
-              {previewPhoto.material && (
-                <div className="text-slate-700">
-                  <span className="font-semibold text-slate-900">Materi:</span> {previewPhoto.material}
-                </div>
-              )}
-              {previewPhoto.notes && (
-                <div className="text-slate-600 italic">
-                  "{previewPhoto.notes}"
-                </div>
-              )}
+              <div className="flex justify-end">
+                <button type="button" className="btn-ghost" onClick={() => setPreviewPhoto(null)}>
+                  Tutup
+                </button>
+              </div>
             </div>
-            <div className="flex justify-end">
-              <button type="button" className="btn-ghost" onClick={() => setPreviewPhoto(null)}>
-                Tutup
-              </button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
     </div>
   );

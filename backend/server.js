@@ -32,10 +32,10 @@ const BANK_INFO = {
 const RESOURCES = {
   branches: { fields: ["name", "city", "address", "phone", "status"], search: ["t.name", "t.city"], select: "t.*", join: "", r: [...STAFF, "tutor"], c: HQ, u: HQ },
   classes: { fields: ["name", "class_type", "level", "schedule", "day_1", "day_2", "day_3", "time_start", "time_end", "tutor_id", "branch_id", "type", "meeting_url"], search: ["t.name", "t.class_type", "t.level", "b.name", "u.name", "t.day_1", "t.day_2", "t.day_3"], select: "t.*, COALESCE(t.class_type, t.name) AS class_type, b.name AS branch_name, u.name AS tutor_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN users u ON u.id=t.tutor_id", scoped: true, tutorOwned: true, r: ALL, c: STAFF, u: [...STAFF, "tutor"] },
-  students: { fields: ["name", "parent_name", "parent_phone", "class_id", "class_type", "level", "pricelist", "branch_id", "user_id", "parent_user_id", "joined_at", "left_at", "status", "course_completed", "completed_at", "certificate_delivery", "certificate_url", "certificate_code", "nickname", "gender", "birth_place", "birth_date", "school_origin", "school_grade", "religion", "siblings_count", "child_number", "housing_complex", "address", "student_wa", "parent_father_name", "parent_father_job", "parent_mother_name", "parent_mother_job", "parent_religion", "parent_education", "parent_wa", "marketing_source", "reason_choosing", "stop_reason"], search: ["t.name", "t.parent_name", "b.name", "c.name", "t.class_type", "t.level", "t.nickname", "t.housing_complex"], select: "t.*, b.name AS branch_name, COALESCE(c.class_type, c.name) AS class_name, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, su.name AS student_account_name, pu.name AS parent_account_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN users su ON su.id=t.user_id LEFT JOIN users pu ON pu.id=t.parent_user_id", scoped: true, tutorClassStudentScoped: true, r: [...STAFF, "tutor"], c: STAFF, u: STAFF },
+  students: { fields: ["name", "parent_name", "parent_phone", "class_id", "class_type", "level", "pricelist", "branch_id", "user_id", "parent_user_id", "joined_at", "left_at", "status", "course_completed", "completed_at", "certificate_delivery", "certificate_url", "certificate_code", "nickname", "gender", "birth_place", "birth_date", "school_origin", "school_grade", "religion", "siblings_count", "child_number", "housing_complex", "address", "student_wa", "parent_father_name", "parent_father_job", "parent_mother_name", "parent_mother_job", "parent_religion", "parent_education", "parent_wa", "marketing_source", "reason_choosing", "stop_reason", "tshirt_size", "registration_fee_status"], search: ["t.name", "t.parent_name", "b.name", "c.name", "t.class_type", "t.level", "t.nickname", "t.housing_complex"], select: "t.*, b.name AS branch_name, COALESCE(c.class_type, c.name) AS class_name, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, su.name AS student_account_name, pu.name AS parent_account_name", join: "LEFT JOIN branches b ON b.id=t.branch_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN users su ON su.id=t.user_id LEFT JOIN users pu ON pu.id=t.parent_user_id", scoped: true, tutorClassStudentScoped: true, r: [...STAFF, "tutor"], c: STAFF, u: STAFF },
   products: { fields: ["name", "category", "age_group", "price", "stock", "image", "description"], search: ["t.name", "t.category", "t.age_group"], select: "t.*", join: "", r: ALL, c: STAFF, u: STAFF },
   bills: { fields: ["student_id", "title", "month", "amount", "discount", "due_date", "status", "payment_method", "proof", "paid_at", "notes", "branch_id", "is_cash"], search: ["t.title", "t.month", "s.name", "b.name"], select: "t.*, s.name AS student_name, s.parent_phone, b.name AS branch_name", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, studentLinkScoped: true, r: ALL, c: STAFF, u: STAFF },
-  attendance: { fields: ["student_id", "class_id", "date", "status", "branch_id"], search: ["t.status", "s.name", "c.name", "b.name"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, COALESCE(c.level, s.level) AS level, b.name AS branch_name", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, studentLinkScoped: true, tutorClassScoped: true, r: ALL, c: [...STAFF, "tutor"], u: STAFF },
+  attendance: { fields: ["student_id", "class_id", "date", "status", "branch_id"], search: ["t.status", "s.name", "c.name", "b.name"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, COALESCE(c.level, s.level) AS level, b.name AS branch_name, (SELECT COUNT(*) FROM attendance a_h WHERE a_h.student_id=t.student_id AND a_h.status='hadir') AS total_hadir, (SELECT COUNT(*) FROM attendance a_th WHERE a_th.student_id=t.student_id AND a_th.status IN ('izin', 'sakit', 'alpha')) AS total_tidak_hadir, COALESCE(c.class_type, c.name, s.class_type) AS resolved_class_type", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, studentLinkScoped: true, tutorClassScoped: true, r: ALL, c: [...STAFF, "tutor"], u: STAFF },
   tutor_attendance: { fields: ["tutor_id", "class_id", "branch_id", "date", "check_in", "late_minutes", "status", "notes"], search: ["u.name", "c.name", "b.name", "t.status", "t.notes"], select: "t.*, u.name AS tutor_name, COALESCE(c.class_type, c.name) AS class_name, b.name AS branch_name", join: "LEFT JOIN users u ON u.id=t.tutor_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, tutorScoped: true, r: [...STAFF, "tutor"], c: [...STAFF, "tutor"], u: STAFF },
   expenses: { fields: ["title", "category", "amount", "expense_date", "branch_id", "notes"], search: ["t.title", "t.category", "b.name", "t.notes"], select: "t.*, b.name AS branch_name", join: "LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, r: STAFF, c: STAFF, u: STAFF },
   learning_reports: { fields: ["student_id", "class_id", "tutor_id", "branch_id", "report_month", "report_date", "material", "homework", "formative_score", "summative_score", "speaking_score", "notes"], search: ["s.name", "c.name", "u.name", "t.material", "t.homework", "t.report_month"], select: "t.*, s.name AS student_name, COALESCE(c.class_type, c.name) AS class_name, COALESCE(c.level, s.level) AS class_level, c.schedule, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, u.name AS tutor_name, b.name AS branch_name, COALESCE((SELECT cap.photo_url FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND cap.session_date=t.report_date ORDER BY cap.id DESC LIMIT 1), (SELECT cap.photo_url FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND DATE_FORMAT(cap.session_date,'%Y-%m')=t.report_month ORDER BY cap.session_date DESC, cap.id DESC LIMIT 1)) AS activity_photo_url, COALESCE((SELECT cap.session_time FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND cap.session_date=t.report_date ORDER BY cap.id DESC LIMIT 1), (SELECT cap.session_time FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND DATE_FORMAT(cap.session_date,'%Y-%m')=t.report_month ORDER BY cap.session_date DESC, cap.id DESC LIMIT 1)) AS activity_session_time, COALESCE((SELECT cap.attendance_summary FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND cap.session_date=t.report_date ORDER BY cap.id DESC LIMIT 1), (SELECT cap.attendance_summary FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND DATE_FORMAT(cap.session_date,'%Y-%m')=t.report_month ORDER BY cap.session_date DESC, cap.id DESC LIMIT 1)) AS activity_attendance_summary, COALESCE((SELECT cap.notes FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND cap.session_date=t.report_date ORDER BY cap.id DESC LIMIT 1), (SELECT cap.notes FROM class_activity_photos cap WHERE cap.class_id=t.class_id AND DATE_FORMAT(cap.session_date,'%Y-%m')=t.report_month ORDER BY cap.session_date DESC, cap.id DESC LIMIT 1)) AS activity_notes", join: "LEFT JOIN students s ON s.id=t.student_id LEFT JOIN classes c ON c.id=t.class_id LEFT JOIN users u ON u.id=t.tutor_id LEFT JOIN branches b ON b.id=t.branch_id", scoped: true, tutorAutoId: true, tutorReportScoped: true, studentLinkScoped: true, r: ALL, c: [...STAFF, "tutor"], u: [...STAFF, "tutor"] },
@@ -228,6 +228,7 @@ app.post("/api/auth/register", wrap(async (req, res) => {
   const schoolOrigin = clean(req.body.school_origin);
   const schoolGrade = clean(req.body.school_grade);
   const religion = clean(req.body.religion);
+  const tshirtSize = clean(req.body.tshirt_size);
   const siblingsCount = req.body.siblings_count !== undefined && req.body.siblings_count !== "" ? Number(req.body.siblings_count) : null;
   const childNumber = req.body.child_number !== undefined && req.body.child_number !== "" ? Number(req.body.child_number) : null;
   const housingComplex = clean(req.body.housing_complex);
@@ -258,7 +259,7 @@ app.post("/api/auth/register", wrap(async (req, res) => {
   } else {
     const hash = await bcrypt.hash(password, 10);
     const [ur] = await pool.query(
-      "INSERT INTO users(name,email,password,role,branch_id,phone,status) VALUES(?,?,?,?,?,?, 'active')",
+      "INSERT INTO users(name,email,password,role,branch_id,phone,status) VALUES(?,?,?,?,?,?, 'pending_approval')",
       [name, email, hash, role, defaultBranchId, phone]
     );
     userId = ur.insertId;
@@ -270,11 +271,11 @@ app.post("/api/auth/register", wrap(async (req, res) => {
       if (!childName) continue;
       await pool.query(
         `INSERT INTO students(name,parent_name,parent_phone,class_type,level,branch_id,parent_user_id,joined_at,status,
-                              nickname,gender,birth_place,birth_date,school_origin,school_grade,religion,siblings_count,child_number,housing_complex,address,student_wa,
+                              nickname,gender,birth_place,birth_date,school_origin,school_grade,religion,tshirt_size,registration_fee_status,siblings_count,child_number,housing_complex,address,student_wa,
                               parent_father_name,parent_father_job,parent_mother_name,parent_mother_job,parent_religion,parent_education,parent_wa,
                               marketing_source,reason_choosing)
-         VALUES(?,?,?,?,?,?,?,?, 'active',
-                ?,?,?,?,?,?,?,?,?,?,?,?,
+         VALUES(?,?,?,?,?,?,?,?,'pending_approval',
+                ?,?,?,?,?,?,?,?, 'unpaid',?,?,?,?,?,
                 ?,?,?,?,?,?,?,
                 ?,?)`,
         [
@@ -293,6 +294,7 @@ app.post("/api/auth/register", wrap(async (req, res) => {
           clean(ch?.school_origin) || null,
           clean(ch?.school_grade) || null,
           religion,
+          clean(ch?.tshirt_size) || tshirtSize || null,
           siblingsCount,
           childNumber,
           housingComplex,
@@ -314,11 +316,11 @@ app.post("/api/auth/register", wrap(async (req, res) => {
     const studentName = clean(req.body.student_name) || name;
     await pool.query(
       `INSERT INTO students(name,parent_name,parent_phone,class_type,level,branch_id,user_id,parent_user_id,joined_at,status,
-                            nickname,gender,birth_place,birth_date,school_origin,school_grade,religion,siblings_count,child_number,housing_complex,address,student_wa,
+                            nickname,gender,birth_place,birth_date,school_origin,school_grade,religion,tshirt_size,registration_fee_status,siblings_count,child_number,housing_complex,address,student_wa,
                             parent_father_name,parent_father_job,parent_mother_name,parent_mother_job,parent_religion,parent_education,parent_wa,
                             marketing_source,reason_choosing)
-       VALUES(?,?,?,?,?,?,?,?,?, 'active',
-              ?,?,?,?,?,?,?,?,?,?,?,?,
+       VALUES(?,?,?,?,?,?,?,?,?,'pending_approval',
+              ?,?,?,?,?,?,?,?, 'unpaid',?,?,?,?,?,
               ?,?,?,?,?,?,?,
               ?,?)`,
         [
@@ -338,6 +340,7 @@ app.post("/api/auth/register", wrap(async (req, res) => {
           schoolOrigin,
           schoolGrade,
           religion,
+          tshirtSize || null,
           siblingsCount,
           childNumber,
           housingComplex,
@@ -358,13 +361,20 @@ app.post("/api/auth/register", wrap(async (req, res) => {
 
   const [[u]] = await pool.query("SELECT u.*, b.name AS branch_name FROM users u LEFT JOIN branches b ON b.id=u.branch_id WHERE u.id=?", [userId]);
   const user = { id: u.id, name: u.name, email: u.email, role: u.role, branch_id: u.branch_id, branch_name: u.branch_name || null };
-  res.status(201).json({ success: true, data: { token: jwt.sign(user, process.env.JWT_SECRET || "adls", { expiresIn: "12h" }), user } });
+  res.status(201).json({
+    success: true,
+    data: { token: jwt.sign(user, process.env.JWT_SECRET || "adls", { expiresIn: "12h" }), user, pending_approval: true },
+    message: "Pendaftaran berhasil! Akun Anda sedang menunggu konfirmasi pembayaran formulir pendaftaran & ACC dari Admin Cabang.",
+  });
 }));
 
 app.post("/api/auth/login", wrap(async (req, res) => {
   const [[u]] = await pool.query("SELECT u.*, b.name AS branch_name FROM users u LEFT JOIN branches b ON b.id=u.branch_id WHERE u.email=?", [String(req.body.email || "").trim()]);
   if (!u || !(await bcrypt.compare(String(req.body.password || ""), u.password))) return fail(res, 401, "Email atau password salah");
   if (u.status === "inactive") return fail(res, 403, "Akun Anda sedang dinonaktifkan");
+  if (u.status === "pending_approval") {
+    return fail(res, 403, "Pendaftaran akun Anda sedang menunggu verifikasi pembayaran formulir pendaftaran & ACC oleh Admin Cabang. Silakan hubungi admin cabang.");
+  }
 
   // Pastikan akun siswa / ortu selalu otomatis terdaftar di tabel students
   if (["siswa", "ortu"].includes(u.role)) {
@@ -1747,7 +1757,7 @@ app.post("/api/class-activity-photos", auth, can([...STAFF, "tutor"]), wrap(asyn
   const classId = Number(req.body.class_id);
   const photoUrl = clean(req.body.photo_url);
   if (!classId) return fail(res, 400, "Kelas wajib dipilih");
-  if (!photoUrl) return fail(res, 400, "Foto dokumentasi wajib diunggah");
+  if (!photoUrl) return fail(res, 400, "Dokumentasi kegiatan (foto/video) wajib diunggah");
 
   const [[cls]] = await pool.query("SELECT * FROM classes WHERE id=?", [classId]);
   if (!cls) return fail(res, 404, "Kelas tidak ditemukan");
@@ -1760,15 +1770,19 @@ app.post("/api/class-activity-photos", auth, can([...STAFF, "tutor"]), wrap(asyn
   const notes = clean(req.body.notes);
   const branchId = cls.branch_id || req.user.branch_id || null;
   const tutorId = req.user.id;
+  const isVid = /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(photoUrl || "");
+  const mediaType = isVid ? "video" : "photo";
 
   const [r] = await pool.query(
-    "INSERT INTO class_activity_photos(class_id,branch_id,tutor_id,session_date,session_time,photo_url,attendance_summary,material,homework,notes) VALUES(?,?,?,?,?,?,?,?,?,?)",
-    [classId, branchId, tutorId, sessionDate, sessionTime, photoUrl, attendanceSummary, material, homework, notes]
+    "INSERT INTO class_activity_photos(class_id,branch_id,tutor_id,session_date,session_time,photo_url,attendance_summary,material,homework,notes,media_type) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+    [classId, branchId, tutorId, sessionDate, sessionTime, photoUrl, attendanceSummary, material, homework, notes, mediaType]
   );
   res.status(201).json({
     success: true,
-    data: { id: r.insertId },
-    message: "Foto dokumentasi kegiatan kelas berhasil disimpan & terhubung ke portal orang tua!"
+    data: { id: r.insertId, media_type: mediaType },
+    message: isVid
+      ? "Video dokumentasi kegiatan kelas berhasil disimpan & terhubung ke portal orang tua!"
+      : "Foto dokumentasi kegiatan kelas berhasil disimpan & terhubung ke portal orang tua!"
   });
 }));
 
@@ -2311,6 +2325,8 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
   const [[tutorRow]] = await pool.query(`SELECT COUNT(*) total FROM users u WHERE u.role='tutor' AND COALESCE(u.status,'active')='active' ${tutorFilter}`, tutorFilterArgs);
   const [[branchRow]] = await pool.query(`SELECT COUNT(*) total FROM branches WHERE status='active'${branchId ? " AND id=?" : ""}`, bArgs);
   const [[prodRow]] = await pool.query("SELECT COUNT(*) total FROM products");
+  const [[pendingRegRow]] = await pool.query(`SELECT COUNT(*) cnt FROM students WHERE (status='pending_approval' OR registration_fee_status='unpaid')${bWhere}`, bArgs);
+  const pendingRegistrations = Number(pendingRegRow?.cnt || 0);
 
   let openComplaints = 0;
   if (req.user.role === "admin_pusat") {
@@ -2553,6 +2569,7 @@ app.get("/api/stats", auth, can(STAFF), wrap(async (req, res) => {
     offlineClasses: Number(clsRow.offline || 0),
     unpaidBills: Number(billRow.unpaidCount || 0),
     verifikasiBills: Number(billRow.verifikasiCount || 0),
+    pendingRegistrations,
     unpaidAmount: Number(billRow.unpaidAmount || 0),
     paidBills: Number(billRow.paidCount || 0),
     paidAmount: Number(billRow.paidAmount || 0),
@@ -2924,6 +2941,69 @@ app.get("/api/students-database", auth, can(STAFF), wrap(async (req, res) => {
   res.json({ success: true, data: formatted });
 }));
 
+// Owner-only endpoint to update student pricelist starting from effective month (Revisi Owner Hal 1)
+app.put("/api/students/:id/pricelist", auth, can(["owner"]), wrap(async (req, res) => {
+  const studentId = Number(req.params.id);
+  const pricelist = Number(req.body.pricelist);
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const effectiveMonth = clean(req.body.effective_month) || currentMonth;
+
+  if (isNaN(pricelist) || pricelist < 0) {
+    return fail(res, 400, "Nominal pricelist harus berupa angka valid");
+  }
+
+  const [[stu]] = await pool.query("SELECT * FROM students WHERE id=?", [studentId]);
+  if (!stu) return fail(res, 404, "Data siswa tidak ditemukan");
+
+  // 1. Update students table pricelist
+  await pool.query("UPDATE students SET pricelist=? WHERE id=?", [pricelist, studentId]);
+
+  // 2. Record history in student_pricelist_history
+  await pool.query(
+    `INSERT INTO student_pricelist_history(student_id, price, effective_month, updated_by)
+     VALUES(?,?,?,?)
+     ON DUPLICATE KEY UPDATE price=VALUES(price), updated_by=VALUES(updated_by)`,
+    [studentId, pricelist, effectiveMonth, req.user.id]
+  );
+
+  // 3. Update all unpaid bills for this student for months >= effectiveMonth
+  // (Past months before effectiveMonth remain untouched!)
+  await pool.query(
+    "UPDATE bills SET amount=? WHERE student_id=? AND month >= ? AND status <> 'paid'",
+    [pricelist, studentId, effectiveMonth]
+  );
+
+  res.json({
+    success: true,
+    message: `Pricelist untuk ${stu.name} berhasil diubah menjadi Rp ${pricelist.toLocaleString("id-ID")} mulai bulan ${effectiveMonth} ke atas, tersinkron ke semua akun.`,
+    data: { id: studentId, pricelist, effective_month: effectiveMonth },
+  });
+}));
+
+// Admin approval for public registration & payment confirmation (Revisi Admin Cabang Hal 4)
+app.post("/api/students/:id/approve-registration", auth, can(STAFF), wrap(async (req, res) => {
+  const studentId = Number(req.params.id);
+  const [[stu]] = await pool.query("SELECT * FROM students WHERE id=?", [studentId]);
+  if (!stu) return fail(res, 404, "Data siswa tidak ditemukan");
+
+  await pool.query(
+    "UPDATE students SET status='active', registration_fee_status='paid' WHERE id=?",
+    [studentId]
+  );
+  if (stu.user_id) {
+    await pool.query("UPDATE users SET status='active' WHERE id=?", [stu.user_id]);
+  }
+  if (stu.parent_user_id) {
+    await pool.query("UPDATE users SET status='active' WHERE id=?", [stu.parent_user_id]);
+  }
+
+  res.json({
+    success: true,
+    message: `Pendaftaran siswa ${stu.name} berhasil di-ACC dan pembayaran formulir pendaftaran telah terverifikasi!`,
+  });
+}));
+
 // Active Tutors List: lintas cabang untuk mendukung 1 akun tutor mengajar multi cabang
 app.get("/api/tutors", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
   const search = String(req.query.search || "").trim(), limit = Math.min(Math.max(+req.query.limit || 25, 1), 100);
@@ -2949,17 +3029,17 @@ app.get("/api/tutors", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => 
   res.json({ success: true, data: rows });
 }));
 
-// Upload aman: gambar, pdf, audio (mp3/wav/ogg/m4a), video (mp4/webm/mov), maks 25MB
+// Upload aman: gambar, pdf, audio (mp3/wav/ogg/m4a), video (mp4/webm/mov), maks 100MB
 const upload = multer({
   storage: multer.diskStorage({ destination: UPLOAD_DIR, filename: (_, f, cb) => cb(null, Date.now() + "-" + Math.round(Math.random() * 1e6) + path.extname(f.originalname).toLowerCase()) }),
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (_, f, cb) => {
-    const okMime = /^(image\/(png|jpe?g|webp)|application\/pdf|audio\/(mpeg|mp3|wav|x-wav|ogg|mp4|x-m4a|aac|webm)|video\/(mp4|webm|quicktime))$/i.test(f.mimetype);
+    const okMime = /^(image\/(png|jpe?g|webp)|application\/pdf|audio\/(mpeg|mp3|wav|x-wav|ogg|mp4|x-m4a|aac|webm)|video\/(mp4|webm|quicktime|ogg))$/i.test(f.mimetype);
     const okExt = /^\.(png|jpe?g|webp|pdf|mp3|wav|ogg|m4a|aac|mp4|webm|mov)$/i.test(path.extname(f.originalname));
     cb(null, okMime || okExt);
   },
 });
-app.post("/api/upload", auth, upload.single("file"), (req, res) => req.file ? res.json({ success: true, data: { url: "/uploads/" + req.file.filename } }) : fail(res, 400, "File tidak valid (gambar/pdf/audio/video, maks 25MB)"));
+app.post("/api/upload", auth, upload.single("file"), (req, res) => req.file ? res.json({ success: true, data: { url: "/uploads/" + req.file.filename } }) : fail(res, 400, "File tidak valid (gambar/pdf/audio/video, maks 100MB)"));
 
 // Generic CRUD: pagination, search, limit, sorting, filter
 const RESOURCE_DATE_COLS = {
@@ -3375,6 +3455,19 @@ async function ensureSchema() {
   await ensureCol("students", "reason_choosing", "TEXT NULL");
   await ensureCol("students", "stop_reason", "VARCHAR(100) NULL");
   await ensureCol("students", "pricelist", "DECIMAL(12,2) NULL");
+  await ensureCol("students", "tshirt_size", "VARCHAR(20) NULL");
+  await ensureCol("students", "registration_fee_status", "VARCHAR(30) DEFAULT 'paid'");
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS student_pricelist_history (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      student_id INT NOT NULL,
+      price DECIMAL(12,2) NOT NULL,
+      effective_month VARCHAR(7) NOT NULL,
+      updated_by INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_student_month (student_id, effective_month)
+    )`
+  ).catch(() => {});
 
   await ensureCol("bills", "month", "VARCHAR(7) NULL");
   await ensureCol("bills", "discount", "DECIMAL(12,2) DEFAULT 0");
@@ -3391,6 +3484,7 @@ async function ensureSchema() {
   await ensureCol("announcements", "info_type", "VARCHAR(30) DEFAULT 'Pengumuman'");
   await ensureCol("announcements", "letter_no", "VARCHAR(80) NULL");
   await ensureCol("announcements", "event_date", "DATE NULL");
+  await ensureCol("class_activity_photos", "media_type", "VARCHAR(20) DEFAULT 'photo'");
 
   await ensureCol("product_orders", "is_direct_payment", "TINYINT(1) DEFAULT 1");
   await ensureCol("product_orders", "amount_paid", "DECIMAL(12,2) DEFAULT 0");

@@ -25,7 +25,15 @@ export function AuthProvider({ children }) {
 
   const register = async (form) => {
     const { data } = await request(() => api.post(API_ENDPOINTS.AUTH.REGISTER, form));
+    if (data?.pending_approval || data?.data?.pending_approval) {
+      toast.success(
+        data.message || "Pendaftaran berhasil! Akun Anda sedang menunggu verifikasi pembayaran & ACC oleh Admin Cabang.",
+        { duration: 7000 }
+      );
+      return data?.data || data;
+    }
     applySession(data);
+    return data?.data || data;
   };
 
   const logout = () => {

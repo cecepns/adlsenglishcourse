@@ -85,7 +85,21 @@ export default function ResourcePage({ resource: cfg }) {
   // Fitur Ambil Reschedule di halaman Izin (Siswa & Ortu) - PDF Hal 2
   const isLeavesPage = cfg.endpoint === API_ENDPOINTS.LEAVES;
   const isLearningReportsPage = cfg.endpoint === API_ENDPOINTS.LEARNING_REPORTS;
+  const isStudentsPage = cfg.endpoint === API_ENDPOINTS.STUDENTS;
+  const isAttendancePage = cfg.endpoint === API_ENDPOINTS.ATTENDANCE;
   const isStudentSide = ["siswa", "ortu"].includes(user?.role);
+
+  const handleApproveRegistration = async (student) => {
+    try {
+      await request(
+        () => api.post(`/students/${student.id}/approve-registration`),
+        { success: `Pendaftaran ${student.name} berhasil di-ACC & pembayaran telah diverifikasi!` }
+      );
+      refetch();
+    } catch {
+      /* handled */
+    }
+  };
   const [rescheduleQuota, setRescheduleQuota] = useState(null);
   const [portalStudents, setPortalStudents] = useState([]);
   const [rescheduleModal, setRescheduleModal] = useState(null); // { leaveRow? }
@@ -724,6 +738,31 @@ export default function ResourcePage({ resource: cfg }) {
                     <span>Isi Nilai Bulanan</span>
                   </Link>
                 )
+              : isStudentsPage && (isHQ || user?.role === "admin_cabang")
+              ? (row) =>
+                  (row.status === "pending_approval" || row.registration_fee_status === "unpaid") ? (
+                    <button
+                      type="button"
+                      onClick={() => handleApproveRegistration(row)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+                      title="ACC Pendaftaran Siswa & Verifikasi Pembayaran Formulir"
+                    >
+                      <Check size={13} />
+                      <span>ACC Pendaftaran</span>
+                    </button>
+                  ) : null
+              : undefined
+          }
+          rowClassName={
+            isAttendancePage
+              ? (r) => {
+                  const isKaryawan = /karyawan/i.test(r.level || "") || /karyawan/i.test(r.class_name || "") || /karyawan/i.test(r.resolved_class_type || "");
+                  const total = Number(r.total_hadir || 0) + Number(r.total_tidak_hadir || 0);
+                  if (isKaryawan && total >= 10) {
+                    return "!bg-red-50 !border-l-4 !border-l-red-600";
+                  }
+                  return "";
+                }
               : undefined
           }
           onEdit={(row) => setModal({ row })}
