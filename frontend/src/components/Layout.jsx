@@ -26,6 +26,7 @@ import {
   Sparkles,
   TableProperties,
   Trophy,
+  UserCheck,
   UserCog,
   Video,
   Wallet,
@@ -49,6 +50,7 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: [...STAFF, "siswa", "ortu"], end: true },
   { to: "/", label: "Portal Tutor", icon: LayoutDashboard, roles: ["tutor"], end: true },
   { to: "/tutor_attendance", label: "Riwayat Absensi Tutor", icon: Clock, roles: [...STAFF, "tutor"] },
+  { to: "/employee-attendance", label: "Absensi Karyawan", icon: UserCheck, roles: [...STAFF, "tutor"] },
   { to: "/attendance", label: "Absensi Siswa", icon: CalendarCheck, roles: ["admin_pusat", "admin_cabang", "tutor", "siswa", "ortu"] },
   {
     to: "/monthly-evaluations",
