@@ -13,6 +13,7 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  Clapperboard,
   CreditCard,
   Download,
   ExternalLink,
@@ -63,6 +64,7 @@ export default function PortalDashboard() {
   const [branches, setBranches] = useState([]);
   const [availableClasses, setAvailableClasses] = useState([]);
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [activeAfterId, setActiveAfterId] = useState(null);
 
   // Modal Tambah Anak (1 Akun Ortu Multi-Anak)
   const [childModal, setChildModal] = useState(false);
@@ -696,6 +698,155 @@ export default function PortalDashboard() {
         )}
         </div>
       </div>
+
+      {/* SEKSI BEFORE - AFTER SPEAKING (PROGRES BULANAN VS AWAL MASUK) */}
+      {(() => {
+        const speakingProgress = data?.speakingProgress || [];
+        const beforeVideo = speakingProgress.find((v) => v.type === "before") || null;
+        const afterVideos = speakingProgress.filter((v) => v.type === "after");
+        const currentAfterVideo =
+          (activeAfterId ? afterVideos.find((v) => v.id === activeAfterId) : null) ||
+          afterVideos[afterVideos.length - 1] ||
+          null;
+
+        return (
+          <div className="card p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700">
+                    <Video size={18} />
+                  </span>
+                  <h3 className="text-base font-extrabold text-slate-900 sm:text-lg">
+                    Perkembangan Speaking: Before &amp; After
+                  </h3>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Bandingkan video kemampuan berbicara bahasa Inggris {isParent ? "ananda" : "Anda"} saat awal masuk (Before) dengan progres bulanan terkini (After).
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/placement-test"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-brand/30 bg-brand-50/60 px-3 py-1.5 text-xs font-bold text-brand hover:bg-brand hover:text-white transition"
+                >
+                  <Sparkles size={14} /> Ikuti Placement Test
+                </Link>
+              </div>
+            </div>
+
+            {speakingProgress.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center text-xs text-slate-400">
+                <Clapperboard size={32} className="mx-auto mb-2 text-slate-300" />
+                <div className="font-bold text-slate-600">Belum ada rekaman perkembangan speaking</div>
+                <p className="mt-1 max-w-sm mx-auto text-slate-400">
+                  Video Before akan otomatis terisi saat mengikuti Placement Test atau direkam oleh admin. Video After diunggah berkala tiap bulan oleh tutor kelas.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-5 lg:grid-cols-2">
+                {/* KARTU BEFORE */}
+                <div className="rounded-2xl border border-purple-200 bg-purple-50/20 p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-black text-purple-800">
+                      <Video size={13} /> BEFORE (Awal Masuk)
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {beforeVideo?.created_at ? String(beforeVideo.created_at).slice(0, 10) : ""}
+                    </span>
+                  </div>
+
+                  {beforeVideo ? (
+                    <>
+                      <div className="overflow-hidden rounded-xl border border-purple-200 bg-black shadow-sm">
+                        <video
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="max-h-64 w-full object-contain"
+                          src={resolveAssetUrl(beforeVideo.video_url)}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">{beforeVideo.title}</div>
+                        {beforeVideo.notes && (
+                          <p className="mt-1 text-xs text-slate-600 italic bg-white/70 p-2.5 rounded-xl border border-purple-100">
+                            "{beforeVideo.notes}"
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-purple-200 bg-white/80 p-8 text-center text-xs text-slate-400">
+                      Video speaking awal masuk belum diunggah.
+                    </div>
+                  )}
+                </div>
+
+                {/* KARTU AFTER (PROGRES TERBARU / BULANAN) */}
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/20 p-4 space-y-3 shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
+                      <Sparkles size={13} /> AFTER (Progres Bulanan)
+                    </span>
+
+                    {afterVideos.length > 1 && (
+                      <select
+                        className="input !py-1 text-xs !w-auto font-bold"
+                        value={currentAfterVideo?.id || ""}
+                        onChange={(e) => setActiveAfterId(Number(e.target.value))}
+                      >
+                        {afterVideos.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.period_label || `Bulan ${v.month}`}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {currentAfterVideo ? (
+                    <>
+                      <div className="overflow-hidden rounded-xl border border-emerald-200 bg-black shadow-sm">
+                        <video
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="max-h-64 w-full object-contain"
+                          src={resolveAssetUrl(currentAfterVideo.video_url)}
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-bold text-slate-900">{currentAfterVideo.title}</div>
+                          {currentAfterVideo.speaking_score !== null && (
+                            <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-800">
+                              Nilai: {currentAfterVideo.speaking_score}
+                            </span>
+                          )}
+                        </div>
+                        {currentAfterVideo.notes && (
+                          <p className="mt-1 text-xs text-slate-600 italic bg-white/70 p-2.5 rounded-xl border border-emerald-100">
+                            "{currentAfterVideo.notes}"
+                          </p>
+                        )}
+                        <div className="mt-1.5 text-[11px] text-slate-400">
+                          Diunggah oleh Tutor: <b className="text-slate-600">{currentAfterVideo.uploader_name || "Tutor ADLS"}</b>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-emerald-200 bg-white/80 p-8 text-center text-xs text-slate-400">
+                      Belum ada video progres bulanan dari tutor.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="grid gap-5 lg:grid-cols-2">
         {isParent ? (

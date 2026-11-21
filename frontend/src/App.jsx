@@ -13,8 +13,11 @@ import Login from "@/pages/Login";
 import Meetings from "@/pages/Meetings";
 import MonthlyEvaluations from "@/pages/MonthlyEvaluations";
 import Payroll from "@/pages/Payroll";
+import PlacementTestAdmin from "@/pages/PlacementTestAdmin";
+import PlacementTestTake from "@/pages/PlacementTestTake";
 import PortalDashboard from "@/pages/PortalDashboard";
 import Referrals from "@/pages/Referrals";
+import SpeakingProgressPage from "@/pages/SpeakingProgressPage";
 import StudentsDatabase from "@/pages/StudentsDatabase";
 import TutorDashboard from "@/pages/TutorDashboard";
 import VideoProjects from "@/pages/VideoProjects";
@@ -45,9 +48,12 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/placement-test" element={<PlacementTestTake />} />
       <Route element={<Protected><Layout /></Protected>}>
         <Route index element={home} />
         <Route path="portal" element={<PortalDashboard />} />
+        <Route path="placement-test-admin" element={[...STAFF, "tutor"].includes(user?.role) ? <PlacementTestAdmin /> : <Navigate to="/" replace />} />
+        <Route path="speaking-progress" element={[...STAFF, "tutor"].includes(user?.role) ? <SpeakingProgressPage /> : <Navigate to="/" replace />} />
         <Route path="tutor-portal" element={user?.role === "tutor" ? <TutorDashboard /> : <Navigate to="/" replace />} />
         <Route path="meetings" element={user?.role === "ortu" ? <Navigate to="/" replace /> : <Meetings />} />
         <Route path="audio" element={<AudioListening />} />

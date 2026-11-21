@@ -68,4 +68,19 @@ export const API_ENDPOINTS = {
   LEAVES: crud("/leaves"),
   COMPLAINTS: crud("/complaints"),
   ANNOUNCEMENTS: crud("/announcements"),
+  PLACEMENT_TEST: {
+    PUBLIC_QUESTIONS: "/placement-test/public-questions",
+    QUESTIONS: "/placement-test/questions",
+    QUESTION_DETAIL: (id) => `/placement-test/questions/${id}`,
+    SUBMIT: "/placement-test/submit",
+    SUBMISSIONS: "/placement-test/submissions",
+    SUBMISSION_DETAIL: (id) => `/placement-test/submissions/${id}`,
+    GRADE: (id) => `/placement-test/submissions/${id}/grade`,
+    ENROLL: (id) => `/placement-test/submissions/${id}/enroll`,
+  },
+  SPEAKING_PROGRESS: {
+    LIST: "/speaking-progress",
+    STUDENT: (id) => `/speaking-progress/student/${id}`,
+    DETAIL: (id) => `/speaking-progress/${id}`,
+  },
 };

@@ -773,6 +773,19 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
     activityPhotos = photos;
   }
 
+  let speakingProgress = [];
+  if (selectedStudentId) {
+    const [spRows] = await pool.query(
+      `SELECT sp.*, u.name AS uploader_name
+       FROM student_speaking_progress sp
+       LEFT JOIN users u ON u.id = sp.uploaded_by
+       WHERE sp.student_id = ?
+       ORDER BY CASE WHEN sp.type = 'before' THEN 0 ELSE 1 END, sp.created_at ASC`,
+      [selectedStudentId]
+    ).catch(() => [[]]);
+    speakingProgress = spRows || [];
+  }
+
   const [announcements] = await pool.query("SELECT t.*, b.name AS branch_name FROM announcements t LEFT JOIN branches b ON b.id=t.branch_id ORDER BY t.id DESC LIMIT 4");
   res.json({
     success: true,
@@ -787,6 +800,7 @@ app.get("/api/portal-summary", auth, wrap(async (req, res) => {
       activityPhotos,
       announcements,
       bankInfo: await getBankInfoHelper(),
+      speakingProgress,
     },
   });
 }));
@@ -1414,6 +1428,389 @@ app.get("/api/portal/reschedules", auth, can(["siswa", "ortu"]), wrap(async (req
     [req.user.id]
   );
   res.json({ success: true, data: rows });
+}));
+
+// ============================================================================
+// PLACEMENT TEST (CBT & SPEAKING) APIS
+// ============================================================================
+
+// Public / Candidate endpoint to get active questions for taking test (Hides correct_option)
+app.get("/api/placement-test/public-questions", wrap(async (_, res) => {
+  const [rows] = await pool.query(
+    "SELECT id, question_number, question_type, question_text, image_url, audio_url, option_a, option_b, option_c, option_d, level FROM placement_test_questions WHERE is_active=1 ORDER BY question_number ASC, id ASC"
+  );
+  res.json({ success: true, data: rows });
+}));
+
+// Staff / Tutor endpoint to manage question bank (Includes correct_option)
+app.get("/api/placement-test/questions", auth, can([...STAFF, "tutor"]), wrap(async (_, res) => {
+  const [rows] = await pool.query(
+    "SELECT * FROM placement_test_questions ORDER BY question_number ASC, id ASC"
+  );
+  res.json({ success: true, data: rows });
+}));
+
+app.post("/api/placement-test/questions", auth, can(STAFF), wrap(async (req, res) => {
+  const questionNumber = Number(req.body.question_number) || 1;
+  const questionType = clean(req.body.question_type) || "multiple_choice";
+  const questionText = clean(req.body.question_text);
+  const imageUrl = clean(req.body.image_url) || null;
+  const audioUrl = clean(req.body.audio_url) || null;
+  const optionA = clean(req.body.option_a) || null;
+  const optionB = clean(req.body.option_b) || null;
+  const optionC = clean(req.body.option_c) || null;
+  const optionD = clean(req.body.option_d) || null;
+  const correctOption = clean(req.body.correct_option)?.toUpperCase() || null;
+  const level = clean(req.body.level) || "General";
+  const isActive = req.body.is_active !== undefined ? (req.body.is_active ? 1 : 0) : 1;
+
+  if (!questionText) return fail(res, 400, "Pertanyaan / instruksi soal wajib diisi");
+
+  const [result] = await pool.query(
+    "INSERT INTO placement_test_questions (question_number, question_type, question_text, image_url, audio_url, option_a, option_b, option_c, option_d, correct_option, level, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [questionNumber, questionType, questionText, imageUrl, audioUrl, optionA, optionB, optionC, optionD, correctOption, level, isActive]
+  );
+  res.status(201).json({ success: true, message: "Soal berhasil ditambahkan ke bank soal", id: result.insertId });
+}));
+
+app.put("/api/placement-test/questions/:id", auth, can(STAFF), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const questionNumber = Number(req.body.question_number) || 1;
+  const questionType = clean(req.body.question_type) || "multiple_choice";
+  const questionText = clean(req.body.question_text);
+  const imageUrl = clean(req.body.image_url) || null;
+  const audioUrl = clean(req.body.audio_url) || null;
+  const optionA = clean(req.body.option_a) || null;
+  const optionB = clean(req.body.option_b) || null;
+  const optionC = clean(req.body.option_c) || null;
+  const optionD = clean(req.body.option_d) || null;
+  const correctOption = clean(req.body.correct_option)?.toUpperCase() || null;
+  const level = clean(req.body.level) || "General";
+  const isActive = req.body.is_active !== undefined ? (req.body.is_active ? 1 : 0) : 1;
+
+  if (!questionText) return fail(res, 400, "Pertanyaan / instruksi soal wajib diisi");
+
+  await pool.query(
+    "UPDATE placement_test_questions SET question_number=?, question_type=?, question_text=?, image_url=?, audio_url=?, option_a=?, option_b=?, option_c=?, option_d=?, correct_option=?, level=?, is_active=? WHERE id=?",
+    [questionNumber, questionType, questionText, imageUrl, audioUrl, optionA, optionB, optionC, optionD, correctOption, level, isActive, id]
+  );
+  res.json({ success: true, message: "Soal berhasil diperbarui" });
+}));
+
+app.delete("/api/placement-test/questions/:id", auth, can(STAFF), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  await pool.query("DELETE FROM placement_test_questions WHERE id=?", [id]);
+  res.json({ success: true, message: "Soal berhasil dihapus" });
+}));
+
+// Submit Placement Test (Public or Logged-in Candidate / Student)
+app.post("/api/placement-test/submit", wrap(async (req, res) => {
+  const candidateName = clean(req.body.candidate_name);
+  const candidatePhone = clean(req.body.candidate_phone);
+  const candidateEmail = clean(req.body.candidate_email) || null;
+  const branchId = req.body.branch_id ? Number(req.body.branch_id) : null;
+  const schoolOrigin = clean(req.body.school_origin) || null;
+  const schoolGrade = clean(req.body.school_grade) || null;
+  const ageOrLevel = clean(req.body.age_or_level) || null;
+  const studentId = req.body.student_id ? Number(req.body.student_id) : (req.user?.role === "siswa" ? req.user.student_id : null);
+  const userId = req.user ? req.user.id : null;
+  const speakingVideoUrl = clean(req.body.speaking_video_url) || null;
+  const answers = Array.isArray(req.body.answers) ? req.body.answers : [];
+
+  if (!candidateName) return fail(res, 400, "Nama lengkap calon murid wajib diisi");
+  if (!candidatePhone) return fail(res, 400, "Nomor WhatsApp / HP calon murid wajib diisi");
+
+  // Fetch all active multiple choice questions with correct options to compute score
+  const [questions] = await pool.query(
+    "SELECT id, question_number, correct_option FROM placement_test_questions WHERE question_type='multiple_choice' AND is_active=1"
+  );
+
+  let totalCorrect = 0;
+  const totalPg = questions.length || 20;
+
+  for (const q of questions) {
+    const studentAnswer = answers.find(
+      (a) => Number(a.question_id) === Number(q.id) || Number(a.question_number) === Number(q.question_number)
+    );
+    if (studentAnswer && String(studentAnswer.selected_option || "").trim().toUpperCase() === String(q.correct_option || "").trim().toUpperCase()) {
+      totalCorrect++;
+    }
+  }
+
+  const pgScore = totalPg > 0 ? Number(((totalCorrect / totalPg) * 100).toFixed(2)) : 0;
+
+  let recommendedLevel = "Preschool (Pre A1)";
+  if (pgScore >= 80) recommendedLevel = "Advance (B1 - B2)";
+  else if (pgScore >= 60) recommendedLevel = "Intermediate (A2)";
+  else if (pgScore >= 35) recommendedLevel = "Basic (A1)";
+
+  const [insertRes] = await pool.query(
+    `INSERT INTO placement_test_submissions (
+      candidate_name, candidate_phone, candidate_email, branch_id, school_origin, school_grade, age_or_level,
+      student_id, user_id, answers_json, pg_score, total_correct, total_pg, speaking_video_url, recommended_level, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted')`,
+    [
+      candidateName,
+      candidatePhone,
+      candidateEmail,
+      branchId,
+      schoolOrigin,
+      schoolGrade,
+      ageOrLevel,
+      studentId,
+      userId,
+      JSON.stringify(answers),
+      pgScore,
+      totalCorrect,
+      totalPg,
+      speakingVideoUrl,
+      recommendedLevel,
+    ]
+  );
+
+  // If speaking video is provided and student is already registered, automatically save as 'before' video
+  if (studentId && speakingVideoUrl) {
+    const [[existingBefore]] = await pool.query("SELECT id FROM student_speaking_progress WHERE student_id=? AND type='before'", [studentId]);
+    if (!existingBefore) {
+      await pool.query(
+        "INSERT INTO student_speaking_progress (student_id, type, period_label, title, video_url, notes, uploaded_by) VALUES (?, 'before', 'Before (Awal Masuk)', 'Speaking Video Placement Test', ?, 'Video speaking awal masuk dari Placement Test.', ?)",
+        [studentId, speakingVideoUrl, userId || 1]
+      ).catch(() => {});
+    }
+  }
+
+  res.status(201).json({
+    success: true,
+    message: "Placement test berhasil dikirim!",
+    data: {
+      submission_id: insertRes.insertId,
+      candidate_name: candidateName,
+      total_correct: totalCorrect,
+      total_pg: totalPg,
+      pg_score: pgScore,
+      recommended_level: recommendedLevel,
+      has_speaking_video: Boolean(speakingVideoUrl),
+    },
+  });
+}));
+
+// List Test Submissions (Staff & Tutor)
+app.get("/api/placement-test/submissions", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const branchId = req.user.role === "admin_cabang" ? req.user.branch_id : (req.query.branch_id ? Number(req.query.branch_id) : null);
+  const search = clean(req.query.search);
+  const status = clean(req.query.status);
+
+  const where = ["1=1"], args = [];
+  if (branchId) { where.push("(t.branch_id=? OR s.branch_id=?)"); args.push(branchId, branchId); }
+  if (status) { where.push("t.status=?"); args.push(status); }
+  if (search) {
+    where.push("(t.candidate_name LIKE ? OR t.candidate_phone LIKE ? OR t.school_origin LIKE ? OR b.name LIKE ?)");
+    const kw = `%${search}%`;
+    args.push(kw, kw, kw, kw);
+  }
+
+  const [rows] = await pool.query(
+    `SELECT t.*, b.name AS branch_name, s.name AS enrolled_student_name, u.name AS assessor_name
+     FROM placement_test_submissions t
+     LEFT JOIN branches b ON b.id = t.branch_id
+     LEFT JOIN students s ON s.id = t.student_id
+     LEFT JOIN users u ON u.id = t.assessor_id
+     WHERE ${where.join(" AND ")}
+     ORDER BY t.id DESC LIMIT 200`,
+    args
+  );
+  res.json({ success: true, data: rows });
+}));
+
+// Detail Submission (Staff & Tutor)
+app.get("/api/placement-test/submissions/:id", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const [[sub]] = await pool.query(
+    `SELECT t.*, b.name AS branch_name, s.name AS enrolled_student_name, u.name AS assessor_name
+     FROM placement_test_submissions t
+     LEFT JOIN branches b ON b.id = t.branch_id
+     LEFT JOIN students s ON s.id = t.student_id
+     LEFT JOIN users u ON u.id = t.assessor_id
+     WHERE t.id = ?`,
+    [id]
+  );
+  if (!sub) return fail(res, 404, "Data submission tidak ditemukan");
+
+  const [questions] = await pool.query("SELECT * FROM placement_test_questions ORDER BY question_number ASC, id ASC");
+  res.json({ success: true, data: { submission: sub, questions } });
+}));
+
+// Grade Speaking / Evaluation (Staff & Tutor)
+app.put("/api/placement-test/submissions/:id/grade", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const speakingScore = req.body.speaking_score !== undefined && req.body.speaking_score !== null ? Number(req.body.speaking_score) : null;
+  const assessorNotes = clean(req.body.assessor_notes) || null;
+  const recommendedLevel = clean(req.body.recommended_level) || null;
+  const status = clean(req.body.status) || "graded";
+
+  await pool.query(
+    `UPDATE placement_test_submissions
+     SET speaking_score=?, assessor_notes=?, recommended_level=COALESCE(?, recommended_level), assessor_id=?, status=?
+     WHERE id=?`,
+    [speakingScore, assessorNotes, recommendedLevel, req.user.id, status, id]
+  );
+  res.json({ success: true, message: "Penilaian placement test berhasil disimpan" });
+}));
+
+// Enroll / Link candidate to Student (Staff)
+app.post("/api/placement-test/submissions/:id/enroll", auth, can(STAFF), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const [[sub]] = await pool.query("SELECT * FROM placement_test_submissions WHERE id=?", [id]);
+  if (!sub) return fail(res, 404, "Submission tidak ditemukan");
+
+  let studentId = req.body.student_id ? Number(req.body.student_id) : null;
+
+  if (!studentId) {
+    const [insStu] = await pool.query(
+      `INSERT INTO students (name, parent_name, parent_phone, level, branch_id, joined_at, status, school_origin, school_grade, student_wa)
+       VALUES (?, ?, ?, ?, ?, CURDATE(), 'active', ?, ?, ?)`,
+      [
+        sub.candidate_name,
+        clean(req.body.parent_name) || sub.candidate_name,
+        sub.candidate_phone,
+        sub.recommended_level || "Basic (A1)",
+        sub.branch_id || req.user.branch_id || 1,
+        sub.school_origin,
+        sub.school_grade,
+        sub.candidate_phone,
+      ]
+    );
+    studentId = insStu.insertId;
+  }
+
+  await pool.query("UPDATE placement_test_submissions SET student_id=?, status='enrolled' WHERE id=?", [studentId, id]);
+
+  if (sub.speaking_video_url) {
+    const [[existingBefore]] = await pool.query("SELECT id FROM student_speaking_progress WHERE student_id=? AND type='before'", [studentId]);
+    if (!existingBefore) {
+      await pool.query(
+        `INSERT INTO student_speaking_progress (student_id, type, period_label, title, video_url, notes, speaking_score, uploaded_by)
+         VALUES (?, 'before', 'Before (Awal Masuk)', 'Speaking Video Placement Test', ?, ?, ?, ?)`,
+        [studentId, sub.speaking_video_url, sub.assessor_notes || "Video speaking awal masuk sebelum kursus.", sub.speaking_score, req.user.id]
+      );
+    }
+  }
+
+  res.json({ success: true, message: "Calon murid berhasil didaftarkan sebagai siswa resmi!", student_id: studentId });
+}));
+
+// ============================================================================
+// SPEAKING PROGRESS (BEFORE - AFTER BULANAN) APIS
+// ============================================================================
+
+// List all speaking progress records (Staff & Tutor)
+app.get("/api/speaking-progress", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const branchId = req.user.role === "admin_cabang" ? req.user.branch_id : (req.query.branch_id ? Number(req.query.branch_id) : null);
+  const studentId = req.query.student_id ? Number(req.query.student_id) : null;
+  const search = clean(req.query.search);
+
+  const where = ["1=1"], args = [];
+  if (branchId) { where.push("s.branch_id=?"); args.push(branchId); }
+  if (studentId) { where.push("sp.student_id=?"); args.push(studentId); }
+  if (search) {
+    where.push("(s.name LIKE ? OR sp.title LIKE ? OR sp.notes LIKE ?)");
+    const kw = `%${search}%`;
+    args.push(kw, kw, kw);
+  }
+
+  const [rows] = await pool.query(
+    `SELECT sp.*, s.name AS student_name, s.level AS student_level, b.name AS branch_name, u.name AS uploader_name
+     FROM student_speaking_progress sp
+     JOIN students s ON s.id = sp.student_id
+     LEFT JOIN branches b ON b.id = s.branch_id
+     LEFT JOIN users u ON u.id = sp.uploaded_by
+     WHERE ${where.join(" AND ")}
+     ORDER BY s.name ASC, CASE WHEN sp.type = 'before' THEN 0 ELSE 1 END, sp.created_at ASC`,
+    args
+  );
+  res.json({ success: true, data: rows });
+}));
+
+// Get speaking progress for a specific student (Accessible by student, parents, tutor, staff)
+app.get("/api/speaking-progress/student/:studentId", auth, wrap(async (req, res) => {
+  const studentId = Number(req.params.studentId);
+  const [[stu]] = await pool.query("SELECT id, name, branch_id, user_id, parent_user_id FROM students WHERE id=?", [studentId]);
+  if (!stu) return fail(res, 404, "Siswa tidak ditemukan");
+
+  if (req.user.role === "siswa" && stu.user_id !== req.user.id) return fail(res, 403, "Akses ditolak");
+  if (req.user.role === "ortu" && stu.parent_user_id !== req.user.id) return fail(res, 403, "Akses ditolak");
+  if (req.user.role === "admin_cabang" && stu.branch_id !== req.user.branch_id) return fail(res, 403, "Akses ditolak");
+
+  const [rows] = await pool.query(
+    `SELECT sp.*, u.name AS uploader_name
+     FROM student_speaking_progress sp
+     LEFT JOIN users u ON u.id = sp.uploaded_by
+     WHERE sp.student_id = ?
+     ORDER BY CASE WHEN sp.type = 'before' THEN 0 ELSE 1 END, sp.created_at ASC`,
+    [studentId]
+  );
+  res.json({ success: true, data: { student: stu, videos: rows } });
+}));
+
+// Upload speaking progress video (Staff & Tutor)
+app.post("/api/speaking-progress", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const studentId = Number(req.body.student_id);
+  const type = clean(req.body.type) || "after"; // 'before' | 'after'
+  const month = clean(req.body.month) || getServerNowParts().date.slice(0, 7);
+  const periodLabel = clean(req.body.period_label) || (type === "before" ? "Before (Awal Masuk)" : `Progres Bulan ${month}`);
+  const title = clean(req.body.title);
+  const videoUrl = clean(req.body.video_url);
+  const thumbnailUrl = clean(req.body.thumbnail_url) || null;
+  const notes = clean(req.body.notes) || null;
+  const speakingScore = req.body.speaking_score ? Number(req.body.speaking_score) : null;
+
+  if (!studentId) return fail(res, 400, "Siswa wajib dipilih");
+  if (!title) return fail(res, 400, "Judul video / topik speaking wajib diisi");
+  if (!videoUrl) return fail(res, 400, "File / URL video speaking wajib diunggah");
+
+  const [[stu]] = await pool.query("SELECT id, branch_id FROM students WHERE id=?", [studentId]);
+  if (!stu) return fail(res, 404, "Siswa tidak ditemukan");
+  if (req.user.role === "admin_cabang" && stu.branch_id !== req.user.branch_id) return fail(res, 403, "Akses ditolak untuk cabang lain");
+
+  const [result] = await pool.query(
+    `INSERT INTO student_speaking_progress (student_id, type, month, period_label, title, video_url, thumbnail_url, notes, speaking_score, uploaded_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [studentId, type, month, periodLabel, title, videoUrl, thumbnailUrl, notes, speakingScore, req.user.id]
+  );
+
+  res.status(201).json({
+    success: true,
+    message: `Video ${type === "before" ? "Before (Awal Masuk)" : "After (Progres Bulanan)"} berhasil disimpan!`,
+    id: result.insertId,
+  });
+}));
+
+app.put("/api/speaking-progress/:id", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const type = clean(req.body.type) || "after";
+  const month = clean(req.body.month);
+  const periodLabel = clean(req.body.period_label);
+  const title = clean(req.body.title);
+  const videoUrl = clean(req.body.video_url);
+  const thumbnailUrl = clean(req.body.thumbnail_url) || null;
+  const notes = clean(req.body.notes) || null;
+  const speakingScore = req.body.speaking_score ? Number(req.body.speaking_score) : null;
+
+  if (!title || !videoUrl) return fail(res, 400, "Judul dan file video wajib diisi");
+
+  await pool.query(
+    `UPDATE student_speaking_progress
+     SET type=?, month=?, period_label=?, title=?, video_url=?, thumbnail_url=?, notes=?, speaking_score=?
+     WHERE id=?`,
+    [type, month, periodLabel, title, videoUrl, thumbnailUrl, notes, speakingScore, id]
+  );
+  res.json({ success: true, message: "Video progres speaking berhasil diperbarui" });
+}));
+
+app.delete("/api/speaking-progress/:id", auth, can(STAFF), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  await pool.query("DELETE FROM student_speaking_progress WHERE id=?", [id]);
+  res.json({ success: true, message: "Video progres speaking berhasil dihapus" });
 }));
 
 // Tutor Portal Endpoints (#7 Isolasi Tutor, #8 Laporan Belajar Auto, #9 Absen Real-Time)

@@ -440,6 +440,65 @@ CREATE TABLE IF NOT EXISTS announcements(
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS placement_test_questions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  question_number INT NOT NULL DEFAULT 1,
+  question_type VARCHAR(20) NOT NULL DEFAULT 'multiple_choice',
+  question_text TEXT NOT NULL,
+  image_url VARCHAR(255) NULL,
+  audio_url VARCHAR(255) NULL,
+  option_a TEXT NULL,
+  option_b TEXT NULL,
+  option_c TEXT NULL,
+  option_d TEXT NULL,
+  correct_option VARCHAR(5) NULL,
+  level VARCHAR(60) NULL DEFAULT 'General',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS placement_test_submissions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  candidate_name VARCHAR(120) NOT NULL,
+  candidate_phone VARCHAR(30) NULL,
+  candidate_email VARCHAR(100) NULL,
+  branch_id INT NULL,
+  school_origin VARCHAR(120) NULL,
+  school_grade VARCHAR(40) NULL,
+  age_or_level VARCHAR(60) NULL,
+  student_id INT NULL,
+  user_id INT NULL,
+  answers_json LONGTEXT NULL,
+  pg_score DECIMAL(5,2) DEFAULT 0,
+  total_correct INT DEFAULT 0,
+  total_pg INT DEFAULT 20,
+  speaking_video_url VARCHAR(255) NULL,
+  speaking_score DECIMAL(5,2) NULL,
+  assessor_id INT NULL,
+  assessor_notes TEXT NULL,
+  recommended_level VARCHAR(60) NULL,
+  status VARCHAR(30) DEFAULT 'submitted',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS student_speaking_progress (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT NOT NULL,
+  type VARCHAR(20) NOT NULL DEFAULT 'after',
+  month VARCHAR(7) NULL,
+  period_label VARCHAR(100) NULL,
+  title VARCHAR(150) NOT NULL,
+  video_url VARCHAR(255) NOT NULL,
+  thumbnail_url VARCHAR(255) NULL,
+  notes TEXT NULL,
+  speaking_score INT NULL,
+  uploaded_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 -- Seed Data Dasar
 INSERT INTO branches(name, city, address, phone) VALUES
   ('ADLS Pusat', 'Jakarta', 'Alamat pusat', '08123456789'),
