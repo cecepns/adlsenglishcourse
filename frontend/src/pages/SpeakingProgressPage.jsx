@@ -21,6 +21,7 @@ import { api, resolveAssetUrl } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { useAuth } from "@/context/AuthContext";
 import useDebounce from "@/hooks/useDebounce";
+import AsyncResourceSelect from "@/components/AsyncResourceSelect";
 import ImageUploadField from "@/components/ImageUploadField";
 import Modal from "@/components/Modal";
 
@@ -33,11 +34,8 @@ export default function SpeakingProgressPage() {
 
   const [branches, setBranches] = useState([]);
   const [branchFilter, setBranchFilter] = useState(user?.role === "admin_cabang" ? String(user?.branch_id || "") : "");
-  const [students, setStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
-  const [search, setSearch] = useState("");
-  const debounced = useDebounce(search, 300);
-
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -46,6 +44,7 @@ export default function SpeakingProgressPage() {
   const [editingVideo, setEditingVideo] = useState(null);
   const [form, setForm] = useState({
     student_id: "",
+    student_name: "",
     type: "after", // "before" | "after"
     month: new Date().toISOString().slice(0, 7),
     period_label: "",
@@ -66,36 +65,46 @@ export default function SpeakingProgressPage() {
     }
   }, [isHQ]);
 
-  // Load students for dropdown / selection
+  // Load initial student on mount or when branchFilter changes
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchInitialStudent = async () => {
       try {
         const res = await api.get(API_ENDPOINTS.STUDENTS.LIST, {
           params: {
-            limit: 200,
+            limit: 1,
             branch_id: branchFilter || undefined,
             status: "active",
           },
         });
-        const list = res.data.data || [];
-        setStudents(list);
-        if (list.length > 0 && !selectedStudentId) {
-          setSelectedStudentId(String(list[0].id));
+        const first = res.data.data?.[0] || null;
+        if (first) {
+          setSelectedStudent(first);
+          setSelectedStudentId(String(first.id));
+        } else {
+          setSelectedStudent(null);
+          setSelectedStudentId("");
+          setVideos([]);
         }
-      } catch (err) {
-        toast.error("Gagal memuat daftar siswa");
+      } catch {
+        // silent
       }
     };
-    fetchStudents();
+    fetchInitialStudent();
   }, [branchFilter]);
 
-  // Load videos for selected student or all
-  const loadVideos = async () => {
-    if (!selectedStudentId) return;
+  // Load videos for selected student
+  const loadVideos = async (id = selectedStudentId) => {
+    if (!id) {
+      setVideos([]);
+      return;
+    }
     setLoading(true);
     try {
-      const res = await api.get(API_ENDPOINTS.SPEAKING_PROGRESS.STUDENT(selectedStudentId));
+      const res = await api.get(API_ENDPOINTS.SPEAKING_PROGRESS.STUDENT(id));
       setVideos(res.data.data?.videos || []);
+      if (res.data.data?.student && (!selectedStudent || String(selectedStudent.id) !== String(id))) {
+        setSelectedStudent(res.data.data.student);
+      }
     } catch (err) {
       toast.error("Gagal memuat video progres speaking");
     } finally {
@@ -110,10 +119,10 @@ export default function SpeakingProgressPage() {
 
   const openUploadModal = (type = "after") => {
     setEditingVideo(null);
-    const selectedStu = students.find((s) => String(s.id) === String(selectedStudentId));
     const nowMonth = new Date().toISOString().slice(0, 7);
     setForm({
-      student_id: selectedStudentId || (students[0]?.id ? String(students[0].id) : ""),
+      student_id: selectedStudentId || (selectedStudent?.id ? String(selectedStudent.id) : ""),
+      student_name: selectedStudent?.name || "",
       type,
       month: nowMonth,
       period_label: type === "before" ? "Before (Awal Masuk)" : `Progres Bulan ${nowMonth}`,
@@ -129,6 +138,7 @@ export default function SpeakingProgressPage() {
     setEditingVideo(vid);
     setForm({
       student_id: String(vid.student_id),
+      student_name: vid.student_name || selectedStudent?.name || "",
       type: vid.type || "after",
       month: vid.month || new Date().toISOString().slice(0, 7),
       period_label: vid.period_label || "",
@@ -165,7 +175,11 @@ export default function SpeakingProgressPage() {
         toast.success("Video progres speaking berhasil disimpan!");
       }
       setModalOpen(false);
-      loadVideos();
+      if (form.student_id !== selectedStudentId) {
+        setSelectedStudentId(form.student_id);
+      } else {
+        loadVideos(form.student_id);
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || "Gagal menyimpan video");
     } finally {
@@ -176,7 +190,7 @@ export default function SpeakingProgressPage() {
   const handleDeleteVideo = async (vid) => {
     if (!window.confirm(`Hapus video "${vid.title}"?`)) return;
     try {
-      await api.delete(API_ENDPOINTS.SPEAKING_PROGRESS.DETAIL(vid.id));
+      await api.delete(API_ENDfczxsPOINTS.SPEAKING_PROGRESS.DETAIL(vid.id));
       toast.success("Video berhasil dihapus");
       loadVideos();
     } catch (err) {
@@ -184,7 +198,6 @@ export default function SpeakingProgressPage() {
     }
   };
 
-  const selectedStudent = students.find((s) => String(s.id) === String(selectedStudentId));
   const beforeVideos = videos.filter((v) => v.type === "before");
   const afterVideos = videos.filter((v) => v.type === "after");
 
@@ -248,20 +261,29 @@ export default function SpeakingProgressPage() {
             </div>
           )}
 
-          <div className="flex-1 min-w-[240px]">
-            <label className="mb-1 block text-[11px] font-bold text-slate-500 uppercase">Pilih Siswa</label>
-            <select
-              className="input !py-2 text-xs w-full font-semibold text-slate-800"
-              value={selectedStudentId}
-              onChange={(e) => setSelectedStudentId(e.target.value)}
-            >
-              <option value="">-- Pilih Siswa ADLS --</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.branch_name || "Cabang"} · {s.level || "Regular"})
-                </option>
-              ))}
-            </select>
+          <div className="flex-1 min-w-[260px]">
+            <label className="mb-1 block text-[11px] font-bold text-slate-500 uppercase">
+              Cari &amp; Pilih Siswa (React Select API)
+            </label>
+            <AsyncResourceSelect
+              endpoint={API_ENDPOINTS.STUDENTS.LIST}
+              value={selectedStudent?.id ? Number(selectedStudent.id) : null}
+              initialLabel={selectedStudent?.name || ""}
+              extraParams={{
+                status: "active",
+                ...(branchFilter ? { branch_id: branchFilter } : {}),
+              }}
+              placeholder="Ketik untuk mencari nama siswa, level, atau kelas..."
+              formatOption={(s) => ({
+                value: s.id,
+                label: [s.name, s.class_name || s.class_type, s.level, s.branch_name].filter(Boolean).join(" · "),
+                raw: s,
+              })}
+              onChange={(opt) => {
+                setSelectedStudent(opt ? opt.raw : null);
+                setSelectedStudentId(opt ? String(opt.value) : "");
+              }}
+            />
           </div>
 
           <div className="self-end">
@@ -525,6 +547,32 @@ export default function SpeakingProgressPage() {
         onClose={() => setModalOpen(false)}
       >
         <form onSubmit={handleSaveVideo} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">Pilih Siswa *</label>
+            <AsyncResourceSelect
+              endpoint={API_ENDPOINTS.STUDENTS.LIST}
+              value={form.student_id ? Number(form.student_id) : null}
+              initialLabel={form.student_name || selectedStudent?.name || ""}
+              extraParams={{
+                status: "active",
+                ...(branchFilter ? { branch_id: branchFilter } : {}),
+              }}
+              placeholder="Ketik untuk mencari nama siswa..."
+              formatOption={(s) => ({
+                value: s.id,
+                label: [s.name, s.class_name || s.class_type, s.level, s.branch_name].filter(Boolean).join(" · "),
+                raw: s,
+              })}
+              onChange={(opt) => {
+                setForm((prev) => ({
+                  ...prev,
+                  student_id: opt ? String(opt.value) : "",
+                  student_name: opt ? opt.label : "",
+                }));
+              }}
+            />
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-700">Tipe Video *</label>
