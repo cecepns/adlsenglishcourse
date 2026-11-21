@@ -71,6 +71,28 @@ export default function PlacementTestAdmin() {
   const [savingGrade, setSavingGrade] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
 
+  // Edit & Delete Submission State
+  const [editSubModal, setEditSubModal] = useState(null);
+  const [editSubForm, setEditSubForm] = useState({
+    candidate_name: "",
+    candidate_phone: "",
+    candidate_email: "",
+    branch_id: "",
+    school_origin: "",
+    school_grade: "",
+    age_or_level: "",
+    pg_score: "0",
+    total_correct: "0",
+    total_pg: "20",
+    speaking_video_url: "",
+    speaking_score: "",
+    recommended_level: "Basic (A1)",
+    assessor_notes: "",
+    status: "submitted",
+  });
+  const [savingSubEdit, setSavingSubEdit] = useState(false);
+  const [deletingSubId, setDeletingSubId] = useState(null);
+
   // Questions State
   const [questions, setQuestions] = useState([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
@@ -215,6 +237,77 @@ export default function PlacementTestAdmin() {
       toast.error(err.response?.data?.message || "Gagal mendaftarkan siswa");
     } finally {
       setEnrolling(false);
+    }
+  };
+
+  // Open Edit Submission Modal
+  const openEditSub = (sub) => {
+    setEditSubModal(sub);
+    setEditSubForm({
+      candidate_name: sub.candidate_name || "",
+      candidate_phone: sub.candidate_phone || "",
+      candidate_email: sub.candidate_email || "",
+      branch_id: sub.branch_id ? String(sub.branch_id) : "",
+      school_origin: sub.school_origin || "",
+      school_grade: sub.school_grade || "",
+      age_or_level: sub.age_or_level || "",
+      pg_score: sub.pg_score !== null && sub.pg_score !== undefined ? String(sub.pg_score) : "0",
+      total_correct: sub.total_correct !== null && sub.total_correct !== undefined ? String(sub.total_correct) : "0",
+      total_pg: sub.total_pg !== null && sub.total_pg !== undefined ? String(sub.total_pg) : "20",
+      speaking_video_url: sub.speaking_video_url || "",
+      speaking_score: sub.speaking_score !== null && sub.speaking_score !== undefined ? String(sub.speaking_score) : "",
+      recommended_level: sub.recommended_level || "Basic (A1)",
+      assessor_notes: sub.assessor_notes || "",
+      status: sub.status || "submitted",
+    });
+  };
+
+  // Save Submission Edits
+  const handleSaveSubEdit = async (e) => {
+    e.preventDefault();
+    if (!editSubModal) return;
+    setSavingSubEdit(true);
+    try {
+      await api.put(API_ENDPOINTS.PLACEMENT_TEST.SUBMISSION_DETAIL(editSubModal.id), {
+        candidate_name: editSubForm.candidate_name,
+        candidate_phone: editSubForm.candidate_phone,
+        candidate_email: editSubForm.candidate_email || null,
+        branch_id: editSubForm.branch_id ? Number(editSubForm.branch_id) : null,
+        school_origin: editSubForm.school_origin || null,
+        school_grade: editSubForm.school_grade || null,
+        age_or_level: editSubForm.age_or_level || null,
+        pg_score: editSubForm.pg_score !== "" ? Number(editSubForm.pg_score) : 0,
+        total_correct: editSubForm.total_correct !== "" ? Number(editSubForm.total_correct) : 0,
+        total_pg: editSubForm.total_pg !== "" ? Number(editSubForm.total_pg) : 20,
+        speaking_video_url: editSubForm.speaking_video_url || null,
+        speaking_score: editSubForm.speaking_score !== "" ? Number(editSubForm.speaking_score) : null,
+        recommended_level: editSubForm.recommended_level,
+        assessor_notes: editSubForm.assessor_notes || null,
+        status: editSubForm.status,
+      });
+      toast.success("Perubahan data hasil placement test berhasil disimpan!");
+      setEditSubModal(null);
+      loadSubmissions();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal mengubah data hasil placement");
+    } finally {
+      setSavingSubEdit(false);
+    }
+  };
+
+  // Delete Placement Test Submission
+  const handleDeleteSub = async (sub) => {
+    if (!window.confirm(`Yakin ingin menghapus data hasil test calon murid "${sub.candidate_name}"?`)) return;
+    setDeletingSubId(sub.id);
+    try {
+      await api.delete(API_ENDPOINTS.PLACEMENT_TEST.SUBMISSION_DETAIL(sub.id));
+      toast.success("Data hasil placement test berhasil dihapus!");
+      if (detailModal?.id === sub.id) setDetailModal(null);
+      loadSubmissions();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal menghapus data hasil placement");
+    } finally {
+      setDeletingSubId(null);
     }
   };
 
@@ -526,14 +619,40 @@ export default function PlacementTestAdmin() {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => openDetail(sub)}
-                              className="btn-ghost !px-2.5 !py-1 text-xs font-bold hover:text-brand"
-                            >
-                              <Eye size={14} /> Detail &amp; Nilai
-                            </button>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openDetail(sub)}
+                                className="btn-ghost !px-2 !py-1 text-xs font-bold hover:text-brand"
+                                title="Lihat detail jawaban & beri nilai"
+                              >
+                                <Eye size={14} /> Detail
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openEditSub(sub)}
+                                className="btn-ghost !px-2 !py-1 text-xs font-bold text-amber-700 hover:bg-amber-50"
+                                title="Edit data calon & hasil test"
+                              >
+                                <Pencil size={14} /> Edit
+                              </button>
+                              {isStaff && (
+                                <button
+                                  type="button"
+                                  disabled={deletingSubId === sub.id}
+                                  onClick={() => handleDeleteSub(sub)}
+                                  className="btn-ghost !px-2 !py-1 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                                  title="Hapus data hasil test"
+                                >
+                                  {deletingSubId === sub.id ? (
+                                    <Loader2 size={14} className="animate-spin text-rose-600" />
+                                  ) : (
+                                    <Trash2 size={14} />
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1039,6 +1158,228 @@ export default function PlacementTestAdmin() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* MODAL EDIT HASIL PLACEMENT TEST */}
+      <Modal
+        open={!!editSubModal}
+        title={`Edit Data Hasil Placement Test: ${editSubModal?.candidate_name || ""}`}
+        onClose={() => setEditSubModal(null)}
+      >
+        {editSubModal && (
+          <form onSubmit={handleSaveSubEdit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+              Perbarui data identitas calon murid, skor pengerjaan CBT pilihan ganda, video &amp; nilai speaking, serta rekomendasi level kelas.
+            </div>
+
+            {/* Bagian 1: Data Identitas Calon Murid */}
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <div className="text-xs font-bold text-slate-800">1. Data Calon Murid &amp; Cabang</div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Nama Calon Murid *</label>
+                  <input
+                    required
+                    className="input !py-1.5 text-xs"
+                    value={editSubForm.candidate_name}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, candidate_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">No. WhatsApp / HP *</label>
+                  <input
+                    required
+                    className="input !py-1.5 text-xs"
+                    placeholder="mis. 08123456789"
+                    value={editSubForm.candidate_phone}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, candidate_phone: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Email</label>
+                  <input
+                    type="email"
+                    className="input !py-1.5 text-xs"
+                    value={editSubForm.candidate_email}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, candidate_email: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Cabang ADLS</label>
+                  <select
+                    className="input !py-1.5 text-xs"
+                    value={editSubForm.branch_id}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, branch_id: e.target.value })}
+                  >
+                    <option value="">-- Pilih Cabang --</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Asal Sekolah</label>
+                  <input
+                    className="input !py-1.5 text-xs"
+                    placeholder="mis. SDN Sukadami 01"
+                    value={editSubForm.school_origin}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, school_origin: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Kelas / Grade</label>
+                  <input
+                    className="input !py-1.5 text-xs"
+                    placeholder="mis. Kelas 4 SD"
+                    value={editSubForm.school_grade}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, school_grade: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Usia / Kategori</label>
+                  <input
+                    className="input !py-1.5 text-xs"
+                    placeholder="mis. 10 thn / Umum"
+                    value={editSubForm.age_or_level}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, age_or_level: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bagian 2: Nilai CBT Pilihan Ganda */}
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <div className="text-xs font-bold text-slate-800">2. Hasil Pilihan Ganda (CBT)</div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Skor PG (0 - 100)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="input !py-1.5 text-xs"
+                    value={editSubForm.pg_score}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, pg_score: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Jumlah Benar</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input !py-1.5 text-xs"
+                    value={editSubForm.total_correct}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, total_correct: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Total Soal PG</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="input !py-1.5 text-xs"
+                    value={editSubForm.total_pg}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, total_pg: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bagian 3: Video Speaking & Nilai Evaluasi */}
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <div className="text-xs font-bold text-slate-800">3. Video Speaking &amp; Penilaian</div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">File Video Speaking (Upload / URL)</label>
+                <ImageUploadField
+                  value={editSubForm.speaking_video_url}
+                  onChange={(url) => setEditSubForm({ ...editSubForm, speaking_video_url: url })}
+                  allowVideo={true}
+                  buttonLabel="Pilih File Video Speaking"
+                  placeholder="Unggah rekaman video speaking calon murid..."
+                />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Nilai Speaking (0 - 100)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="input !py-1.5 text-xs"
+                    placeholder="Kosongkan jika belum"
+                    value={editSubForm.speaking_score}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, speaking_score: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Rekomendasi Level *</label>
+                  <select
+                    className="input !py-1.5 text-xs"
+                    value={editSubForm.recommended_level}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, recommended_level: e.target.value })}
+                  >
+                    <option value="Preschool (Pre A1)">Preschool (Pre A1)</option>
+                    <option value="Basic (A1)">Basic (A1)</option>
+                    <option value="Intermediate (A2)">Intermediate (A2)</option>
+                    <option value="Advance (B1 - B2)">Advance (B1 - B2)</option>
+                    <option value="Umum / Karyawan">Umum / Karyawan</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Status Pengerjaan *</label>
+                  <select
+                    className="input !py-1.5 text-xs"
+                    value={editSubForm.status}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, status: e.target.value })}
+                  >
+                    <option value="submitted">submitted (Belum Dinilai)</option>
+                    <option value="graded">graded (Sudah Dinilai)</option>
+                    <option value="enrolled">enrolled (Sudah Jadi Siswa)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Catatan Evaluasi / Saran Tutor</label>
+                <textarea
+                  rows="2"
+                  className="input !py-1.5 text-xs"
+                  placeholder="Catatan kelebihan, aspek perlu perbaikan, atau rekomendasi..."
+                  value={editSubForm.assessor_notes}
+                  onChange={(e) => setEditSubForm({ ...editSubForm, assessor_notes: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                className="btn-ghost !py-1.5 !text-xs"
+                onClick={() => setEditSubModal(null)}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={savingSubEdit}
+                className="btn-primary !py-1.5 !text-xs font-bold"
+              >
+                {savingSubEdit && <Loader2 size={13} className="animate-spin mr-1" />}
+                Simpan Perubahan
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

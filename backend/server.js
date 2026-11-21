@@ -1640,6 +1640,62 @@ app.get("/api/placement-test/submissions/:id", auth, can([...STAFF, "tutor"]), w
   res.json({ success: true, data: { submission: sub, questions } });
 }));
 
+// Update / Edit Submission Data (Staff & Tutor)
+app.put("/api/placement-test/submissions/:id", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const candidateName = clean(req.body.candidate_name);
+  const candidatePhone = clean(req.body.candidate_phone);
+  const candidateEmail = clean(req.body.candidate_email) || null;
+  const branchId = req.body.branch_id ? Number(req.body.branch_id) : null;
+  const schoolOrigin = clean(req.body.school_origin) || null;
+  const schoolGrade = clean(req.body.school_grade) || null;
+  const ageOrLevel = clean(req.body.age_or_level) || null;
+  const pgScore = req.body.pg_score !== undefined && req.body.pg_score !== null ? Number(req.body.pg_score) : null;
+  const totalCorrect = req.body.total_correct !== undefined && req.body.total_correct !== null ? Number(req.body.total_correct) : null;
+  const totalPg = req.body.total_pg !== undefined && req.body.total_pg !== null ? Number(req.body.total_pg) : null;
+  const speakingVideoUrl = clean(req.body.speaking_video_url) || null;
+  const speakingScore = req.body.speaking_score !== undefined && req.body.speaking_score !== null ? Number(req.body.speaking_score) : null;
+  const recommendedLevel = clean(req.body.recommended_level) || null;
+  const assessorNotes = clean(req.body.assessor_notes) || null;
+  const status = clean(req.body.status) || "submitted";
+
+  if (!candidateName) return fail(res, 400, "Nama calon murid wajib diisi");
+
+  await pool.query(
+    `UPDATE placement_test_submissions
+     SET candidate_name=?, candidate_phone=?, candidate_email=?, branch_id=?, school_origin=?, school_grade=?, age_or_level=?,
+         pg_score=?, total_correct=?, total_pg=?, speaking_video_url=?, speaking_score=?, recommended_level=?, assessor_notes=?, status=?
+     WHERE id=?`,
+    [
+      candidateName,
+      candidatePhone,
+      candidateEmail,
+      branchId,
+      schoolOrigin,
+      schoolGrade,
+      ageOrLevel,
+      pgScore,
+      totalCorrect,
+      totalPg,
+      speakingVideoUrl,
+      speakingScore,
+      recommendedLevel,
+      assessorNotes,
+      status,
+      id,
+    ]
+  );
+  res.json({ success: true, message: "Data hasil placement test berhasil diperbarui" });
+}));
+
+// Delete Placement Test Submission (Staff)
+app.delete("/api/placement-test/submissions/:id", auth, can(STAFF), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const [result] = await pool.query("DELETE FROM placement_test_submissions WHERE id=?", [id]);
+  if (result.affectedRows === 0) return fail(res, 404, "Data hasil placement test tidak ditemukan");
+  res.json({ success: true, message: "Data hasil placement test berhasil dihapus" });
+}));
+
 // Grade Speaking / Evaluation (Staff & Tutor)
 app.put("/api/placement-test/submissions/:id/grade", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
   const id = Number(req.params.id);
