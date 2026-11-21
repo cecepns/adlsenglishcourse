@@ -26,6 +26,7 @@ export const API_ENDPOINTS = {
   BRANCHES: crud("/branches"),
   CLASSES: crud("/classes"),
   STUDENTS: crud("/students"),
+  STUDENT_PRICELIST: (id) => `/students/${id}/pricelist`,
   PRODUCTS: crud("/products"),
   PRODUCT_CATEGORIES: crud("/product_categories"),
   PRODUCT_ORDERS: crud("/product_orders"),

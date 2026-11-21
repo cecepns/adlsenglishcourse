@@ -4,6 +4,15 @@ const bcrypt = require("bcryptjs"), jwt = require("jsonwebtoken"), path = requir
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(",") || true }));
+// Fix: cPanel/LiteSpeed reverse proxies may forward Content-Encoding: br on JSON request bodies,
+// causing body-parser to throw UnsupportedMediaTypeError (415). Strip header so body-parser handles body cleanly.
+app.use((req, res, next) => {
+  const enc = (req.headers["content-encoding"] || "").toLowerCase();
+  if (enc === "br") {
+    delete req.headers["content-encoding"];
+  }
+  next();
+});
 app.use(express.json({ limit: "2mb" }));
 const UPLOAD_DIR = path.join(__dirname, "uploads-adls-english-course");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -3481,9 +3490,10 @@ app.get("/api/students-database", auth, can(STAFF), wrap(async (req, res) => {
 }));
 
 // Owner-only endpoint to update student pricelist starting from effective month (Revisi Owner Hal 1)
-app.put("/api/students/:id/pricelist", auth, can(["owner"]), wrap(async (req, res) => {
+app.put(["/api/students/:id/pricelist", "/students/:id/pricelist", "/api/api/students/:id/pricelist"], auth, can(["owner"]), wrap(async (req, res) => {
   const studentId = Number(req.params.id);
-  const pricelist = Number(req.body.pricelist);
+  const rawPrice = req.body.pricelist !== undefined && req.body.pricelist !== null ? req.body.pricelist : req.body.price;
+  const pricelist = Number(rawPrice);
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const effectiveMonth = clean(req.body.effective_month) || currentMonth;

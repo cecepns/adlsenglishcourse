@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Download,
   Search,
@@ -23,11 +24,12 @@ const rp = (n) => (Number(n || 0) > 0 ? "Rp " + Number(n).toLocaleString("id-ID"
 
 export default function StudentsDatabase() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [branchFilter, setBranchFilter] = useState("");
-  const [paymentFilter, setPaymentFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState(() => searchParams.get("branch_id") || "");
+  const [paymentFilter, setPaymentFilter] = useState(() => searchParams.get("payment") || "");
   const [sortOrder, setSortOrder] = useState("desc");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -58,7 +60,8 @@ export default function StudentsDatabase() {
     }
     setSavingPrice(true);
     try {
-      await api.put(`/api/students/${editPriceStudent.id}/pricelist`, {
+      await api.put(API_ENDPOINTS.STUDENT_PRICELIST(editPriceStudent.id), {
+        pricelist: Number(newPrice),
         price: Number(newPrice),
         effective_month: effectiveMonth,
       });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import Select from "react-select";
 import {
@@ -53,11 +54,13 @@ const toWaUrl = (phone, msg) => {
 
 export default function BillsPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isStaff = STAFF.includes(user.role);
   const isHQ = ["owner", "admin_pusat"].includes(user.role);
 
   const [search, setSearch] = useState("");
-  const [branchId, setBranchId] = useState("");
+  const [branchId, setBranchId] = useState(() => searchParams.get("branch_id") || "");
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "");
   const [branches, setBranches] = useState([]);
   const [bankInfo, setBankInfo] = useState(null);
   const [page, setPage] = useState(1);
@@ -133,6 +136,7 @@ export default function BillsPage() {
     limit,
     search: debounced,
     ...(isHQ && branchId ? { branch_id: branchId } : {}),
+    ...(statusFilter ? { status: statusFilter } : {}),
     ...(startDate ? { start_date: startDate } : {}),
     ...(endDate ? { end_date: endDate } : {}),
   };
@@ -147,6 +151,7 @@ export default function BillsPage() {
           export: 1,
           search: debounced || undefined,
           branch_id: isHQ && branchId ? branchId : undefined,
+          status: statusFilter || undefined,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         },
@@ -554,6 +559,26 @@ export default function BillsPage() {
               </div>
             )}
 
+            {/* Filter Status Tagihan */}
+            <select
+              className="input !h-[38px] !py-1 text-xs w-44 font-semibold rounded-xl"
+              value={statusFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setStatusFilter(val);
+                setPage(1);
+                const next = new URLSearchParams(searchParams);
+                if (val) next.set("status", val);
+                else next.delete("status");
+                setSearchParams(next, { replace: true });
+              }}
+            >
+              <option value="">Semua Status Tagihan</option>
+              <option value="unpaid">Belum Lunas (Unpaid)</option>
+              <option value="verifikasi">Menunggu Verifikasi</option>
+              <option value="paid">Lunas (Paid)</option>
+            </select>
+
             {/* Filter Rentang Tanggal Jatuh Tempo */}
             <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
               <Calendar size={13} className="text-brand shrink-0" />
@@ -599,6 +624,30 @@ export default function BillsPage() {
           </div>
         </div>
       </div>
+
+      {/* Indikator Filter Aktif */}
+      {statusFilter && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="font-semibold text-slate-500">Filter Aktif:</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 font-bold text-rose-800 shadow-2xs">
+            {statusFilter === "unpaid" ? "Hanya Tagihan Belum Lunas (Unpaid)" : statusFilter === "verifikasi" ? "Hanya Bukti Menunggu Verifikasi" : "Hanya Tagihan Lunas (Paid)"}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter("");
+                setPage(1);
+                const next = new URLSearchParams(searchParams);
+                next.delete("status");
+                setSearchParams(next, { replace: true });
+              }}
+              className="rounded-full hover:bg-rose-200 p-0.5 transition"
+              title="Hapus filter status"
+            >
+              <X size={12} />
+            </button>
+          </span>
+        </div>
+      )}
 
       <div className="card overflow-hidden">
         {error ? (
