@@ -353,8 +353,8 @@ export default function Login() {
                   type="button"
                   onClick={() => setMode("login")}
                   className={`rounded-lg py-2 transition ${mode === "login"
-                      ? "bg-brand text-white shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
+                    ? "bg-brand text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
                     }`}
                 >
                   <LogIn size={13} className="inline mr-1" /> {lang === "en" ? "Sign In" : "Masuk"}
@@ -363,8 +363,8 @@ export default function Login() {
                   type="button"
                   onClick={() => setMode("register")}
                   className={`rounded-lg py-2 transition ${mode === "register"
-                      ? "bg-brand text-white shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
+                    ? "bg-brand text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
                     }`}
                 >
                   <UserPlus size={13} className="inline mr-1" /> {lang === "en" ? "Register" : "Daftar di Sini"}
@@ -445,7 +445,7 @@ export default function Login() {
                     <span>{loading ? "Memproses..." : t.loginBtn}</span>
                   </button>
 
-                  <div className="relative my-4 text-center text-xs text-slate-400">
+                  {/* <div className="relative my-4 text-center text-xs text-slate-400">
                     <div className="absolute inset-0 flex items-center">
                       <div className="w-full border-t border-slate-200" />
                     </div>
@@ -476,7 +476,7 @@ export default function Login() {
                       />
                     </svg>
                     <span>{t.googleBtn}</span>
-                  </button>
+                  </button> */}
 
                   <div className="text-center text-xs text-slate-500 pt-2">
                     {t.noAccount}{" "}
