@@ -82,13 +82,52 @@ export default function TutorDashboard() {
   const [backupModalClass, setBackupModalClass] = useState(null);
   const [backupReason, setBackupReason] = useState("");
   const [backupDate, setBackupDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [backupTutorId, setBackupTutorId] = useState("0");
+  const [backupCandidates, setBackupCandidates] = useState([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [backupSubmitting, setBackupSubmitting] = useState(false);
   const [acceptingSubId, setAcceptingSubId] = useState(null);
 
+  const fetchBackupCandidates = async (classId, dateStr) => {
+    if (!classId) return;
+    setLoadingCandidates(true);
+    try {
+      const { data } = await api.get(`/tutor-portal/classes/${classId}/backup-candidates`, {
+        params: { date: dateStr },
+      });
+      const candidates = data.data?.candidates || [];
+      setBackupCandidates(candidates);
+      // Prioritaskan pilih tutor pertama yang FREE dan pernah mengajar level tersebut
+      const bestMatch =
+        candidates.find((t) => t.is_free && t.has_taught_level) ||
+        candidates.find((t) => t.is_free);
+      if (bestMatch) {
+        setBackupTutorId(String(bestMatch.id));
+      } else {
+        setBackupTutorId("0");
+      }
+    } catch {
+      setBackupCandidates([]);
+      setBackupTutorId("0");
+    } finally {
+      setLoadingCandidates(false);
+    }
+  };
+
   const openRequestBackupModal = (c) => {
+    const defaultDate = sessionDate || new Date().toISOString().slice(0, 10);
     setBackupModalClass(c);
     setBackupReason("");
-    setBackupDate(sessionDate || new Date().toISOString().slice(0, 10));
+    setBackupDate(defaultDate);
+    setBackupTutorId("0");
+    fetchBackupCandidates(c.id, defaultDate);
+  };
+
+  const handleBackupDateChange = (newDate) => {
+    setBackupDate(newDate);
+    if (backupModalClass?.id && newDate) {
+      fetchBackupCandidates(backupModalClass.id, newDate);
+    }
   };
 
   const handleSendBackupRequest = async (e) => {
@@ -104,6 +143,7 @@ export default function TutorDashboard() {
           api.post(`/tutor-portal/classes/${backupModalClass.id}/request-backup`, {
             substitute_date: backupDate,
             reason: backupReason.trim(),
+            backup_tutor_id: Number(backupTutorId) || 0,
           }),
         { success: "Permintaan tutor backup berhasil diajukan ke sistem!" }
       );
@@ -477,8 +517,12 @@ export default function TutorDashboard() {
                     <span className="text-xs font-extrabold text-slate-900">
                       {req.class_type || req.class_name} · <span className="text-brand">{req.level}</span>
                     </span>
-                    <span className="shrink-0 rounded-full bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                      Mencari Backup
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      Number(req.backup_tutor_id) === Number(user?.id)
+                        ? "bg-rose-100 border border-rose-300 text-rose-800"
+                        : "bg-amber-100 border border-amber-200 text-amber-800"
+                    }`}>
+                      {Number(req.backup_tutor_id) === Number(user?.id) ? "🎯 Anda Dipilih Langsung" : "Mencari Backup"}
                     </span>
                   </div>
                   <div className="mt-1 text-[11px] text-slate-500 space-y-0.5">
@@ -1112,9 +1156,54 @@ export default function TutorDashboard() {
               <DatePickerInput
                 required
                 value={backupDate}
-                onChange={(val) => setBackupDate(val)}
+                onChange={handleBackupDateChange}
                 className="w-full text-xs"
               />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">
+                Pilih Tutor Pengganti (Diprioritaskan yang FREE &amp; Pernah Mengajar Level {backupModalClass.level}) *
+              </label>
+              {loadingCandidates ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-500">
+                  <Loader2 size={15} className="mx-auto mb-1 animate-spin text-brand" />
+                  Memeriksa jadwal tutor yang free di cabang ini...
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <select
+                    required
+                    className="input !text-xs font-semibold"
+                    value={backupTutorId}
+                    onChange={(e) => setBackupTutorId(e.target.value)}
+                  >
+                    <option value="0">-- Terbuka / Siapapun yang Free (Broadcast ke Semua Tutor Cabang) --</option>
+                    {backupCandidates.map((t) => (
+                      <option key={t.id} value={t.id} disabled={!t.is_free}>
+                        {t.is_free ? "✨ [FREE] " : "⚠️ [BENTROK] "}
+                        {t.name}
+                        {t.has_taught_level ? ` · Pernah Mengajar ${backupModalClass.level}` : " · Tutor Cabang"}
+                        {!t.is_free ? ` (${t.busy_reason})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <Sparkles size={12} className="text-amber-500 shrink-0" />
+                    <span>
+                      {backupCandidates.filter((t) => t.is_free).length > 0 ? (
+                        <span className="text-emerald-700 font-semibold">
+                          Tersedia {backupCandidates.filter((t) => t.is_free).length} tutor yang sedang jam kosong (free) di jadwal ini.
+                        </span>
+                      ) : (
+                        <span className="text-amber-700">
+                          Tidak ada tutor yang terdeteksi jam kosong di jadwal ini. Anda dapat memilih opsi Terbuka.
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1128,7 +1217,7 @@ export default function TutorDashboard() {
                 onChange={(e) => setBackupReason(e.target.value)}
               />
               <p className="mt-1 text-[11px] text-slate-400">
-                *Permintaan akan ditayangkan kepada tutor lain di cabang yang sama dan berkualifikasi di level ini. Jadwal di admin dashboard akan ditandai berkedip merah sampai terisi.
+                *Permintaan akan ditayangkan kepada tutor pengganti yang dipilih atau broadcast ke tutor cabang. Jadwal di admin dashboard akan ditandai berkedip merah sampai terisi.
               </p>
             </div>
 

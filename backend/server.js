@@ -1969,16 +1969,19 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
 
   // Permintaan Tutor Pengganti (Backup) yang butuh di-ACC oleh tutor yang memenuhi kriteria (Cabang sama & Level sama)
   const [pendingBackupRequests] = await pool.query(
-    `SELECT ts.id, ts.class_id, ts.branch_id, ts.substitute_date, ts.reason, ts.created_at,
+    `SELECT ts.id, ts.class_id, ts.branch_id, ts.substitute_date, ts.reason, ts.created_at, ts.backup_tutor_id,
             c.name AS class_name, COALESCE(c.class_type, c.name) AS class_type, c.level, c.schedule,
             b.name AS branch_name,
-            orig.name AS original_tutor_name
+            orig.name AS original_tutor_name,
+            target.name AS target_backup_name
      FROM tutor_substitutes ts
      JOIN classes c ON c.id=ts.class_id
      LEFT JOIN branches b ON b.id=c.branch_id
      LEFT JOIN users orig ON orig.id=ts.original_tutor_id
+     LEFT JOIN users target ON target.id=ts.backup_tutor_id
      WHERE ts.status = 'seeking'
        AND ts.original_tutor_id != ?
+       AND (ts.backup_tutor_id = ? OR ts.backup_tutor_id = 0 OR ts.backup_tutor_id IS NULL)
        AND ts.substitute_date >= ?
        AND (c.branch_id IS NULL OR c.branch_id IN (SELECT branch_id FROM users WHERE id=? UNION SELECT branch_id FROM tutor_branches WHERE tutor_id=?))
        AND (
@@ -1987,7 +1990,7 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
          OR (SELECT COUNT(*) FROM classes c3 WHERE c3.tutor_id=?) = 0
        )
      ORDER BY ts.substitute_date ASC, ts.id DESC`,
-    [req.user.id, now.date, req.user.id, req.user.id, req.user.id, req.user.id]
+    [req.user.id, req.user.id, now.date, req.user.id, req.user.id, req.user.id, req.user.id]
   );
 
   const allClasses = [...classes, ...backupClasses];
@@ -2817,11 +2820,120 @@ app.put("/api/tutor-substitutes/:id", auth, can(STAFF), wrap(async (req, res) =>
   res.json({ success: true, message: "Status penugasan tutor pengganti diperbarui" });
 }));
 
+// Ambil kandidat tutor pengganti untuk kelas tertentu di tanggal tertentu (Filter cabang sama, pernah mengajar level sama, & cek FREE di jam tsb)
+app.get("/api/tutor-portal/classes/:id/backup-candidates", auth, can(["tutor", ...STAFF]), wrap(async (req, res) => {
+  const classId = Number(req.params.id);
+  const date = clean(req.query.date) || getServerNowParts().date;
+
+  const [[cls]] = await pool.query(
+    `SELECT c.*, b.name AS branch_name
+     FROM classes c
+     LEFT JOIN branches b ON b.id=c.branch_id
+     WHERE c.id=?`,
+    [classId]
+  );
+  if (!cls) return fail(res, 404, "Kelas tidak ditemukan");
+
+  const dateObj = new Date(date + "T00:00:00");
+  const DAYS_MAP = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  const targetDay = DAYS_MAP[dateObj.getDay()] || "Senin";
+
+  const cStartMins = parseTimeMinute(cls.time_start) ?? parseScheduleStartMinutes(cls.schedule);
+  const cEndMins = parseTimeMinute(cls.time_end) ?? (cStartMins !== null ? cStartMins + 90 : null);
+
+  // Ambil semua tutor aktif di cabang yang sama kecuali pengajar kelas ini
+  const [candidates] = await pool.query(
+    `SELECT u.id, u.name, u.phone, u.email, b.name AS branch_name,
+            (SELECT COUNT(*) FROM classes c2 WHERE c2.tutor_id=u.id AND c2.level=?) AS has_taught_level
+     FROM users u
+     LEFT JOIN branches b ON b.id=u.branch_id
+     WHERE u.role='tutor' AND COALESCE(u.status,'active')='active' AND u.id != ?
+       AND (u.branch_id = ? OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=u.id AND tb.branch_id=?))
+     ORDER BY has_taught_level DESC, u.name ASC`,
+    [cls.level, cls.tutor_id, cls.branch_id, cls.branch_id]
+  );
+
+  const candidateResults = [];
+  for (const tut of candidates) {
+    const [tutClasses] = await pool.query(
+      `SELECT c.id, c.name, COALESCE(c.class_type, c.name) AS class_type, c.level, c.day_1, c.day_2, c.day_3, c.time_start, c.time_end, c.schedule, b.name AS branch_name
+       FROM classes c
+       LEFT JOIN branches b ON b.id=c.branch_id
+       WHERE c.tutor_id=?`,
+      [tut.id]
+    );
+
+    let isFree = true;
+    let busyReason = "";
+
+    for (const tc of tutClasses) {
+      let days = [tc.day_1, tc.day_2, tc.day_3].filter(Boolean).map(d => DAY_STANDARDIZED[String(d).trim().toLowerCase()] || String(d).trim());
+      if (!days.length && tc.schedule) {
+        for (const [k, v] of Object.entries(DAY_STANDARDIZED)) {
+          if (new RegExp(`\\b${k}\\b`, "i").test(tc.schedule) && !days.includes(v)) {
+            days.push(v);
+          }
+        }
+      }
+
+      if (days.includes(targetDay)) {
+        const tStart = parseTimeMinute(tc.time_start) ?? parseScheduleStartMinutes(tc.schedule);
+        const tEnd = parseTimeMinute(tc.time_end) ?? (tStart !== null ? tStart + 90 : null);
+        if (cStartMins !== null && cEndMins !== null && tStart !== null && tEnd !== null) {
+          if (intervalsOverlap(tStart, tEnd, cStartMins, cEndMins)) {
+            isFree = false;
+            busyReason = `Sedang mengajar ${tc.class_type || tc.name} (${tc.time_start || tc.schedule || 'Jam Sama'})`;
+            break;
+          }
+        }
+      }
+    }
+
+    candidateResults.push({
+      id: tut.id,
+      name: tut.name,
+      phone: tut.phone,
+      branch_name: tut.branch_name,
+      has_taught_level: Boolean(tut.has_taught_level > 0),
+      is_free: isFree,
+      busy_reason: busyReason,
+    });
+  }
+
+  // Urutan prioritas:
+  // 1. FREE di jam ini dan pernah mengajar level tersebut
+  // 2. FREE di jam ini (tutor cabang)
+  // 3. Pernah mengajar level ini tapi bentrok jam
+  // 4. Lainnya
+  candidateResults.sort((a, b) => {
+    if (a.is_free !== b.is_free) return a.is_free ? -1 : 1;
+    if (a.has_taught_level !== b.has_taught_level) return a.has_taught_level ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  res.json({
+    success: true,
+    data: {
+      class: {
+        id: cls.id,
+        name: cls.name,
+        class_type: cls.class_type,
+        level: cls.level,
+        schedule: cls.schedule,
+        branch_name: cls.branch_name,
+        target_day: targetDay,
+      },
+      candidates: candidateResults,
+    },
+  });
+}));
+
 // Pengajuan Tutor Backup oleh Tutor yang tidak bisa hadir kelas (PDF Revisi Hal 4)
 app.post("/api/tutor-portal/classes/:id/request-backup", auth, can(["tutor"]), wrap(async (req, res) => {
   const classId = Number(req.params.id);
   const date = clean(req.body.substitute_date) || getServerNowParts().date;
   const reason = clean(req.body.reason) || "Tidak bisa hadir kelas dan butuh tutor backup";
+  const backupTutorId = Number(req.body.backup_tutor_id) || 0;
 
   const [[cls]] = await pool.query("SELECT * FROM classes WHERE id=? AND tutor_id=?", [classId, req.user.id]);
   if (!cls) return fail(res, 404, "Kelas tidak ditemukan atau Anda bukan pengajar kelas ini");
@@ -2835,16 +2947,29 @@ app.post("/api/tutor-portal/classes/:id/request-backup", auth, can(["tutor"]), w
     return fail(res, 400, "Permintaan tutor backup untuk kelas dan tanggal ini sudah pernah diajukan");
   }
 
+  let chosenTutorName = "";
+  if (backupTutorId > 0) {
+    const [[bt]] = await pool.query("SELECT name FROM users WHERE id=? AND role='tutor'", [backupTutorId]);
+    chosenTutorName = bt?.name || "";
+  }
+
+  const notes = chosenTutorName
+    ? `Diajukan ke Tutor ${chosenTutorName} oleh pengajar, menunggu konfirmasi ACC`
+    : "Diajukan langsung oleh tutor via Portal Tutor (Terbuka untuk tutor cabang)";
+
+  // Simpan record backup (backup_tutor_id diisi backupTutorId atau 0 agar tidak ER_BAD_NULL_ERROR jika kolom NOT NULL)
   const [r] = await pool.query(
     `INSERT INTO tutor_substitutes (class_id, branch_id, original_tutor_id, backup_tutor_id, substitute_date, reason, status, notes, created_by)
-     VALUES (?, ?, ?, NULL, ?, ?, 'seeking', 'Diajukan langsung oleh tutor via Portal Tutor', ?)`,
-    [classId, cls.branch_id, req.user.id, date, reason, req.user.id]
+     VALUES (?, ?, ?, ?, ?, ?, 'seeking', ?, ?)`,
+    [classId, cls.branch_id, req.user.id, backupTutorId, date, reason, notes, req.user.id]
   );
 
   res.status(201).json({
     success: true,
     data: { id: r.insertId },
-    message: "Permintaan tutor backup berhasil diajukan! Jadwal kelas kini mencari pengganti.",
+    message: chosenTutorName
+      ? `Permintaan tutor backup berhasil diajukan ke Tutor ${chosenTutorName}! Menunggu konfirmasi ACC.`
+      : "Permintaan tutor backup berhasil diajukan! Jadwal kelas kini mencari pengganti.",
   });
 }));
 
