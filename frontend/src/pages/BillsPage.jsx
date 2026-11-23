@@ -62,10 +62,21 @@ export default function BillsPage() {
   const [search, setSearch] = useState("");
   const [branchId, setBranchId] = useState(() => searchParams.get("branch_id") || "");
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "");
+  const [monthFilter, setMonthFilter] = useState(() => searchParams.get("month") || "");
   const [branches, setBranches] = useState([]);
   const [bankInfo, setBankInfo] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+
+  // Sinkronisasi filter saat searchParams URL berubah (mis. klik dari Dashboard)
+  useEffect(() => {
+    const qBranch = searchParams.get("branch_id");
+    const qStatus = searchParams.get("status");
+    const qMonth = searchParams.get("month");
+    if (qBranch !== null && qBranch !== branchId) setBranchId(qBranch);
+    if (qStatus !== null && qStatus !== statusFilter) setStatusFilter(qStatus);
+    if (qMonth !== null && qMonth !== monthFilter) setMonthFilter(qMonth);
+  }, [searchParams]);
 
   // Pay Proof modal
   const [payModal, setPayModal] = useState(null);
@@ -138,6 +149,7 @@ export default function BillsPage() {
     search: debounced,
     ...(isHQ && branchId ? { branch_id: branchId } : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
+    ...(monthFilter ? { month: monthFilter } : {}),
     ...(startDate ? { start_date: startDate } : {}),
     ...(endDate ? { end_date: endDate } : {}),
   };
@@ -153,6 +165,7 @@ export default function BillsPage() {
           search: debounced || undefined,
           branch_id: isHQ && branchId ? branchId : undefined,
           status: statusFilter || undefined,
+          month: monthFilter || undefined,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         },
@@ -201,6 +214,7 @@ export default function BillsPage() {
   };
 
   const openManageBankModal = async () => {
+    if (!isOwner) return;
     setManageBankModal(true);
     setEditingBank(null);
     setBankForm({
@@ -580,6 +594,31 @@ export default function BillsPage() {
               <option value="paid">Lunas (Paid)</option>
             </select>
 
+            {/* Filter Bulan Tagihan */}
+            <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
+              <Calendar size={13} className="text-brand shrink-0" />
+              <span className="text-slate-500 font-semibold hidden sm:inline">Bulan:</span>
+              <div className="w-28">
+                <DatePickerInput
+                  mode="month"
+                  compact
+                  showIcon={false}
+                  value={monthFilter}
+                  placeholder="yyyy-mm"
+                  title="Filter Periode Bulan Tagihan"
+                  isClearable
+                  onChange={(val) => {
+                    setMonthFilter(val);
+                    setPage(1);
+                    const next = new URLSearchParams(searchParams);
+                    if (val) next.set("month", val);
+                    else next.delete("month");
+                    setSearchParams(next, { replace: true });
+                  }}
+                />
+              </div>
+            </div>
+
             {/* Filter Rentang Tanggal Jatuh Tempo */}
             <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
               <Calendar size={13} className="text-brand shrink-0" />
@@ -627,26 +666,47 @@ export default function BillsPage() {
       </div>
 
       {/* Indikator Filter Aktif */}
-      {statusFilter && (
-        <div className="flex items-center gap-2 text-xs">
+      {(statusFilter || monthFilter) && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-semibold text-slate-500">Filter Aktif:</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 font-bold text-rose-800 shadow-2xs">
-            {statusFilter === "unpaid" ? "Hanya Tagihan Belum Lunas (Unpaid)" : statusFilter === "verifikasi" ? "Hanya Bukti Menunggu Verifikasi" : "Hanya Tagihan Lunas (Paid)"}
-            <button
-              type="button"
-              onClick={() => {
-                setStatusFilter("");
-                setPage(1);
-                const next = new URLSearchParams(searchParams);
-                next.delete("status");
-                setSearchParams(next, { replace: true });
-              }}
-              className="rounded-full hover:bg-rose-200 p-0.5 transition"
-              title="Hapus filter status"
-            >
-              <X size={12} />
-            </button>
-          </span>
+          {monthFilter && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 font-bold text-blue-800 shadow-2xs">
+              Periode Bulan: {monthFilter}
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthFilter("");
+                  setPage(1);
+                  const next = new URLSearchParams(searchParams);
+                  next.delete("month");
+                  setSearchParams(next, { replace: true });
+                }}
+                className="rounded-full hover:bg-blue-200 p-0.5 transition"
+                title="Hapus filter bulan"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          {statusFilter && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 font-bold text-rose-800 shadow-2xs">
+              {statusFilter === "unpaid" ? "Hanya Tagihan Belum Lunas (Unpaid)" : statusFilter === "verifikasi" ? "Hanya Bukti Menunggu Verifikasi" : "Hanya Tagihan Lunas (Paid)"}
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter("");
+                  setPage(1);
+                  const next = new URLSearchParams(searchParams);
+                  next.delete("status");
+                  setSearchParams(next, { replace: true });
+                }}
+                className="rounded-full hover:bg-rose-200 p-0.5 transition"
+                title="Hapus filter status"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
         </div>
       )}
 
@@ -930,9 +990,9 @@ export default function BillsPage() {
         </form>
       </Modal>
 
-      {/* Modal Kelola Rekening Resmi */}
+      {/* Modal Kelola Rekening Resmi (Khusus Owner) */}
       <Modal
-        open={manageBankModal}
+        open={Boolean(isOwner && manageBankModal)}
         title="Kelola Rekening Resmi Pembayaran"
         onClose={() => { setManageBankModal(false); cancelEditBank(); }}
       >

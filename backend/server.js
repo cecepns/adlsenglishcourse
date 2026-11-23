@@ -4390,33 +4390,67 @@ Object.entries(RESOURCES).forEach(([name, cfg]) => {
     const where = [], args = [];
     if (q.search) { where.push("(" + cfg.search.map((c) => `${c} LIKE ?`).join(" OR ") + ")"); cfg.search.forEach(() => args.push(`%${q.search}%`)); }
     if (q.id !== undefined && q.id !== "") { where.push("t.id=?"); args.push(q.id); }
-    cfg.fields.forEach((f) => { if (q[f] !== undefined && q[f] !== "") { where.push(`t.${f}=?`); args.push(q[f]); } });
+    cfg.fields.forEach((f) => {
+      if (q[f] !== undefined && q[f] !== "") {
+        if (name === "bills" && f === "month") {
+          where.push("(t.month = ? OR DATE_FORMAT(COALESCE(t.paid_at, t.due_date, t.created_at), '%Y-%m') = ?)");
+          args.push(q.month, q.month);
+        } else if (name === "bills" && f === "branch_id") {
+          where.push("(t.branch_id = ? OR s.branch_id = ?)");
+          args.push(q.branch_id, q.branch_id);
+        } else {
+          where.push(`t.${f}=?`);
+          args.push(q[f]);
+        }
+      }
+    });
 
     // Filter Rentang Tanggal (Date Range) untuk semua generic resource
     const dateCol = RESOURCE_DATE_COLS[name] || (cfg.fields.includes("date") ? "date" : "created_at");
     const dateExpr = ["joined_at", "due_date", "event_date"].includes(dateCol)
       ? `COALESCE(t.${dateCol}, DATE(t.created_at))`
       : `t.${dateCol}`;
-    if (q.start_date) {
-      if (dateCol === "created_at") {
-        where.push(`t.${dateCol} >= ?`);
-        args.push(`${q.start_date} 00:00:00`);
-      } else {
-        where.push(`${dateExpr} >= ?`);
-        args.push(q.start_date);
+    if (name === "bills" && (q.start_date || q.end_date)) {
+      if (q.start_date && q.end_date) {
+        where.push("((t.due_date IS NOT NULL AND t.due_date >= ? AND t.due_date <= ?) OR (t.month IS NOT NULL AND t.month >= DATE_FORMAT(?, '%Y-%m') AND t.month <= DATE_FORMAT(?, '%Y-%m')) OR (t.due_date IS NULL AND DATE(t.created_at) >= ? AND DATE(t.created_at) <= ?))");
+        args.push(q.start_date, q.end_date, q.start_date, q.end_date, q.start_date, q.end_date);
+      } else if (q.start_date) {
+        where.push("((t.due_date IS NOT NULL AND t.due_date >= ?) OR (t.month IS NOT NULL AND t.month >= DATE_FORMAT(?, '%Y-%m')) OR (t.due_date IS NULL AND DATE(t.created_at) >= ?))");
+        args.push(q.start_date, q.start_date, q.start_date);
+      } else if (q.end_date) {
+        where.push("((t.due_date IS NOT NULL AND t.due_date <= ?) OR (t.month IS NOT NULL AND t.month <= DATE_FORMAT(?, '%Y-%m')) OR (t.due_date IS NULL AND DATE(t.created_at) <= ?))");
+        args.push(q.end_date, q.end_date, q.end_date);
       }
-    }
-    if (q.end_date) {
-      if (dateCol === "created_at") {
-        where.push(`t.${dateCol} <= ?`);
-        args.push(`${q.end_date} 23:59:59`);
-      } else {
-        where.push(`${dateExpr} <= ?`);
-        args.push(q.end_date);
+    } else {
+      if (q.start_date) {
+        if (dateCol === "created_at") {
+          where.push(`t.${dateCol} >= ?`);
+          args.push(`${q.start_date} 00:00:00`);
+        } else {
+          where.push(`${dateExpr} >= ?`);
+          args.push(q.start_date);
+        }
+      }
+      if (q.end_date) {
+        if (dateCol === "created_at") {
+          where.push(`t.${dateCol} <= ?`);
+          args.push(`${q.end_date} 23:59:59`);
+        } else {
+          where.push(`${dateExpr} <= ?`);
+          args.push(q.end_date);
+        }
       }
     }
 
-    if (isScoped(cfg, req.user)) { where.push("t.branch_id=?"); args.push(req.user.branch_id); }
+    if (isScoped(cfg, req.user)) {
+      if (name === "bills") {
+        where.push("(t.branch_id=? OR s.branch_id=?)");
+        args.push(req.user.branch_id, req.user.branch_id);
+      } else {
+        where.push("t.branch_id=?");
+        args.push(req.user.branch_id);
+      }
+    }
 
     // #7 & Multi-Branch Tutor Scoping
     if (cfg.tutorOwned && req.user.role === "tutor") {

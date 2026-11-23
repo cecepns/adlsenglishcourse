@@ -295,11 +295,15 @@ export default function Dashboard() {
     todos.push({ to: "/leaves", color: "text-amber-600", label: `${stats.pendingLeaves} pengajuan izin/cuti menunggu persetujuan Admin Pusat / Owner` });
   }
   if (stats?.verifikasiBills > 0) {
-    todos.push({ to: "/bills?status=verifikasi", color: "text-sky-600", label: `${stats.verifikasiBills} bukti pembayaran SPP menunggu verifikasi admin` });
+    todos.push({
+      to: `/bills?status=verifikasi&month=${selectedMonth}${branchId ? `&branch_id=${branchId}` : ""}`,
+      color: "text-sky-600",
+      label: `${stats.verifikasiBills} bukti pembayaran SPP menunggu verifikasi admin`,
+    });
   }
   if (stats?.unpaidBills > 0) {
     todos.push({
-      to: "/bills?status=unpaid",
+      to: `/bills?status=unpaid&month=${selectedMonth}${branchId ? `&branch_id=${branchId}` : ""}`,
       color: "text-rose-600",
       label: isOwner
         ? `${stats.unpaidBills} tagihan SPP belum lunas (${rp(stats.unpaidAmount)})`
@@ -465,7 +469,7 @@ export default function Dashboard() {
           value={stats ? `${unpaidCount} Siswa` : "…"}
           sub={stats ? (isOwner ? `Tunggakan: ${rp(unpaidAmount)}` : "") : ""}
           color="rose"
-          to="/bills?status=unpaid"
+          to={`/bills?status=unpaid&month=${selectedMonth}${branchId ? `&branch_id=${branchId}` : ""}`}
         />
 
         {!isOwner && (
@@ -586,7 +590,7 @@ export default function Dashboard() {
                       </td>
                       <td className="px-3.5 py-2 text-center">
                         <Link
-                          to={`/bills?status=unpaid&branch_id=${b.branch_id}`}
+                          to={`/bills?status=unpaid&branch_id=${b.branch_id}&month=${selectedMonth}`}
                           className={`inline-block rounded-full px-2 py-0.5 font-bold hover:opacity-80 transition ${unpCount > 0 ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-500"}`}
                           title="Klik untuk filter tagihan belum lunas cabang ini"
                         >
