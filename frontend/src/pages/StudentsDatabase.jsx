@@ -12,12 +12,15 @@ import {
   Calendar,
   RefreshCw,
   Edit3,
+  Star,
 } from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { useAuth } from "@/context/AuthContext";
 import { exportToExcel } from "@/utils/exportExcel";
 import DatePickerInput from "@/components/DatePickerInput";
+import Modal from "@/components/Modal";
+import LearningJourneyRoadmap from "@/components/LearningJourneyRoadmap";
 import toast from "react-hot-toast";
 
 const rp = (n) => (Number(n || 0) > 0 ? "Rp " + Number(n).toLocaleString("id-ID") : "-");
@@ -41,6 +44,7 @@ export default function StudentsDatabase() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [savingPrice, setSavingPrice] = useState(false);
+  const [roadmapModalOpen, setRoadmapModalOpen] = useState(false);
 
   const openEditPrice = (student) => {
     setEditPriceStudent(student);
@@ -187,6 +191,15 @@ export default function StudentsDatabase() {
 
           <div className="flex flex-col items-start gap-2.5 lg:items-end">
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setRoadmapModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-4 py-2.5 text-xs font-bold text-amber-950 shadow-sm transition hover:bg-amber-300"
+                title="Lihat &amp; Edit Kurikulum Roadmap Belajar (12 Bulan)"
+              >
+                <Star size={15} className="fill-amber-950" />
+                <span>Roadmap Belajar (12 Bulan)</span>
+              </button>
               <button
                 onClick={exportCsv}
                 className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-brand-dark shadow-sm transition hover:bg-sky-50"
@@ -510,6 +523,29 @@ export default function StudentsDatabase() {
           </div>
         </div>
       )}
+      {/* Modal Learning Journey Roadmap 12 Bulan (Admin & Owner) */}
+      <Modal
+        open={roadmapModalOpen}
+        onClose={() => setRoadmapModalOpen(false)}
+        title="Learning Journey Roadmap (12 Bulan)"
+        maxWidth="max-w-4xl"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Kelola fokus kemampuan 12 bulan kurikulum pembelajaran ADLS English Course. Anda dapat mengubah topik bulanan dan menerapkan langsung ke semua akun (Tutor, Siswa, dan Orang Tua).
+          </p>
+          <LearningJourneyRoadmap />
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setRoadmapModalOpen(false)}
+              className="btn-primary !py-2 !px-4 text-xs font-bold"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

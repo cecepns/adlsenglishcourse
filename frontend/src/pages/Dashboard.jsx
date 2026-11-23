@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
+import toast from "react-hot-toast";
 import {
+  AlertTriangle,
   Award,
   CalendarCheck,
   CalendarClock,
@@ -15,10 +17,12 @@ import {
   GraduationCap,
   Grid,
   HelpCircle,
+  Loader2,
   MessageSquareWarning,
   Receipt,
   RefreshCw,
   School,
+  Sparkles,
   Table,
   TrendingDown,
   TrendingUp,
@@ -27,6 +31,7 @@ import {
   UserX,
   Wallet,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
@@ -156,6 +161,13 @@ export default function Dashboard() {
   const [growthView, setGrowthView] = useState("monthly"); // "weekly" | "monthly"
   const [growthMetric, setGrowthMetric] = useState("active"); // "active" | "new" | "out"
 
+  // Tutor Backup Replacement State (PDF Revisi Hal 4)
+  const [manualAssignItem, setManualAssignItem] = useState(null);
+  const [candidateTutors, setCandidateTutors] = useState([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [selectedBackupTutorId, setSelectedBackupTutorId] = useState("");
+  const [submittingAssign, setSubmittingAssign] = useState(false);
+
   const isOwner = user.role === "owner";
   const isHQ = ["owner", "admin_pusat"].includes(user.role);
 
@@ -200,6 +212,54 @@ export default function Dashboard() {
   useEffect(() => {
     loadTutorAvail();
   }, [loadTutorAvail]);
+
+  const handleAutoAssignBackup = async (substituteId) => {
+    if (!substituteId) return;
+    if (!window.confirm("Alihkan kelas ini secara otomatis ke tutor pengganti yang tersedia di cabang ini?")) return;
+    try {
+      const { data } = await api.post(`/tutor-substitutes/${substituteId}/auto-assign`);
+      toast.success(data.message || "Berhasil mengalihkan ke tutor pengganti!");
+      loadTutorAvail();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal mengalihkan tutor otomatis");
+    }
+  };
+
+  const openManualAssignModal = async (bi) => {
+    setManualAssignItem(bi);
+    setSelectedBackupTutorId("");
+    setLoadingCandidates(true);
+    try {
+      const { data } = await api.get(`/tutor-substitutes/${bi.substitute_id}/candidates`);
+      setCandidateTutors(data.data || []);
+      if (data.data?.length) {
+        setSelectedBackupTutorId(String(data.data[0].id));
+      }
+    } catch {
+      toast.error("Gagal memuat kandidat tutor pengganti");
+      setCandidateTutors([]);
+    } finally {
+      setLoadingCandidates(false);
+    }
+  };
+
+  const handleManualAssignSubmit = async (e) => {
+    e.preventDefault();
+    if (!manualAssignItem?.substitute_id || !selectedBackupTutorId) return;
+    setSubmittingAssign(true);
+    try {
+      const { data } = await api.post(`/tutor-substitutes/${manualAssignItem.substitute_id}/manual-assign`, {
+        backup_tutor_id: selectedBackupTutorId,
+      });
+      toast.success(data.message || "Tutor pengganti berhasil ditugaskan!");
+      setManualAssignItem(null);
+      loadTutorAvail();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal menugaskan tutor pengganti");
+    } finally {
+      setSubmittingAssign(false);
+    }
+  };
 
   const branchOptions = [
     { value: "", label: "Semua Cabang" },
@@ -1058,32 +1118,71 @@ export default function Dashboard() {
                               >
                                 {busyItems.length > 0 ? (
                                   <div className="space-y-1.5">
-                                    {busyItems.map((bi, biIdx) => (
-                                      <Link
-                                        to="/classes"
-                                        key={biIdx}
-                                        className="rounded-lg border border-blue-200 bg-blue-50/80 p-2 text-left shadow-2xs block hover:border-brand hover:bg-blue-100/70 transition"
-                                        title="Buka Kelas Belajar"
-                                      >
-                                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                                          <span className="text-[11px] font-bold text-slate-900 truncate">
-                                            {bi.tutor_name}
-                                          </span>
-                                          <span className="rounded bg-brand px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">
-                                            Terisi
-                                          </span>
+                                    {busyItems.map((bi, biIdx) =>
+                                      bi.needs_backup ? (
+                                        <div
+                                          key={biIdx}
+                                          className="rounded-lg border-2 border-red-500 bg-red-100/95 text-red-950 p-2 text-left shadow-md block animate-pulse ring-2 ring-red-400 transition"
+                                        >
+                                          <div className="flex items-center justify-between gap-1 mb-1">
+                                            <span className="rounded bg-red-600 px-1.5 py-0.5 text-[9px] font-extrabold text-white uppercase tracking-wider flex items-center gap-0.5">
+                                              <AlertTriangle size={10} /> BUTUH BACKUP
+                                            </span>
+                                            <span className="text-[10px] font-bold text-red-800 truncate" title={bi.tutor_name}>
+                                              {bi.tutor_name}
+                                            </span>
+                                          </div>
+                                          <div className="text-[11px] font-extrabold text-red-950 truncate">
+                                            {bi.class_name} ({bi.level || "-"})
+                                          </div>
+                                          <div className="mt-1 rounded bg-white/80 p-1 text-[10px] text-red-900 italic leading-tight">
+                                            Alasan: "{bi.substitute_reason || "Tidak hadir"}"
+                                          </div>
+                                          <div className="mt-2 flex flex-col gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleAutoAssignBackup(bi.substitute_id)}
+                                              className="inline-flex items-center justify-center gap-1 rounded bg-red-600 hover:bg-red-700 text-white px-2 py-1 text-[10px] font-bold shadow-2xs transition"
+                                              title="Sistem memilih tutor di jam kosong & cabang/level sama"
+                                            >
+                                              <Zap size={10} /> Alihkan Otomatis
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => openManualAssignModal(bi)}
+                                              className="inline-flex items-center justify-center gap-1 rounded bg-white border border-red-300 hover:bg-red-50 text-red-900 px-2 py-1 text-[10px] font-bold shadow-2xs transition"
+                                            >
+                                              <Users size={10} /> Pilih Manual
+                                            </button>
+                                          </div>
                                         </div>
-                                        <div className="text-[11px] font-semibold text-brand-dark truncate">
-                                          {bi.class_name}
-                                        </div>
-                                        <div className="mt-1 flex items-center justify-between gap-1 border-t border-blue-100/80 pt-1 text-[10px]">
-                                          <span className="text-slate-500 truncate" title={bi.level}>{bi.level || "-"}</span>
-                                          <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 font-bold text-blue-900">
-                                            <Users size={10} /> {bi.student_count ?? 0} Siswa
-                                          </span>
-                                        </div>
-                                      </Link>
-                                    ))}
+                                      ) : (
+                                        <Link
+                                          to="/classes"
+                                          key={biIdx}
+                                          className="rounded-lg border border-blue-200 bg-blue-50/80 p-2 text-left shadow-2xs block hover:border-brand hover:bg-blue-100/70 transition"
+                                          title="Buka Kelas Belajar"
+                                        >
+                                          <div className="flex items-center justify-between gap-1 mb-0.5">
+                                            <span className="text-[11px] font-bold text-slate-900 truncate">
+                                              {bi.tutor_name}
+                                            </span>
+                                            <span className="rounded bg-brand px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">
+                                              Terisi
+                                            </span>
+                                          </div>
+                                          <div className="text-[11px] font-semibold text-brand-dark truncate">
+                                            {bi.class_name}
+                                          </div>
+                                          <div className="mt-1 flex items-center justify-between gap-1 border-t border-blue-100/80 pt-1 text-[10px]">
+                                            <span className="text-slate-500 truncate" title={bi.level}>{bi.level || "-"}</span>
+                                            <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 font-bold text-blue-900">
+                                              <Users size={10} /> {bi.student_count ?? 0} Siswa
+                                            </span>
+                                          </div>
+                                        </Link>
+                                      )
+                                    )}
                                   </div>
                                 ) : (
                                   <div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50/40 p-2 text-center">
@@ -1259,6 +1358,77 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Modal Alihkan Manual Tutor Pengganti (PDF Hal 4) */}
+      <Modal
+        open={Boolean(manualAssignItem)}
+        title={`Tugaskan Tutor Pengganti: ${manualAssignItem?.class_name || "Kelas"} (${manualAssignItem?.level || "-"})`}
+        onClose={() => !submittingAssign && setManualAssignItem(null)}
+        maxWidth="max-w-md"
+      >
+        {manualAssignItem && (
+          <form onSubmit={handleManualAssignSubmit} className="space-y-4">
+            <div className="rounded-xl border border-red-200 bg-red-50/80 p-3 text-xs space-y-1 text-red-950">
+              <div className="font-extrabold text-sm text-red-900">
+                {manualAssignItem.class_name} · <span className="text-brand-dark">{manualAssignItem.level}</span>
+              </div>
+              <div>Tutor Utama: <b>{manualAssignItem.tutor_name}</b> (Berhalangan Hadir)</div>
+              <div className="italic">Alasan: "{manualAssignItem.substitute_reason || "Tidak bisa hadir"}"</div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Pilih Tutor Pengganti (Tersedia &amp; Cabang Sama) *</label>
+              {loadingCandidates ? (
+                <div className="p-4 text-center text-xs text-slate-400">
+                  <Loader2 size={16} className="mx-auto mb-1 animate-spin text-brand" />
+                  Memuat daftar tutor yang berkualifikasi...
+                </div>
+              ) : candidateTutors.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-3 text-center text-xs text-amber-800">
+                  Tidak ditemukan tutor lain di cabang ini. Silakan tambahkan tutor cabang terlebih dahulu atau hubungi tutor secara manual.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <select
+                    required
+                    className="input !text-xs font-semibold"
+                    value={selectedBackupTutorId}
+                    onChange={(e) => setSelectedBackupTutorId(e.target.value)}
+                  >
+                    {candidateTutors.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} {t.has_taught_level ? `(Pernah Mengajar ${manualAssignItem.level})` : "(Tutor Cabang)"}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-400">
+                    *Tutor yang memiliki pengalaman di level {manualAssignItem.level} diprioritaskan di urutan atas.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setManualAssignItem(null)}
+                className="btn-secondary !py-2 !text-xs"
+                disabled={submittingAssign}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={submittingAssign || candidateTutors.length === 0}
+                className="btn-primary !py-2 !text-xs font-bold"
+              >
+                {submittingAssign ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
+                Tugaskan Tutor Ini
+              </button>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

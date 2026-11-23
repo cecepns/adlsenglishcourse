@@ -82,7 +82,7 @@ export default function EmployeeAttendancePage() {
   // Today's Attendance State
   const [todayLoading, setTodayLoading] = useState(true);
   const [todayData, setTodayData] = useState(null);
-  const [activeSetting, setActiveSetting] = useState({ work_start: "08:00", work_end: "17:00", late_tolerance_minutes: 15 });
+  const [activeSetting, setActiveSetting] = useState({ work_start: "08:50", work_end: "17:30", late_tolerance_minutes: 15 });
 
   // Check-in / Check-out Form State
   const [gpsLocation, setGpsLocation] = useState(null);
@@ -710,7 +710,7 @@ export default function EmployeeAttendancePage() {
                   <div className="mt-3 space-y-2 text-xs">
                     <div className="flex items-center justify-between border-b border-sky-200/60 pb-1.5">
                       <span className="text-slate-600">Jam Masuk (Check-in):</span>
-                      <span className="font-extrabold text-slate-900">{activeSetting.work_start || "08:00"} WIB</span>
+                      <span className="font-extrabold text-slate-900">{activeSetting.work_start || "08:50"} WIB</span>
                     </div>
                     <div className="flex items-center justify-between border-b border-sky-200/60 pb-1.5">
                       <span className="text-slate-600">Toleransi Telat:</span>
@@ -718,7 +718,7 @@ export default function EmployeeAttendancePage() {
                     </div>
                     <div className="flex items-center justify-between border-b border-sky-200/60 pb-1.5">
                       <span className="text-slate-600">Jam Pulang (Check-out):</span>
-                      <span className="font-extrabold text-slate-900">{activeSetting.work_end || "17:00"} WIB</span>
+                      <span className="font-extrabold text-slate-900">{activeSetting.work_end || "17:30"} WIB</span>
                     </div>
                   </div>
                   <p className="mt-3 text-[11px] text-sky-800 leading-relaxed">

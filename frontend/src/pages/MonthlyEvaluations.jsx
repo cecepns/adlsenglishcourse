@@ -2,8 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
+  AlertCircle,
   BookOpenCheck,
+  CheckCircle,
   CheckSquare,
+  Globe,
   Loader2,
   Plus,
   Printer,
@@ -70,7 +73,11 @@ export default function MonthlyEvaluations() {
       if (isParentOrStudent) {
         if (selectedStudent?.id) params.student_id = selectedStudent.id;
       } else if (tab === "design") {
-        params.class_id = applyAllClasses ? 0 : (selectedClass?.id || 0);
+        if (!applyAllClasses && !selectedClass?.id) {
+          setLoading(false);
+          return;
+        }
+        params.class_id = applyAllClasses ? 0 : selectedClass.id;
       } else {
         if (selectedStudent?.id) params.student_id = selectedStudent.id;
         if (selectedClass?.id) params.class_id = selectedClass.id;
@@ -164,18 +171,27 @@ export default function MonthlyEvaluations() {
 
   const saveDesign = async (e) => {
     e.preventDefault();
+    if (!applyAllClasses && !selectedClass?.id) {
+      toast.error("Silakan pilih 1 kelas terlebih dahulu sebelum menyimpan desain khusus kelas!");
+      return;
+    }
     setSaving(true);
     try {
+      const targetClassId = applyAllClasses ? 0 : Number(selectedClass.id);
       await request(
         () =>
           api.put(API_ENDPOINTS.MONTHLY_EVALUATIONS.DESIGN, {
-            class_id: applyAllClasses ? 0 : (selectedClass?.id || 0),
+            class_id: targetClassId,
             apply_all_classes: applyAllClasses,
             month,
             title,
             structure,
           }),
-        { success: "Desain Lembar Evaluasi Bulanan berhasil disimpan!" }
+        {
+          success: applyAllClasses
+            ? "Desain Template Global (Semua Kelas) berhasil disimpan!"
+            : `Desain khusus kelas ${selectedClass.class_type || selectedClass.name} berhasil disimpan!`,
+        }
       );
       loadEvaluation();
     } catch {
@@ -363,9 +379,37 @@ export default function MonthlyEvaluations() {
           Memuat data evaluasi bulanan...
         </div>
       ) : isStaff && tab === "design" ? (
-        <form onSubmit={saveDesign} className="space-y-5">
-          {/* Editor Card */}
-          <div className="card p-5 space-y-4">
+        !applyAllClasses && !selectedClass?.id ? (
+          <div className="card p-10 text-center space-y-3">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+              <AlertCircle size={28} />
+            </div>
+            <h3 className="text-base font-bold text-slate-800">Pilih Kelas Terlebih Dahulu</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Anda memilih mode <b>Khusus 1 Kelas Tertentu</b>. Silakan cari dan pilih kelas pada filter di atas untuk memuat serta mengedit desain laporan evaluasi khusus untuk kelas tersebut.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={saveDesign} className="space-y-5">
+            {/* Scope Banner */}
+            {applyAllClasses ? (
+              <div className="flex items-center gap-2 rounded-xl bg-amber-50/90 border border-amber-200 px-4 py-2.5 text-xs text-amber-800">
+                <Globe size={16} className="text-amber-600 shrink-0" />
+                <span>
+                  <b>Mode Template Global:</b> Perubahan desain ini akan diterapkan ke <b>semua kelas</b> yang belum memiliki template khusus.
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl bg-blue-50/90 border border-blue-200 px-4 py-2.5 text-xs text-blue-800">
+                <CheckCircle size={16} className="text-blue-600 shrink-0" />
+                <span>
+                  <b>Mode Khusus 1 Kelas:</b> Perubahan desain ini <b>hanya berlaku untuk kelas: {[selectedClass?.class_type || selectedClass?.name, selectedClass?.level, selectedClass?.branch_name].filter(Boolean).join(" · ")}</b> dan <b>TIDAK</b> akan merubah kelas lain.
+                </span>
+              </div>
+            )}
+
+            {/* Editor Card */}
+            <div className="card p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div>
                 <h2 className="text-base font-extrabold text-slate-900">Pengaturan Kolom &amp; Baris Tabel Evaluasi</h2>
@@ -478,6 +522,7 @@ export default function MonthlyEvaluations() {
             <MonthlyEvaluationTable title={title} structure={structure} scores={{}} editable={false} />
           </div>
         </form>
+        )
       ) : (
         <div className="card p-5 space-y-4">
           {studentInfo && (

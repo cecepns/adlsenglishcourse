@@ -113,7 +113,7 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
             reading: scoreDraft.reading,
             notes: scoreDraft.notes,
           }),
-        { success: `Nilai Pertemuan ${scoreModal.meeting_number} berhasil disimpan!` }
+        { success: `Nilai Bulan ke-${scoreModal.meeting_number} berhasil disimpan!` }
       );
       setScoreModal(null);
       load();
@@ -134,13 +134,11 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
           </span>
           <div>
             <h3 className="text-base font-extrabold text-slate-900">
-              Learning Journey Roadmap · {isMonthlyVariant ? "Januari – Desember" : "12x Pertemuan"}
+              Learning Journey Roadmap · 12 Bulan
               {displayName ? <span className="ml-1.5 text-brand">({displayName})</span> : null}
             </h3>
             <p className="text-xs text-slate-500">
-              {isMonthlyVariant
-                ? "Sesuai lesson plan setiap kelas (fokus kemampuan). Klik bulan untuk langsung menuju Laporan Belajar Bulanan"
-                : "Fokus kemampuan & teknik penilaian 4 aspek (Speaking, Listening, Writing, Reading) di setiap pertemuan"}
+              Fokus kemampuan &amp; teknik penilaian 4 aspek (Speaking, Listening, Writing, Reading) di setiap bulan
             </p>
           </div>
         </div>
@@ -152,7 +150,7 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
             </span>
             <span>·</span>
             <span>
-              Progres: <b className="text-emerald-700">{completedCount}/12 Pertemuan</b>
+              Progres: <b className="text-emerald-700">{completedCount}/12 Bulan</b>
             </span>
             {isCompleted && <span>· ⭐ Lulus</span>}
           </div>
@@ -163,7 +161,7 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
               onClick={openTemplateModal}
               className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-brand-dark"
             >
-              <Settings2 size={13} /> Edit Roadmap (Semua Akun)
+              <Settings2 size={13} /> Edit Roadmap 12 Bulan (Semua Akun)
             </button>
           )}
         </div>
@@ -284,7 +282,7 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
                         </span>
                         <div className="min-w-0">
                           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Pertemuan {m.meeting_number}
+                            Bulan ke-{m.meeting_number}
                           </div>
                           <div className="text-xs font-extrabold text-slate-900 leading-snug line-clamp-2" title={m.topic}>
                             {m.topic}
@@ -295,7 +293,7 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
                       {clickableScore && (
                         <span
                           className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1 text-slate-400 transition group-hover:border-brand/40 group-hover:bg-brand-50 group-hover:text-brand"
-                          title="Input / Edit Nilai Pertemuan"
+                          title={`Input / Edit Nilai Bulan ke-${m.meeting_number}`}
                         >
                           <Edit3 size={12} />
                         </span>
@@ -345,15 +343,15 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
 
       {canScore && effectiveStudentId && (
         <p className="mt-3 text-[11px] font-medium text-slate-500">
-          💡 Klik kartu pertemuan (1–12) untuk mengisi atau memperbarui nilai <b>Speaking, Listening, Writing, dan Reading</b> siswa.
+          💡 Klik kartu bulan (1–12) untuk mengisi atau memperbarui nilai <b>Speaking, Listening, Writing, dan Reading</b> siswa.
         </p>
       )}
 
-      {/* Modal Admin: Edit Kurikulum 12 Pertemuan & Replace ke Semua Akun */}
-      <Modal open={tplModal} title="Edit Kurikulum Learning Journey Roadmap (12 Pertemuan)" onClose={() => setTplModal(false)}>
+      {/* Modal Admin: Edit Kurikulum 12 Bulan & Replace ke Semua Akun */}
+      <Modal open={tplModal} title="Edit Kurikulum Learning Journey Roadmap (12 Bulan)" onClose={() => setTplModal(false)}>
         <form onSubmit={saveTemplate} className="space-y-3">
           <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900">
-            Perubahan fokus kemampuan / topik pertemuan di sini akan <b>otomatis menggantikan (replace)</b> tampilan roadmap di seluruh akun <b>Orang Tua, Siswa, dan Tutor</b>.
+            Perubahan fokus kemampuan / topik bulan di sini akan <b>otomatis menggantikan (replace)</b> tampilan roadmap di seluruh akun <b>Orang Tua, Siswa, dan Tutor</b>.
           </div>
           <div className="max-h-[55vh] space-y-2.5 overflow-y-auto pr-1">
             {tplDraft.map((item, idx) => (
@@ -364,7 +362,7 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
                 <input
                   required
                   className="input !py-2 text-xs font-semibold"
-                  placeholder={`Fokus kemampuan pertemuan ${item.meeting_number}`}
+                  placeholder={`Fokus kemampuan bulan ke-${item.meeting_number}`}
                   value={item.topic}
                   onChange={(e) => {
                     const next = [...tplDraft];
@@ -387,10 +385,10 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
         </form>
       </Modal>
 
-      {/* Modal Input Nilai 4 Aspek per Pertemuan */}
+      {/* Modal Input Nilai 4 Aspek per Bulan */}
       <Modal
         open={!!scoreModal}
-        title={scoreModal ? `Nilai Pertemuan ${scoreModal.meeting_number}: ${scoreModal.topic}` : ""}
+        title={scoreModal ? `Nilai Bulan ke-${scoreModal.meeting_number}: ${scoreModal.topic}` : ""}
         onClose={() => setScoreModal(null)}
       >
         {scoreModal && (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
+  BellRing,
   BookOpenCheck,
   Building2,
   Calendar,
@@ -17,6 +18,7 @@ import {
   Save,
   School,
   Sparkles,
+  UserMinus,
   Users,
   Video,
   X,
@@ -75,6 +77,60 @@ export default function TutorDashboard() {
 
   // Modal Lembar Penilaian Evaluasi Bulanan (PDF Hal 2 - Revisi Tutor)
   const [evalModal, setEvalModal] = useState(null);
+
+  // Tutor Backup State (PDF Hal 4)
+  const [backupModalClass, setBackupModalClass] = useState(null);
+  const [backupReason, setBackupReason] = useState("");
+  const [backupDate, setBackupDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [backupSubmitting, setBackupSubmitting] = useState(false);
+  const [acceptingSubId, setAcceptingSubId] = useState(null);
+
+  const openRequestBackupModal = (c) => {
+    setBackupModalClass(c);
+    setBackupReason("");
+    setBackupDate(sessionDate || new Date().toISOString().slice(0, 10));
+  };
+
+  const handleSendBackupRequest = async (e) => {
+    e.preventDefault();
+    if (!backupModalClass?.id) return;
+    if (!backupReason.trim()) {
+      return toast.error("Silakan tuliskan alasan tidak bisa hadir kelas");
+    }
+    setBackupSubmitting(true);
+    try {
+      await request(
+        () =>
+          api.post(`/tutor-portal/classes/${backupModalClass.id}/request-backup`, {
+            substitute_date: backupDate,
+            reason: backupReason.trim(),
+          }),
+        { success: "Permintaan tutor backup berhasil diajukan ke sistem!" }
+      );
+      setBackupModalClass(null);
+      loadOverview();
+    } catch {
+      /* handled */
+    } finally {
+      setBackupSubmitting(false);
+    }
+  };
+
+  const handleAcceptBackup = async (subId) => {
+    if (!window.confirm("Yakin ingin menerima tugas sebagai Tutor Pengganti (Backup) untuk kelas ini?")) return;
+    setAcceptingSubId(subId);
+    try {
+      await request(
+        () => api.post(`/tutor-portal/backup-requests/${subId}/accept`),
+        { success: "Berhasil di-ACC! Kelas kini aktif di dashboard jadwal Anda." }
+      );
+      loadOverview();
+    } catch {
+      /* handled */
+    } finally {
+      setAcceptingSubId(null);
+    }
+  };
 
   // Aturan Periode Penilaian Bulanan (PDF Hal 2: fungsi aktif tgl 20-31 setiap bulannya)
   const todayDayNum = new Date().getDate();
@@ -400,6 +456,55 @@ export default function TutorDashboard() {
         </div>
       </div>
 
+      {/* Notifikasi Permintaan Tutor Pengganti (Backup) Butuh ACC (PDF Hal 4) */}
+      {overview?.pending_backup_requests?.length > 0 && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50/90 p-4 shadow-sm space-y-3">
+          <div className="flex items-center gap-2 text-sm font-extrabold text-amber-900">
+            <BellRing size={18} className="text-amber-600 animate-bounce" />
+            <span>Permintaan Tutor Pengganti (Backup) Menunggu Konfirmasi (ACC)</span>
+            <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs text-amber-900 font-bold">
+              {overview.pending_backup_requests.length} Tersedia
+            </span>
+          </div>
+          <p className="text-xs text-amber-800">
+            Ada rekan tutor yang berhalangan hadir pada cabang &amp; level yang Anda kuasai. Klik <b>Terima &amp; ACC</b> jika Anda siap menggantikan kelas tersebut.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {overview.pending_backup_requests.map((req) => (
+              <div key={req.id} className="rounded-xl border border-amber-200 bg-white p-3.5 shadow-2xs space-y-2.5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs font-extrabold text-slate-900">
+                      {req.class_type || req.class_name} · <span className="text-brand">{req.level}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                      Mencari Backup
+                    </span>
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500 space-y-0.5">
+                    <div>Cabang: <b>{req.branch_name || "Pusat"}</b></div>
+                    <div>Tanggal: <b>{req.substitute_date}</b> · Jam: <b>{req.schedule || "-"}</b></div>
+                  </div>
+                  <div className="mt-2 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-700">
+                    <div>Tutor Asli: <b className="text-slate-900">{req.original_tutor_name}</b></div>
+                    <div className="text-slate-500 italic mt-0.5">Alasan: "{req.reason || "Tidak bisa hadir"}"</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={acceptingSubId === req.id}
+                  onClick={() => handleAcceptBackup(req.id)}
+                  className="btn-primary w-full !py-2 text-xs font-bold"
+                >
+                  {acceptingSubId === req.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                  Terima &amp; ACC Jadi Tutor Pengganti
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Daftar Kelas Khusus Tutor Ini (#7 Multi-Cabang) */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -533,6 +638,36 @@ export default function TutorDashboard() {
                         </a>
                       )}
                     </div>
+
+                    {/* Status atau Tombol Ajukan Tutor Pengganti / Backup (PDF Hal 4) */}
+                    {!c.is_backup && (
+                      <div className="border-t border-slate-100/80 pt-2 text-center">
+                        {c.backup_status === "seeking" ? (
+                          <div className="flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-[11px] font-bold text-amber-900">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock size={12} className="text-amber-600 animate-spin" /> Menunggu Tutor Pengganti...
+                            </span>
+                            <span className="text-[10px] text-amber-700 italic truncate max-w-[120px]" title={c.backup_reason}>
+                              {c.backup_reason}
+                            </span>
+                          </div>
+                        ) : c.backup_status === "scheduled" ? (
+                          <div className="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 text-[11px] font-bold text-indigo-800">
+                            <Sparkles size={12} className="text-indigo-600 shrink-0" />
+                            <span>Digantikan oleh: <b>Tutor {c.backup_tutor_name}</b></span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openRequestBackupModal(c)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline transition"
+                          >
+                            <UserMinus size={12} />
+                            Tidak bisa hadir kelas &amp; butuh tutor backup?
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -951,6 +1086,71 @@ export default function TutorDashboard() {
               </>
             )}
           </div>
+        )}
+      </Modal>
+
+      {/* Modal Ajukan Tutor Pengganti / Backup (PDF Hal 4) */}
+      <Modal
+        open={Boolean(backupModalClass)}
+        title="Ajukan Tutor Pengganti (Backup)"
+        onClose={() => !backupSubmitting && setBackupModalClass(null)}
+        maxWidth="max-w-md"
+      >
+        {backupModalClass && (
+          <form onSubmit={handleSendBackupRequest} className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs space-y-1">
+              <div className="font-bold text-slate-800">
+                {backupModalClass.class_type || backupModalClass.name} · <span className="text-brand">{backupModalClass.level}</span>
+              </div>
+              <div className="text-slate-500">
+                Cabang: <b>{backupModalClass.branch_name || "Pusat"}</b> · Jadwal: <b>{backupModalClass.schedule || "-"}</b>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Tanggal Izin / Kelas yang Digantikan *</label>
+              <DatePickerInput
+                required
+                value={backupDate}
+                onChange={(val) => setBackupDate(val)}
+                className="w-full text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Alasan Tidak Bisa Hadir *</label>
+              <textarea
+                required
+                rows={3}
+                className="input !text-xs"
+                placeholder="Contoh: Sakit, urusan mendadak, izin keperluan dinas, dll..."
+                value={backupReason}
+                onChange={(e) => setBackupReason(e.target.value)}
+              />
+              <p className="mt-1 text-[11px] text-slate-400">
+                *Permintaan akan ditayangkan kepada tutor lain di cabang yang sama dan berkualifikasi di level ini. Jadwal di admin dashboard akan ditandai berkedip merah sampai terisi.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setBackupModalClass(null)}
+                className="btn-secondary !py-2 !text-xs"
+                disabled={backupSubmitting}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={backupSubmitting}
+                className="btn-primary !py-2 !text-xs font-bold"
+              >
+                {backupSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Kirim Permintaan Backup
+              </button>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

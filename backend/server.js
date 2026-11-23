@@ -1395,12 +1395,18 @@ app.get("/api/monthly-evaluations", auth, can(ALL), wrap(async (req, res) => {
       structure,
       scores,
       notes,
+      is_custom_class_template: pickTpl ? Number(pickTpl.class_id) > 0 : false,
     },
   });
 }));
 
 app.put("/api/monthly-evaluations/design", auth, can(STAFF), wrap(async (req, res) => {
-  const classId = req.body.apply_all_classes ? 0 : (Number(req.body.class_id) || 0);
+  const isApplyAll = req.body.apply_all_classes === true || req.body.apply_all_classes === "true";
+  const rawClassId = Number(req.body.class_id) || 0;
+  if (!isApplyAll && (!rawClassId || rawClassId <= 0)) {
+    return fail(res, 400, "Silakan pilih kelas terlebih dahulu untuk menyimpan desain khusus 1 kelas!");
+  }
+  const classId = isApplyAll ? 0 : rawClassId;
   const month = clean(req.body.month) || "DEFAULT";
   const title = clean(req.body.title);
   const structure = Array.isArray(req.body.structure) ? req.body.structure : [];
@@ -1416,6 +1422,7 @@ app.put("/api/monthly-evaluations/design", auth, can(STAFF), wrap(async (req, re
     })),
   }));
 
+  // Save for the specified month
   await pool.query(
     `INSERT INTO monthly_eval_templates(class_id, month, title, structure_json, updated_by)
      VALUES(?,?,?,?,?)
@@ -1423,7 +1430,20 @@ app.put("/api/monthly-evaluations/design", auth, can(STAFF), wrap(async (req, re
     [classId, month, title, JSON.stringify(sanitized), req.user.id]
   );
 
-  res.json({ success: true, message: "Desain Lembar Evaluasi Bulanan berhasil disimpan!" });
+  // Also save / sync with DEFAULT baseline for this classId (or global 0)
+  await pool.query(
+    `INSERT INTO monthly_eval_templates(class_id, month, title, structure_json, updated_by)
+     VALUES(?,?,?,?,?)
+     ON DUPLICATE KEY UPDATE title=VALUES(title), structure_json=VALUES(structure_json), updated_by=VALUES(updated_by)`,
+    [classId, "DEFAULT", title, JSON.stringify(sanitized), req.user.id]
+  );
+
+  res.json({
+    success: true,
+    message: isApplyAll
+      ? "Desain Template Global (Semua Kelas) berhasil disimpan!"
+      : "Desain Template Khusus 1 Kelas berhasil disimpan dan tidak mempengaruhi kelas lain!",
+  });
 }));
 
 app.put("/api/monthly-evaluations/scores", auth, can([...STAFF, "tutor"]), wrap(async (req, res) => {
@@ -1910,13 +1930,17 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
       ta.check_in AS today_check_in,
       ta.late_minutes AS today_late_minutes,
       ta.status AS today_status,
-      0 AS is_backup
+      0 AS is_backup,
+      (SELECT ts.id FROM tutor_substitutes ts WHERE ts.class_id=c.id AND ts.substitute_date=? AND ts.status != 'cancelled' ORDER BY ts.id DESC LIMIT 1) AS backup_req_id,
+      (SELECT ts.status FROM tutor_substitutes ts WHERE ts.class_id=c.id AND ts.substitute_date=? AND ts.status != 'cancelled' ORDER BY ts.id DESC LIMIT 1) AS backup_status,
+      (SELECT ts.reason FROM tutor_substitutes ts WHERE ts.class_id=c.id AND ts.substitute_date=? AND ts.status != 'cancelled' ORDER BY ts.id DESC LIMIT 1) AS backup_reason,
+      (SELECT bak.name FROM tutor_substitutes ts LEFT JOIN users bak ON bak.id=ts.backup_tutor_id WHERE ts.class_id=c.id AND ts.substitute_date=? AND ts.status != 'cancelled' ORDER BY ts.id DESC LIMIT 1) AS backup_tutor_name
      FROM classes c
      LEFT JOIN branches b ON b.id=c.branch_id
      LEFT JOIN tutor_attendance ta ON ta.tutor_id=? AND ta.class_id=c.id AND ta.date=?
      WHERE c.tutor_id=?
      ORDER BY b.name ASC, c.schedule ASC, c.id ASC`,
-    [req.user.id, now.date, req.user.id]
+    [now.date, now.date, now.date, now.date, req.user.id, now.date, req.user.id]
   );
 
   // Kelas Pengganti (Backup Tutor) hari ini
@@ -1941,6 +1965,29 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
      WHERE ts.backup_tutor_id=? AND ts.substitute_date=? AND ts.status != 'cancelled'
      ORDER BY b.name ASC, c.schedule ASC`,
     [req.user.id, now.date, req.user.id, now.date]
+  );
+
+  // Permintaan Tutor Pengganti (Backup) yang butuh di-ACC oleh tutor yang memenuhi kriteria (Cabang sama & Level sama)
+  const [pendingBackupRequests] = await pool.query(
+    `SELECT ts.id, ts.class_id, ts.branch_id, ts.substitute_date, ts.reason, ts.created_at,
+            c.name AS class_name, COALESCE(c.class_type, c.name) AS class_type, c.level, c.schedule,
+            b.name AS branch_name,
+            orig.name AS original_tutor_name
+     FROM tutor_substitutes ts
+     JOIN classes c ON c.id=ts.class_id
+     LEFT JOIN branches b ON b.id=c.branch_id
+     LEFT JOIN users orig ON orig.id=ts.original_tutor_id
+     WHERE ts.status = 'seeking'
+       AND ts.original_tutor_id != ?
+       AND ts.substitute_date >= ?
+       AND (c.branch_id IS NULL OR c.branch_id IN (SELECT branch_id FROM users WHERE id=? UNION SELECT branch_id FROM tutor_branches WHERE tutor_id=?))
+       AND (
+         c.level IS NULL
+         OR c.level IN (SELECT DISTINCT c2.level FROM classes c2 WHERE c2.tutor_id=?)
+         OR (SELECT COUNT(*) FROM classes c3 WHERE c3.tutor_id=?) = 0
+       )
+     ORDER BY ts.substitute_date ASC, ts.id DESC`,
+    [req.user.id, now.date, req.user.id, req.user.id, req.user.id, req.user.id]
   );
 
   const allClasses = [...classes, ...backupClasses];
@@ -1971,6 +2018,7 @@ app.get("/api/tutor-portal/overview", auth, can(["tutor"]), wrap(async (req, res
       server_time: now.time,
       branches: Array.from(branchMap.values()),
       classes: allClasses,
+      pending_backup_requests: pendingBackupRequests,
     },
   });
 }));
@@ -2025,8 +2073,8 @@ app.put("/api/employee-attendance/settings", auth, can(["owner"]), wrap(async (r
   for (const item of settingsList) {
     const role = clean(item.role);
     if (!role) continue;
-    const workStart = clean(item.work_start) || "08:00";
-    const workEnd = clean(item.work_end) || "17:00";
+    const workStart = clean(item.work_start) || "08:50";
+    const workEnd = clean(item.work_end) || "17:30";
     const lateTolerance = item.late_tolerance_minutes !== undefined ? Number(item.late_tolerance_minutes) : 15;
     await pool.query(
       `INSERT INTO employee_attendance_settings (role, work_start, work_end, late_tolerance_minutes, updated_by)
@@ -2054,7 +2102,7 @@ app.get("/api/employee-attendance/today", auth, can(EMPLOYEE_ATT_ROLES), wrap(as
   // Active setting for this user's role (fall back to default)
   const [[roleSetting]] = await pool.query("SELECT * FROM employee_attendance_settings WHERE role = ? AND is_active = 1", [req.user.role]);
   const [[defaultSetting]] = await pool.query("SELECT * FROM employee_attendance_settings WHERE role = 'default' AND is_active = 1");
-  const setting = roleSetting || defaultSetting || { work_start: "08:00", work_end: "17:00", late_tolerance_minutes: 15 };
+  const setting = roleSetting || defaultSetting || { work_start: "08:50", work_end: "17:30", late_tolerance_minutes: 15 };
 
   res.json({
     success: true,
@@ -2094,9 +2142,9 @@ app.post("/api/employee-attendance/check-in", auth, can(EMPLOYEE_ATT_ROLES), wra
   // Get active shift setting for role
   const [[roleSetting]] = await pool.query("SELECT * FROM employee_attendance_settings WHERE role = ? AND is_active = 1", [req.user.role]);
   const [[defaultSetting]] = await pool.query("SELECT * FROM employee_attendance_settings WHERE role = 'default' AND is_active = 1");
-  const setting = roleSetting || defaultSetting || { work_start: "08:00", work_end: "17:00", late_tolerance_minutes: 15 };
+  const setting = roleSetting || defaultSetting || { work_start: "08:50", work_end: "17:30", late_tolerance_minutes: 15 };
 
-  const [wsH, wsM] = (setting.work_start || "08:00").split(":").map(Number);
+  const [wsH, wsM] = (setting.work_start || "08:50").split(":").map(Number);
   const workStartMinutes = (wsH || 0) * 60 + (wsM || 0);
   const tolerance = Number(setting.late_tolerance_minutes || 0);
   const threshold = workStartMinutes + tolerance;
@@ -2170,9 +2218,9 @@ app.post("/api/employee-attendance/check-out", auth, can(EMPLOYEE_ATT_ROLES), wr
   // Get active shift setting for role
   const [[roleSetting]] = await pool.query("SELECT * FROM employee_attendance_settings WHERE role = ? AND is_active = 1", [req.user.role]);
   const [[defaultSetting]] = await pool.query("SELECT * FROM employee_attendance_settings WHERE role = 'default' AND is_active = 1");
-  const setting = roleSetting || defaultSetting || { work_start: "08:00", work_end: "17:00", late_tolerance_minutes: 15 };
+  const setting = roleSetting || defaultSetting || { work_start: "08:50", work_end: "17:30", late_tolerance_minutes: 15 };
 
-  const [weH, weM] = (setting.work_end || "17:00").split(":").map(Number);
+  const [weH, weM] = (setting.work_end || "17:30").split(":").map(Number);
   const workEndMinutes = (weH || 0) * 60 + (weM || 0);
 
   let earlyLeaveMinutes = 0;
@@ -2769,6 +2817,148 @@ app.put("/api/tutor-substitutes/:id", auth, can(STAFF), wrap(async (req, res) =>
   res.json({ success: true, message: "Status penugasan tutor pengganti diperbarui" });
 }));
 
+// Pengajuan Tutor Backup oleh Tutor yang tidak bisa hadir kelas (PDF Revisi Hal 4)
+app.post("/api/tutor-portal/classes/:id/request-backup", auth, can(["tutor"]), wrap(async (req, res) => {
+  const classId = Number(req.params.id);
+  const date = clean(req.body.substitute_date) || getServerNowParts().date;
+  const reason = clean(req.body.reason) || "Tidak bisa hadir kelas dan butuh tutor backup";
+
+  const [[cls]] = await pool.query("SELECT * FROM classes WHERE id=? AND tutor_id=?", [classId, req.user.id]);
+  if (!cls) return fail(res, 404, "Kelas tidak ditemukan atau Anda bukan pengajar kelas ini");
+
+  // Periksa apakah sudah ada permohonan backup aktif untuk kelas dan tanggal ini
+  const [[existing]] = await pool.query(
+    "SELECT * FROM tutor_substitutes WHERE class_id=? AND substitute_date=? AND status IN ('seeking', 'scheduled')",
+    [classId, date]
+  );
+  if (existing) {
+    return fail(res, 400, "Permintaan tutor backup untuk kelas dan tanggal ini sudah pernah diajukan");
+  }
+
+  const [r] = await pool.query(
+    `INSERT INTO tutor_substitutes (class_id, branch_id, original_tutor_id, backup_tutor_id, substitute_date, reason, status, notes, created_by)
+     VALUES (?, ?, ?, NULL, ?, ?, 'seeking', 'Diajukan langsung oleh tutor via Portal Tutor', ?)`,
+    [classId, cls.branch_id, req.user.id, date, reason, req.user.id]
+  );
+
+  res.status(201).json({
+    success: true,
+    data: { id: r.insertId },
+    message: "Permintaan tutor backup berhasil diajukan! Jadwal kelas kini mencari pengganti.",
+  });
+}));
+
+// Tutor Pengganti ACC / Menerima Permintaan Backup (PDF Revisi Hal 4)
+app.post("/api/tutor-portal/backup-requests/:id/accept", auth, can(["tutor"]), wrap(async (req, res) => {
+  const subId = Number(req.params.id);
+  const [[sub]] = await pool.query(
+    "SELECT ts.*, c.branch_id, c.level FROM tutor_substitutes ts JOIN classes c ON c.id=ts.class_id WHERE ts.id=? AND ts.status='seeking'",
+    [subId]
+  );
+  if (!sub) return fail(res, 404, "Permintaan backup ini sudah diambil tutor lain atau dibatalkan");
+  if (sub.original_tutor_id === req.user.id) return fail(res, 400, "Anda tidak dapat menerima backup untuk kelas sendiri");
+
+  await pool.query(
+    "UPDATE tutor_substitutes SET backup_tutor_id=?, status='scheduled', notes=CONCAT(COALESCE(notes,''), ' | Di-ACC oleh tutor ', ?) WHERE id=?",
+    [req.user.id, req.user.name, subId]
+  );
+
+  res.json({
+    success: true,
+    message: "Berhasil menerima tugas sebagai Tutor Pengganti! Jadwal kelas kini otomatis berpindah ke dashboard Anda.",
+  });
+}));
+
+// Admin Dashboard: Alihkan Otomatis Tutor Pengganti (Sistem memilih tutor di jam kosong & cabang/level sama)
+app.post("/api/tutor-substitutes/:id/auto-assign", auth, can(STAFF), wrap(async (req, res) => {
+  const subId = Number(req.params.id);
+  const [[sub]] = await pool.query(
+    "SELECT ts.*, c.branch_id, c.level, c.schedule, c.day_1, c.day_2, c.day_3 FROM tutor_substitutes ts JOIN classes c ON c.id=ts.class_id WHERE ts.id=?",
+    [subId]
+  );
+  if (!sub) return fail(res, 404, "Data permintaan backup tidak ditemukan");
+
+  // Cari tutor aktif di cabang yang sama yang pernah mengajar level yang sama (PDF Hal 4)
+  const [candidates] = await pool.query(
+    `SELECT u.id, u.name, u.email, u.phone
+     FROM users u
+     WHERE u.role='tutor' AND u.status='active' AND u.id != ?
+       AND (u.branch_id = ? OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=u.id AND tb.branch_id=?))
+       AND (EXISTS (SELECT 1 FROM classes c2 WHERE c2.tutor_id=u.id AND c2.level=?) OR (SELECT COUNT(*) FROM classes c3 WHERE c3.tutor_id=u.id)=0)
+     ORDER BY (SELECT COUNT(*) FROM classes c4 WHERE c4.tutor_id=u.id) ASC
+     LIMIT 1`,
+    [sub.original_tutor_id, sub.branch_id, sub.branch_id, sub.level]
+  );
+
+  if (!candidates.length) {
+    const [fallbackCandidates] = await pool.query(
+      `SELECT u.id, u.name, u.email, u.phone
+       FROM users u
+       WHERE u.role='tutor' AND u.status='active' AND u.id != ?
+         AND (u.branch_id = ? OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=u.id AND tb.branch_id=?))
+       LIMIT 1`,
+      [sub.original_tutor_id, sub.branch_id, sub.branch_id]
+    );
+    if (!fallbackCandidates.length) {
+      return fail(res, 400, "Tidak ditemukan tutor pengganti aktif di cabang ini untuk dialihkan otomatis");
+    }
+    candidates.push(fallbackCandidates[0]);
+  }
+
+  const assignedTutor = candidates[0];
+  await pool.query(
+    "UPDATE tutor_substitutes SET backup_tutor_id=?, status='scheduled', notes=CONCAT(COALESCE(notes,''), ' | Dialihkan otomatis oleh admin/owner ke ', ?) WHERE id=?",
+    [assignedTutor.id, assignedTutor.name, subId]
+  );
+
+  res.json({
+    success: true,
+    message: `Berhasil mengalihkan kelas secara otomatis ke Tutor Pengganti: ${assignedTutor.name}!`,
+  });
+}));
+
+// Admin Dashboard: Daftar kandidat tutor pengganti yang memenuhi syarat (Cabang sama & Level sama)
+app.get("/api/tutor-substitutes/:id/candidates", auth, can(STAFF), wrap(async (req, res) => {
+  const subId = Number(req.params.id);
+  const [[sub]] = await pool.query(
+    "SELECT ts.*, c.branch_id, c.level, c.schedule FROM tutor_substitutes ts JOIN classes c ON c.id=ts.class_id WHERE ts.id=?",
+    [subId]
+  );
+  if (!sub) return fail(res, 404, "Data tidak ditemukan");
+
+  const [tutors] = await pool.query(
+    `SELECT u.id, u.name, u.phone, b.name AS branch_name,
+            (SELECT COUNT(*) FROM classes c2 WHERE c2.tutor_id=u.id AND c2.level=?) AS has_taught_level
+     FROM users u
+     LEFT JOIN branches b ON b.id=u.branch_id
+     WHERE u.role='tutor' AND u.status='active' AND u.id != ?
+       AND (u.branch_id = ? OR EXISTS (SELECT 1 FROM tutor_branches tb WHERE tb.tutor_id=u.id AND tb.branch_id=?))
+     ORDER BY has_taught_level DESC, u.name ASC`,
+    [sub.level, sub.original_tutor_id, sub.branch_id, sub.branch_id]
+  );
+  res.json({ success: true, data: tutors });
+}));
+
+// Admin Dashboard: Tugaskan tutor pengganti secara manual
+app.post("/api/tutor-substitutes/:id/manual-assign", auth, can(STAFF), wrap(async (req, res) => {
+  const subId = Number(req.params.id);
+  const backupTutorId = Number(req.body.backup_tutor_id);
+  if (!backupTutorId) return fail(res, 400, "Silakan pilih tutor pengganti");
+
+  const [[tutor]] = await pool.query("SELECT * FROM users WHERE id=? AND role='tutor'", [backupTutorId]);
+  if (!tutor) return fail(res, 404, "Tutor pengganti tidak ditemukan");
+
+  await pool.query(
+    "UPDATE tutor_substitutes SET backup_tutor_id=?, status='scheduled', notes=CONCAT(COALESCE(notes,''), ' | Ditugaskan manual oleh admin/owner ke ', ?) WHERE id=?",
+    [tutor.id, tutor.name, subId]
+  );
+
+  res.json({
+    success: true,
+    message: `Berhasil menugaskan Tutor ${tutor.name} sebagai pengganti kelas!`,
+  });
+}));
+
 // Achievements 20x UAS 100 = Free 1x SPP
 app.get("/api/achievements", auth, wrap(async (req, res) => {
   const search = String(req.query.search || "").trim();
@@ -2849,7 +3039,7 @@ app.get("/api/bills/bank-accounts", auth, can(STAFF), wrap(async (_, res) => {
   res.json({ success: true, data: rows });
 }));
 
-app.post("/api/bills/bank-accounts", auth, can(STAFF), wrap(async (req, res) => {
+app.post("/api/bills/bank-accounts", auth, can(["owner"]), wrap(async (req, res) => {
   const bankName = clean(req.body.bank_name || req.body.bank);
   const accountNumber = clean(req.body.account_number || req.body.number);
   const accountHolder = clean(req.body.account_holder || req.body.holder);
@@ -2875,7 +3065,7 @@ app.post("/api/bills/bank-accounts", auth, can(STAFF), wrap(async (req, res) => 
   });
 }));
 
-app.put("/api/bills/bank-accounts/:id", auth, can(STAFF), wrap(async (req, res) => {
+app.put("/api/bills/bank-accounts/:id", auth, can(["owner"]), wrap(async (req, res) => {
   const id = Number(req.params.id);
   const bankName = clean(req.body.bank_name || req.body.bank);
   const accountNumber = clean(req.body.account_number || req.body.number);
@@ -2903,7 +3093,7 @@ app.put("/api/bills/bank-accounts/:id", auth, can(STAFF), wrap(async (req, res) 
   });
 }));
 
-app.delete("/api/bills/bank-accounts/:id", auth, can(STAFF), wrap(async (req, res) => {
+app.delete("/api/bills/bank-accounts/:id", auth, can(["owner"]), wrap(async (req, res) => {
   const id = Number(req.params.id);
   const [[existing]] = await pool.query("SELECT id FROM bank_accounts WHERE id=?", [id]);
   if (!existing) return fail(res, 404, "Rekening bank tidak ditemukan");
@@ -3786,6 +3976,20 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
     });
   });
 
+  // Ambil daftar permohonan tutor backup yang masih aktif berstatus 'seeking' (PDF Hal 4)
+  const [activeSeekingSubs] = await pool.query(
+    `SELECT ts.id AS substitute_id, ts.class_id, ts.original_tutor_id, ts.substitute_date, ts.reason, ts.status,
+            u.name AS original_tutor_name, c.level, c.branch_id
+     FROM tutor_substitutes ts
+     JOIN classes c ON c.id=ts.class_id
+     JOIN users u ON u.id=ts.original_tutor_id
+     WHERE ts.status = 'seeking'`
+  );
+  const seekingMap = new Map();
+  activeSeekingSubs.forEach((s) => {
+    seekingMap.set(Number(s.class_id), s);
+  });
+
   results.forEach((tut) => {
     (tut.busy_slots || []).forEach((bs) => {
       const matchedBranch = branchesList.find((b) => b.name === bs.branch_name);
@@ -3794,6 +3998,7 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
         if (!timetableMatrix[bs.day][bs.session][bId]) {
           timetableMatrix[bs.day][bs.session][bId] = [];
         }
+        const subInfo = seekingMap.get(Number(bs.class_id));
         timetableMatrix[bs.day][bs.session][bId].push({
           tutor_id: tut.tutor_id,
           tutor_name: tut.tutor_name,
@@ -3802,6 +4007,10 @@ app.get("/api/tutors/availability", auth, can(ALL), wrap(async (req, res) => {
           level: bs.level,
           student_count: Number(bs.student_count || 0),
           is_busy: true,
+          needs_backup: Boolean(subInfo),
+          substitute_id: subInfo?.substitute_id || null,
+          substitute_reason: subInfo?.reason || null,
+          substitute_date: subInfo?.substitute_date || null,
         });
       }
     });
@@ -4386,7 +4595,8 @@ async function ensureSchema() {
   await pool.query("CREATE TABLE IF NOT EXISTS payroll_rules(id INT AUTO_INCREMENT PRIMARY KEY,base_rate DECIMAL(12,2) NOT NULL DEFAULT 100000,transport_allowance DECIMAL(12,2) NOT NULL DEFAULT 15000,late_penalty DECIMAL(12,2) NOT NULL DEFAULT 10000,ontime_bonus DECIMAL(12,2) NOT NULL DEFAULT 150000,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS payroll_payments(id INT AUTO_INCREMENT PRIMARY KEY,tutor_id INT NOT NULL,month VARCHAR(7) NOT NULL,branch_id INT NULL,sessions_count INT DEFAULT 0,ontime_count INT DEFAULT 0,late_count INT DEFAULT 0,base_pay DECIMAL(12,2) DEFAULT 0,transport_pay DECIMAL(12,2) DEFAULT 0,penalty_amount DECIMAL(12,2) DEFAULT 0,bonus_amount DECIMAL(12,2) DEFAULT 0,total_amount DECIMAL(12,2) DEFAULT 0,status VARCHAR(20) DEFAULT 'paid',paid_at DATE NULL,notes VARCHAR(255) NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS class_activity_photos (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL, branch_id INT NULL, tutor_id INT NOT NULL, session_date DATE NOT NULL, session_time VARCHAR(30) NULL, photo_url VARCHAR(255) NOT NULL, attendance_summary VARCHAR(150) NULL, material VARCHAR(255) NULL, homework VARCHAR(255) NULL, notes TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
-  await pool.query("CREATE TABLE IF NOT EXISTS tutor_substitutes (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL, branch_id INT NULL, original_tutor_id INT NOT NULL, backup_tutor_id INT NOT NULL, substitute_date DATE NOT NULL, reason VARCHAR(255) NULL, status VARCHAR(20) DEFAULT 'scheduled', notes TEXT NULL, created_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+  await pool.query("CREATE TABLE IF NOT EXISTS tutor_substitutes (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL, branch_id INT NULL, original_tutor_id INT NOT NULL, backup_tutor_id INT NULL, substitute_date DATE NOT NULL, reason VARCHAR(255) NULL, status VARCHAR(20) DEFAULT 'scheduled', notes TEXT NULL, created_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+  try { await pool.query("ALTER TABLE tutor_substitutes MODIFY backup_tutor_id INT NULL DEFAULT NULL"); } catch {}
   await pool.query("CREATE TABLE IF NOT EXISTS roadmap_templates (id INT AUTO_INCREMENT PRIMARY KEY, level VARCHAR(80) NOT NULL DEFAULT 'DEFAULT', meeting_number INT NOT NULL, topic VARCHAR(200) NOT NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_level_meeting (level, meeting_number))");
   await pool.query("CREATE TABLE IF NOT EXISTS student_journey_scores (id INT AUTO_INCREMENT PRIMARY KEY, student_id INT NOT NULL, meeting_number INT NOT NULL, topic_override VARCHAR(200) NULL, speaking INT NULL, listening INT NULL, writing INT NULL, reading INT NULL, notes VARCHAR(255) NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_stu_meeting (student_id, meeting_number))");
   await pool.query("CREATE TABLE IF NOT EXISTS monthly_eval_templates (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL DEFAULT 0, month VARCHAR(7) NOT NULL DEFAULT 'DEFAULT', title VARCHAR(150) NULL, structure_json LONGTEXT NOT NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_class_month (class_id, month))");
@@ -4517,8 +4727,8 @@ async function ensureSchema() {
   await pool.query(`CREATE TABLE IF NOT EXISTS employee_attendance_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     role VARCHAR(30) NOT NULL UNIQUE,
-    work_start VARCHAR(10) NOT NULL DEFAULT '08:00',
-    work_end VARCHAR(10) NOT NULL DEFAULT '17:00',
+    work_start VARCHAR(10) NOT NULL DEFAULT '08:50',
+    work_end VARCHAR(10) NOT NULL DEFAULT '17:30',
     late_tolerance_minutes INT NOT NULL DEFAULT 15,
     is_active TINYINT(1) DEFAULT 1,
     updated_by INT NULL,
@@ -4526,10 +4736,13 @@ async function ensureSchema() {
   )`).catch(() => {});
 
   await pool.query(`INSERT IGNORE INTO employee_attendance_settings (role, work_start, work_end, late_tolerance_minutes) VALUES
-    ('default', '08:00', '17:00', 15),
-    ('admin_pusat', '08:00', '17:00', 15),
-    ('admin_cabang', '08:00', '17:00', 15),
-    ('tutor', '08:00', '17:00', 15)`).catch(() => {});
+    ('default', '08:50', '17:30', 15),
+    ('admin_pusat', '08:50', '17:30', 15),
+    ('admin_cabang', '08:50', '17:30', 15),
+    ('tutor', '08:50', '17:30', 15)`).catch(() => {});
+
+  // Migrate existing settings from old default 08:00 - 17:00 to 08:50 - 17:30
+  await pool.query("UPDATE employee_attendance_settings SET work_start='08:50', work_end='17:30' WHERE work_start='08:00' AND work_end='17:00'").catch(() => {});
 
   await pool.query(`CREATE TABLE IF NOT EXISTS employee_attendance (
     id INT AUTO_INCREMENT PRIMARY KEY,

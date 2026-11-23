@@ -57,6 +57,7 @@ export default function BillsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const isStaff = STAFF.includes(user.role);
   const isHQ = ["owner", "admin_pusat"].includes(user.role);
+  const isOwner = user?.role === "owner";
 
   const [search, setSearch] = useState("");
   const [branchId, setBranchId] = useState(() => searchParams.get("branch_id") || "");
@@ -501,12 +502,12 @@ export default function BillsPage() {
                   <Copy size={14} className="text-brand" />
                 </button>
               ))}
-              {isStaff && (
+              {isOwner && (
                 <button
                   type="button"
                   onClick={openManageBankModal}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-brand/60 bg-white/90 px-3 py-2 text-xs font-bold text-brand shadow-2xs hover:bg-brand hover:text-white transition"
-                  title="Kelola daftar nomor rekening resmi"
+                  title="Kelola daftar nomor rekening resmi (Khusus Owner)"
                 >
                   <Settings size={14} />
                   <span>Kelola Rekening</span>
