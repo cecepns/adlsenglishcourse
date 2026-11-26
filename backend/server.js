@@ -1135,7 +1135,16 @@ app.post("/api/portal/reschedule", auth, can(["siswa", "ortu"]), wrap(async (req
   });
 }));
 
-// Learning Journey Roadmap 12x Pertemuan (Speaking, Listening, Writing, Reading)
+// Learning Journey Roadmap 12x Pertemuan / Bulan (Speaking, Listening, Writing, Reading)
+const COURSE_LEVELS = [
+  "Preschool (Pre A1)",
+  "Super Basic (Pre A1 - A1)",
+  "Basic (A1)",
+  "Intermediate (A2)",
+  "Advance (B1 - B2)",
+  "Umum / Karyawan",
+];
+
 const DEFAULT_ROADMAP_TOPICS = [
   { meeting_number: 1, topic: "Greeting and Introduction" },
   { meeting_number: 2, topic: "Colours, Numbers and Fruits" },
@@ -1150,6 +1159,89 @@ const DEFAULT_ROADMAP_TOPICS = [
   { meeting_number: 11, topic: "Practical Conversation & Presentation" },
   { meeting_number: 12, topic: "Final Review & Level Evaluation" },
 ];
+
+const LEVEL_DEFAULT_ROADMAPS = {
+  "Preschool (Pre A1)": [
+    "Hello & My Name (Greetings & Self-Intro)",
+    "Colours, Shapes & Rainbow World",
+    "Numbers 1–20 & Fun Counting",
+    "Animals Around Us & Sounds",
+    "My Family & Home",
+    "Yummy Fruits & Favourite Foods",
+    "Parts of My Body & Feelings",
+    "Clothes & Weather Today",
+    "Toys, Games & Action Verbs",
+    "Days of the Week & Daily Routine",
+    "Simple Story & Show-and-Tell",
+    "Fun Review & Preschool Graduation",
+  ],
+  "Super Basic (Pre A1 - A1)": [
+    "Greetings, Alphabet & Simple Introductions",
+    "Numbers, Time & Calendar Days",
+    "Colours, Classroom Objects & Instructions",
+    "My Family, Friends & Descriptions",
+    "Daily Routines & Telling Time",
+    "Food, Drinks & Simple Ordering",
+    "Hobbies, Sports & Likes / Dislikes",
+    "Rooms in the House & Prepositions",
+    "Animals, Nature & Seasons",
+    "Places in Town & Asking Directions",
+    "Simple Present Conversation Practice",
+    "Level Review & Super Basic Evaluation",
+  ],
+  "Basic (A1)": DEFAULT_ROADMAP_TOPICS.map((d) => d.topic),
+  "Intermediate (A2)": [
+    "Personal Profiles, Lifestyle & Small Talk",
+    "Work, School & Daily Challenges",
+    "Travel Experiences & Cultural Stories",
+    "Health, Habits & Giving Advice",
+    "Food Culture, Cooking & Restaurants",
+    "Technology, Media & Modern Communication",
+    "Past Events, Memories & Storytelling",
+    "Comparisons, Opinions & Preferences",
+    "Future Plans, Predictions & Ambitions",
+    "Problem Solving & Practical Roleplays",
+    "Public Speaking & Mini Presentation",
+    "Comprehensive Review & A2 Assessment",
+  ],
+  "Advance (B1 - B2)": [
+    "Articulate Introductions & Networking",
+    "Current Affairs, Society & Critical Opinions",
+    "Career Development & Professional Etiquette",
+    "Global Culture, Travel & Perspectives",
+    "Persuasion, Debates & Expressing Nuance",
+    "Storytelling, Literature & Media Analysis",
+    "Innovation, Science & Future Trends",
+    "Negotiation & Collaborative Problem Solving",
+    "Academic & Business Writing Essentials",
+    "Structured Argumentation & Presentations",
+    "Fluency Mastery & Spontaneous Discussion",
+    "Final Capstone Presentation & Evaluation",
+  ],
+  "Umum / Karyawan": [
+    "Professional Self-Introduction & Workplace Greetings",
+    "Office Communication, Emails & Phone Calls",
+    "Describing Job Roles, Teams & Responsibilities",
+    "Scheduling, Time Management & Appointments",
+    "Active Participation in Meetings & Discussions",
+    "Client Service, Hospitality & Handling Requests",
+    "Giving Updates, Reports & Explaining Processes",
+    "Problem Solving & Diplomatic Feedback",
+    "Business Travel, Dining & Networking",
+    "Presenting Ideas, Data & Proposals Clearly",
+    "Interview Skills & Career Confidence",
+    "Final Workplace Simulation & Evaluation",
+  ],
+};
+
+function resolveRoadmapLevel(rawLevel) {
+  const txt = clean(rawLevel);
+  if (!txt) return "DEFAULT";
+  const exact = COURSE_LEVELS.find((l) => l.toLowerCase() === txt.toLowerCase());
+  if (exact) return exact;
+  const fuzzy = COURSE_LEVELS.find((l) => l.toLowerCase().includes(txt.toLowerCase()) || txt.toLowerCase().includes(l.split(" (")[0].toLowerCase()));
+  return fuzzy || txt;
+}
 
 app.get("/api/learning-journey", auth, can(ALL), wrap(async (req, res) => {
   let targetStudentId = req.query.student_id ? Number(req.query.student_id) : null;
@@ -1174,11 +1266,43 @@ app.get("/api/learning-journey", auth, can(ALL), wrap(async (req, res) => {
     studentInfo = st || null;
   }
 
-  const [tplRows] = await pool.query(
-    "SELECT meeting_number, topic FROM roadmap_templates WHERE level='DEFAULT' ORDER BY meeting_number ASC"
-  );
+  const requestedLevel = clean(req.query.level);
+  const rawLevel = requestedLevel || studentInfo?.level || "";
+  const effectiveLevel = resolveRoadmapLevel(rawLevel);
+
+  let tplRows = [];
+  if (effectiveLevel && effectiveLevel !== "DEFAULT") {
+    const [lvlRows] = await pool.query(
+      "SELECT meeting_number, topic FROM roadmap_templates WHERE level=? ORDER BY meeting_number ASC",
+      [effectiveLevel]
+    );
+    tplRows = lvlRows;
+  }
+  if (!tplRows.length && rawLevel && rawLevel !== effectiveLevel) {
+    const [rawRows] = await pool.query(
+      "SELECT meeting_number, topic FROM roadmap_templates WHERE level=? ORDER BY meeting_number ASC",
+      [rawLevel]
+    );
+    tplRows = rawRows;
+  }
+  const fallbackList = LEVEL_DEFAULT_ROADMAPS[effectiveLevel]
+    ? LEVEL_DEFAULT_ROADMAPS[effectiveLevel].map((topic, idx) => ({ meeting_number: idx + 1, topic }))
+    : DEFAULT_ROADMAP_TOPICS;
+
+  let finalRows = tplRows;
+  if (!finalRows.length) {
+    if (effectiveLevel !== "DEFAULT" && LEVEL_DEFAULT_ROADMAPS[effectiveLevel]) {
+      finalRows = fallbackList;
+    } else {
+      const [defRows] = await pool.query(
+        "SELECT meeting_number, topic FROM roadmap_templates WHERE level='DEFAULT' ORDER BY meeting_number ASC"
+      );
+      finalRows = defRows.length ? defRows : fallbackList;
+    }
+  }
+
   const tplMap = Object.fromEntries(
-    (tplRows.length ? tplRows : DEFAULT_ROADMAP_TOPICS).map((t) => [Number(t.meeting_number), t.topic])
+    finalRows.map((t) => [Number(t.meeting_number), t.topic])
   );
 
   let scoreMap = {};
@@ -1193,7 +1317,7 @@ app.get("/api/learning-journey", auth, can(ALL), wrap(async (req, res) => {
   const meetings = [];
   for (let i = 1; i <= 12; i++) {
     const sc = scoreMap[i] || {};
-    const topic = sc.topic_override || tplMap[i] || DEFAULT_ROADMAP_TOPICS[i - 1]?.topic || `Pertemuan ${i}`;
+    const topic = sc.topic_override || tplMap[i] || fallbackList[i - 1]?.topic || DEFAULT_ROADMAP_TOPICS[i - 1]?.topic || `Bulan ${i}`;
     const hasScore = sc.speaking != null || sc.listening != null || sc.writing != null || sc.reading != null;
     meetings.push({
       meeting_number: i,
@@ -1210,34 +1334,51 @@ app.get("/api/learning-journey", auth, can(ALL), wrap(async (req, res) => {
   res.json({
     success: true,
     data: {
+      level: effectiveLevel,
+      available_levels: COURSE_LEVELS,
       student: studentInfo,
       meetings,
     },
   });
 }));
 
-// Admin edit roadmap 12 pertemuan & replace ke semua akun (ortu, student, tutor)
+// Admin edit roadmap 12 bab/bulan per level & replace ke akun siswa/ortu/tutor pada level tersebut
 app.put("/api/learning-journey/template", auth, can(STAFF), wrap(async (req, res) => {
+  const targetLevel = resolveRoadmapLevel(req.body.level);
   const meetings = Array.isArray(req.body.meetings) ? req.body.meetings : [];
-  if (!meetings.length) return fail(res, 400, "Daftar pertemuan wajib diisi");
+  if (!meetings.length) return fail(res, 400, "Daftar materi 12 bulan wajib diisi");
 
   for (const m of meetings) {
     const num = Number(m.meeting_number);
-    const topic = clean(m.topic) || `Pertemuan ${num}`;
+    const topic = clean(m.topic) || `Bulan ${num}`;
     if (num >= 1 && num <= 12) {
       await pool.query(
-        "INSERT INTO roadmap_templates(level, meeting_number, topic, updated_by) VALUES('DEFAULT', ?, ?, ?) ON DUPLICATE KEY UPDATE topic=VALUES(topic), updated_by=VALUES(updated_by)",
-        [num, topic, req.user.id]
+        "INSERT INTO roadmap_templates(level, meeting_number, topic, updated_by) VALUES(?, ?, ?, ?) ON DUPLICATE KEY UPDATE topic=VALUES(topic), updated_by=VALUES(updated_by)",
+        [targetLevel, num, topic, req.user.id]
       );
     }
   }
 
-  // Replace ke semua akun (ortu, student, tutor): hapus topic_override agar semua akun sinkron dengan kurikulum admin
-  await pool.query("UPDATE student_journey_scores SET topic_override=NULL");
+  // Replace topic_override hanya untuk siswa di level terkait (atau semua jika DEFAULT)
+  if (targetLevel === "DEFAULT") {
+    await pool.query("UPDATE student_journey_scores SET topic_override=NULL");
+  } else {
+    const shortName = targetLevel.split(" (")[0].trim();
+    await pool.query(
+      `UPDATE student_journey_scores sjs
+       JOIN students s ON s.id = sjs.student_id
+       LEFT JOIN classes c ON c.id = s.class_id
+       SET sjs.topic_override = NULL
+       WHERE COALESCE(c.level, s.level) = ? OR COALESCE(c.level, s.level) = ?`,
+      [targetLevel, shortName]
+    );
+  }
 
   res.json({
     success: true,
-    message: "Roadmap 12 pertemuan berhasil diperbarui & diterapkan ke semua akun (Ortu, Siswa, Tutor)!",
+    message: targetLevel === "DEFAULT"
+      ? "Roadmap 12 bulan default berhasil diperbarui!"
+      : `Roadmap 12 bulan untuk level "${targetLevel}" berhasil diperbarui & diterapkan!`,
   });
 }));
 
@@ -1273,6 +1414,183 @@ app.put("/api/learning-journey/scores/:studentId", auth, can([...STAFF, "tutor"]
   }
 
   res.json({ success: true, message: "Nilai Learning Journey Roadmap berhasil disimpan!" });
+}));
+
+// ============================================================================
+// ACADEMIC CALENDAR (KALENDER AKADEMIK ADLS)
+// Dikelola oleh Owner & Admin Pusat, dapat dilihat oleh seluruh user
+// ============================================================================
+const ACADEMIC_CALENDAR_SEED_2027 = [
+  // January 2027
+  { title: "Libur Tahun Baru Masehi 2027", category: "libur", start_date: "2027-01-01", end_date: "2027-01-08", description: "Libur awal tahun baru Masehi 2027 seluruh cabang ADLS." },
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-01-20", end_date: "2027-01-30", description: "Periode pengumpulan tugas video project bulanan." },
+  { title: "Formative Assessment", category: "ujian", start_date: "2027-01-20", end_date: "2027-01-30", description: "Evaluasi formatif bulanan siswa." },
+  // February 2027
+  { title: "Libur Tahun Baru Imlek", category: "libur", start_date: "2027-02-06", end_date: "2027-02-06", description: "Hari libur nasional Tahun Baru Imlek." },
+  { title: "Awal Ramadhan", category: "event", start_date: "2027-02-19", end_date: "2027-02-19", description: "Perkiraan awal bulan suci Ramadhan." },
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-02-20", end_date: "2027-02-28", description: "Periode pengumpulan tugas video project bulanan." },
+  { title: "Formative Assessment", category: "ujian", start_date: "2027-02-20", end_date: "2027-02-28", description: "Evaluasi formatif bulanan siswa." },
+  // March 2027
+  { title: "Libur Hari Raya Idul Fitri 1448 H", category: "libur", start_date: "2027-03-08", end_date: "2027-03-19", description: "Libur bersama Hari Raya Idul Fitri 1448 H." },
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-03-20", end_date: "2027-03-30", description: "Periode pengumpulan tugas video project triwulan." },
+  { title: "Quarterly Assessment Video Project + Formatif+", category: "ujian", start_date: "2027-03-20", end_date: "2027-03-30", description: "Ujian / Assessment Triwulan I." },
+  { title: "Perkiraan Halal Bihalal ADLS FAMILY", category: "event", start_date: "2027-03-27", end_date: "2027-03-27", description: "Acara silaturahmi Halal Bihalal keluarga besar ADLS." },
+  // April 2027
+  { title: "Perkiraan Event Cooking Class / Event Lain", category: "event", start_date: "2027-04-17", end_date: "2027-04-17", description: "Kegiatan interaktif bahasa Inggris Cooking Class / Fun Event." },
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-04-20", end_date: "2027-04-30", description: "Periode pengumpulan tugas video project bulanan." },
+  { title: "Formative Assessment", category: "ujian", start_date: "2027-04-20", end_date: "2027-04-30", description: "Evaluasi formatif bulanan siswa." },
+  // May 2027
+  { title: "Kenaikan Isa Almasih", category: "libur", start_date: "2027-05-06", end_date: "2027-05-06", description: "Hari libur nasional Kenaikan Isa Almasih." },
+  { title: "Hari Raya Idul Adha + Cuti Bersama", category: "libur", start_date: "2027-05-14", end_date: "2027-05-18", description: "Libur Hari Raya Idul Adha dan cuti bersama." },
+  { title: "Hari Raya Waisak + Cuti Bersama", category: "libur", start_date: "2027-05-19", end_date: "2027-05-20", description: "Libur Hari Raya Waisak dan cuti bersama." },
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-05-20", end_date: "2027-05-30", description: "Periode pengumpulan tugas video project bulanan." },
+  { title: "Formative Assessment", category: "ujian", start_date: "2027-05-20", end_date: "2027-05-30", description: "Evaluasi formatif bulanan siswa." },
+  // June 2027
+  { title: "Hari Lahir Pancasila", category: "libur", start_date: "2027-06-01", end_date: "2027-06-01", description: "Hari libur nasional Hari Lahir Pancasila." },
+  { title: "Tahun Baru Islam", category: "libur", start_date: "2027-06-06", end_date: "2027-06-06", description: "Hari libur nasional Tahun Baru Islam 1449 H." },
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-06-20", end_date: "2027-06-30", description: "Periode pengumpulan tugas video project triwulan." },
+  { title: "Quarterly Assessment Video Project + Formatif+", category: "ujian", start_date: "2027-06-20", end_date: "2027-06-30", description: "Ujian / Assessment Triwulan II." },
+  // July 2027
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-07-20", end_date: "2027-07-30", description: "Periode pengumpulan tugas video project bulanan." },
+  { title: "Formative Assessment", category: "ujian", start_date: "2027-07-20", end_date: "2027-07-30", description: "Evaluasi formatif bulanan siswa." },
+  // August 2027
+  { title: "Maulid Nabi SAW", category: "libur", start_date: "2027-08-15", end_date: "2027-08-15", description: "Hari libur nasional Maulid Nabi Muhammad SAW." },
+  { title: "Hari Kemerdekaan Republik Indonesia ke-82", category: "libur", start_date: "2027-08-17", end_date: "2027-08-17", description: "Peringatan Hari Kemerdekaan RI ke-82." },
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-08-20", end_date: "2027-08-30", description: "Periode pengumpulan tugas video project bulanan." },
+  { title: "Formative Assessment", category: "ujian", start_date: "2027-08-20", end_date: "2027-08-30", description: "Evaluasi formatif bulanan siswa." },
+  // September 2027
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-09-20", end_date: "2027-09-30", description: "Periode pengumpulan tugas video project triwulan." },
+  { title: "Quarterly Assessment Video Project + Formatif+", category: "ujian", start_date: "2027-09-20", end_date: "2027-09-30", description: "Ujian / Assessment Triwulan III." },
+  // October 2027
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-10-20", end_date: "2027-10-30", description: "Periode pengumpulan tugas video project bulanan." },
+  { title: "Formative Assessment", category: "ujian", start_date: "2027-10-20", end_date: "2027-10-30", description: "Evaluasi formatif bulanan siswa." },
+  // November 2027
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-11-20", end_date: "2027-11-30", description: "Periode pengumpulan tugas video project bulanan." },
+  { title: "Formative Assessment", category: "ujian", start_date: "2027-11-20", end_date: "2027-11-30", description: "Evaluasi formatif bulanan siswa." },
+  // December 2027
+  { title: "Pengumpulan Video Project (FB ADLS Task)", category: "tugas", start_date: "2027-12-20", end_date: "2027-12-30", description: "Periode pengumpulan tugas video project triwulan." },
+  { title: "Quarterly Assessment Video Project + Formatif+", category: "ujian", start_date: "2027-12-20", end_date: "2027-12-30", description: "Ujian / Assessment Akhir Tahun." },
+  { title: "Natal", category: "libur", start_date: "2027-12-24", end_date: "2027-12-25", description: "Libur Hari Raya Natal." },
+  { title: "Isra' Mi'raj Nabi Muhammad SAW", category: "libur", start_date: "2027-12-26", end_date: "2027-12-26", description: "Hari libur nasional Isra' Mi'raj Nabi Muhammad SAW." },
+];
+
+app.get("/api/academic-calendar", auth, can(ALL), wrap(async (req, res) => {
+  const year = Math.max(2020, Math.min(2099, Number(req.query.year) || new Date().getFullYear()));
+  const month = req.query.month ? Number(req.query.month) : null;
+  const category = clean(req.query.category);
+
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+
+  let rangeStart = yearStart;
+  let rangeEnd = yearEnd;
+  if (month && month >= 1 && month <= 12) {
+    const mm = String(month).padStart(2, "0");
+    const lastDay = new Date(year, month, 0).getDate();
+    rangeStart = `${year}-${mm}-01`;
+    rangeEnd = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+  }
+
+  const where = ["DATE(start_date) <= ? AND DATE(end_date) >= ?"];
+  const args = [rangeEnd, rangeStart];
+  if (category) {
+    where.push("category = ?");
+    args.push(category);
+  }
+
+  const [events] = await pool.query(
+    `SELECT id, title, category, DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date, DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date, description, created_by, updated_by, created_at, updated_at
+     FROM academic_calendar_events
+     WHERE ${where.join(" AND ")}
+     ORDER BY start_date ASC, id ASC`,
+    args
+  );
+
+  // Hitung jumlah agenda per bulan dalam tahun terpilih agar tab bulan menampilkan indikator
+  const [yearEvents] = await pool.query(
+    `SELECT DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date, DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date
+     FROM academic_calendar_events
+     WHERE DATE(start_date) <= ? AND DATE(end_date) >= ?`,
+    [yearEnd, yearStart]
+  );
+
+  const monthCounts = {};
+  for (let m = 1; m <= 12; m++) monthCounts[m] = 0;
+  for (const ev of yearEvents) {
+    const s = new Date(`${ev.start_date}T00:00:00`);
+    const e = new Date(`${ev.end_date}T00:00:00`);
+    for (let m = 1; m <= 12; m++) {
+      const mStart = new Date(year, m - 1, 1);
+      const mEnd = new Date(year, m, 0);
+      if (s <= mEnd && e >= mStart) monthCounts[m] += 1;
+    }
+  }
+
+  res.json({
+    success: true,
+    data: {
+      year,
+      month,
+      events,
+      month_counts: monthCounts,
+      total_year_events: yearEvents.length,
+    },
+  });
+}));
+
+app.post("/api/academic-calendar", auth, can(HQ), wrap(async (req, res) => {
+  const title = clean(req.body.title);
+  const category = clean(req.body.category) || "event";
+  const startDate = clean(req.body.start_date);
+  const endDate = clean(req.body.end_date) || startDate;
+  const description = clean(req.body.description);
+
+  if (!title || !startDate) {
+    return fail(res, 400, "Judul agenda dan tanggal mulai wajib diisi");
+  }
+  const finalEnd = endDate < startDate ? startDate : endDate;
+
+  const [r] = await pool.query(
+    "INSERT INTO academic_calendar_events(title, category, start_date, end_date, description, created_by, updated_by) VALUES(?,?,?,?,?,?,?)",
+    [title, category, startDate, finalEnd, description || null, req.user.id, req.user.id]
+  );
+  const [[created]] = await pool.query(
+    "SELECT id, title, category, DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date, DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date, description FROM academic_calendar_events WHERE id=?",
+    [r.insertId]
+  );
+  res.status(201).json({ success: true, message: "Agenda kalender akademik berhasil ditambahkan", data: created });
+}));
+
+app.put("/api/academic-calendar/:id", auth, can(HQ), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const title = clean(req.body.title);
+  const category = clean(req.body.category) || "event";
+  const startDate = clean(req.body.start_date);
+  const endDate = clean(req.body.end_date) || startDate;
+  const description = clean(req.body.description);
+
+  if (!id || !title || !startDate) {
+    return fail(res, 400, "Data agenda tidak lengkap");
+  }
+  const finalEnd = endDate < startDate ? startDate : endDate;
+
+  const [r] = await pool.query(
+    "UPDATE academic_calendar_events SET title=?, category=?, start_date=?, end_date=?, description=?, updated_by=? WHERE id=?",
+    [title, category, startDate, finalEnd, description || null, req.user.id, id]
+  );
+  if (!r.affectedRows) return fail(res, 404, "Agenda tidak ditemukan");
+  const [[updated]] = await pool.query(
+    "SELECT id, title, category, DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date, DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date, description FROM academic_calendar_events WHERE id=?",
+    [id]
+  );
+  res.json({ success: true, message: "Agenda kalender akademik berhasil diperbarui", data: updated });
+}));
+
+app.delete("/api/academic-calendar/:id", auth, can(HQ), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const [r] = await pool.query("DELETE FROM academic_calendar_events WHERE id=?", [id]);
+  if (!r.affectedRows) return fail(res, 404, "Agenda tidak ditemukan");
+  res.json({ success: true, message: "Agenda kalender akademik berhasil dihapus" });
 }));
 
 // Laporan Belajar Bulanan & Design Laporan Belajar Setiap Kelas Bulanan (PDF Ortu Hal 4 & Hal 8)
@@ -4760,11 +5078,46 @@ async function ensureSchema() {
   await pool.query("CREATE TABLE IF NOT EXISTS student_journey_scores (id INT AUTO_INCREMENT PRIMARY KEY, student_id INT NOT NULL, meeting_number INT NOT NULL, topic_override VARCHAR(200) NULL, speaking INT NULL, listening INT NULL, writing INT NULL, reading INT NULL, notes VARCHAR(255) NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_stu_meeting (student_id, meeting_number))");
   await pool.query("CREATE TABLE IF NOT EXISTS monthly_eval_templates (id INT AUTO_INCREMENT PRIMARY KEY, class_id INT NOT NULL DEFAULT 0, month VARCHAR(7) NOT NULL DEFAULT 'DEFAULT', title VARCHAR(150) NULL, structure_json LONGTEXT NOT NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_class_month (class_id, month))");
   await pool.query("CREATE TABLE IF NOT EXISTS monthly_eval_scores (id INT AUTO_INCREMENT PRIMARY KEY, student_id INT NOT NULL, class_id INT NOT NULL DEFAULT 0, month VARCHAR(7) NOT NULL, scores_json LONGTEXT NOT NULL, notes TEXT NULL, updated_by INT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_stu_month (student_id, month))");
+  await pool.query(`CREATE TABLE IF NOT EXISTS academic_calendar_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    category VARCHAR(40) NOT NULL DEFAULT 'event',
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    description TEXT NULL,
+    created_by INT NULL,
+    updated_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`).catch(() => {});
 
   const [[tplCnt]] = await pool.query("SELECT COUNT(*) n FROM roadmap_templates WHERE level='DEFAULT'");
   if (!Number(tplCnt?.n || 0)) {
     for (const d of DEFAULT_ROADMAP_TOPICS) {
       await pool.query("INSERT IGNORE INTO roadmap_templates(level, meeting_number, topic) VALUES('DEFAULT', ?, ?)", [d.meeting_number, d.topic]);
+    }
+  }
+  // Seed default topik per level jika level tersebut belum memiliki baris di roadmap_templates
+  for (const [lvl, topics] of Object.entries(LEVEL_DEFAULT_ROADMAPS)) {
+    const [[lvlCnt]] = await pool.query("SELECT COUNT(*) n FROM roadmap_templates WHERE level=?", [lvl]);
+    if (!Number(lvlCnt?.n || 0)) {
+      for (let i = 0; i < topics.length; i++) {
+        await pool.query(
+          "INSERT IGNORE INTO roadmap_templates(level, meeting_number, topic) VALUES(?, ?, ?)",
+          [lvl, i + 1, topics[i]]
+        );
+      }
+    }
+  }
+
+  // Seed jadwal Academic Calendar 2027 dari PDF jika tabel masih kosong
+  const [[acCnt]] = await pool.query("SELECT COUNT(*) n FROM academic_calendar_events").catch(() => [[{ n: 0 }]]);
+  if (!Number(acCnt?.n || 0)) {
+    for (const ev of ACADEMIC_CALENDAR_SEED_2027) {
+      await pool.query(
+        "INSERT INTO academic_calendar_events(title, category, start_date, end_date, description) VALUES(?,?,?,?,?)",
+        [ev.title, ev.category, ev.start_date, ev.end_date, ev.description]
+      ).catch(() => {});
     }
   }
 

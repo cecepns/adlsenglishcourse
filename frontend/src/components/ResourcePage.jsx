@@ -871,17 +871,17 @@ export default function ResourcePage({ resource: cfg }) {
           </form>
         )}
       </Modal>
-      {/* Modal Roadmap 12 Pertemuan (Kelola Kurikulum & Nilai Siswa) */}
+      {/* Modal Roadmap 12 Bulan per Level (Kelola Kurikulum & Nilai Siswa) */}
       <Modal
         open={roadmapModal}
-        title="Kelola Learning Journey Roadmap (12x Pertemuan)"
+        title="Kelola Learning Journey Roadmap (12 Bulan per Level)"
         onClose={() => setRoadmapModal(false)}
         maxWidth="max-w-5xl"
       >
         <div className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-bold text-slate-600">
-              Pilih Siswa untuk Melihat / Input Nilai 4 Aspek (opsional jika hanya ingin edit kurikulum global):
+              Pilih Siswa untuk Melihat / Input Nilai 4 Aspek (kosongkan untuk mengelola kurikulum per kategori level):
             </label>
             <AsyncResourceSelect
               endpoint={API_ENDPOINTS.STUDENTS.LIST}

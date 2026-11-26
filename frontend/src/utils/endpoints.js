@@ -78,6 +78,7 @@ export const API_ENDPOINTS = {
   LEAVES: crud("/leaves"),
   COMPLAINTS: crud("/complaints"),
   ANNOUNCEMENTS: crud("/announcements"),
+  ACADEMIC_CALENDAR: crud("/academic-calendar"),
   PLACEMENT_TEST: {
     PUBLIC_QUESTIONS: "/placement-test/public-questions",
     QUESTIONS: "/placement-test/questions",

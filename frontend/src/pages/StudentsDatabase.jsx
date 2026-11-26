@@ -532,7 +532,7 @@ export default function StudentsDatabase() {
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-500">
-            Kelola fokus kemampuan 12 bulan kurikulum pembelajaran ADLS English Course. Anda dapat mengubah topik bulanan dan menerapkan langsung ke semua akun (Tutor, Siswa, dan Orang Tua).
+            Kelola fokus kemampuan 12 bulan kurikulum pembelajaran ADLS English Course berdasarkan kategori level masing-masing. Perubahan otomatis muncul pada akun Tutor, Siswa, dan Orang Tua sesuai levelnya.
           </p>
           <LearningJourneyRoadmap />
           <div className="flex justify-end pt-2 border-t border-slate-100">

@@ -4,6 +4,7 @@ import { RESOURCES } from "@/config/resources";
 import Layout from "@/components/Layout";
 import ResourcePage from "@/components/ResourcePage";
 import Achievements from "@/pages/Achievements";
+import AcademicCalendarPage from "@/pages/AcademicCalendarPage";
 import AudioListening from "@/pages/AudioListening";
 import BillsPage from "@/pages/BillsPage";
 import CatalogShop from "@/pages/CatalogShop";
@@ -53,6 +54,7 @@ export default function App() {
       <Route element={<Protected><Layout /></Protected>}>
         <Route index element={home} />
         <Route path="portal" element={<PortalDashboard />} />
+        <Route path="academic-calendar" element={<AcademicCalendarPage />} />
         <Route path="employee-attendance" element={[...STAFF, "tutor"].includes(user?.role) ? <EmployeeAttendancePage /> : <Navigate to="/" replace />} />
         <Route path="placement-test-admin" element={[...STAFF, "tutor"].includes(user?.role) ? <PlacementTestAdmin /> : <Navigate to="/" replace />} />
         <Route path="speaking-progress" element={[...STAFF, "tutor"].includes(user?.role) ? <SpeakingProgressPage /> : <Navigate to="/" replace />} />

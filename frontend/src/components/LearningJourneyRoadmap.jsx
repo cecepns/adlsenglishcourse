@@ -5,6 +5,7 @@ import { ArrowRight, Check, ChevronRight, Edit3, Loader2, Save, Settings2, Star 
 import { api } from "@/utils/api";
 import { API_ENDPOINTS } from "@/utils/endpoints";
 import { request } from "@/utils/request";
+import { COURSE_LEVELS } from "@/config/resources";
 import { useAuth } from "@/context/AuthContext";
 import Modal from "./Modal";
 
@@ -29,10 +30,14 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
   const [meetings, setMeetings] = useState([]);
   const [studentInfo, setStudentInfo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeLevel, setActiveLevel] = useState(() => level || COURSE_LEVELS[0]);
+  const [resolvedLevel, setResolvedLevel] = useState(() => level || COURSE_LEVELS[0]);
 
-  // Admin modal: Edit 12 meeting topics & replace across all accounts
+  // Admin modal: Edit 12 meeting topics per level & apply to accounts in that level
   const [tplModal, setTplModal] = useState(false);
+  const [tplLevel, setTplLevel] = useState(() => level || COURSE_LEVELS[0]);
   const [tplDraft, setTplDraft] = useState([]);
+  const [loadingTpl, setLoadingTpl] = useState(false);
   const [savingTpl, setSavingTpl] = useState(false);
 
   // Admin & Tutor modal: Edit scores for a single meeting
@@ -40,43 +45,78 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
   const [scoreDraft, setScoreDraft] = useState({ speaking: "", listening: "", writing: "", reading: "", notes: "" });
   const [savingScore, setSavingScore] = useState(false);
 
+  useEffect(() => {
+    if (level) {
+      setActiveLevel(level);
+      setResolvedLevel(level);
+    }
+  }, [level]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get(API_ENDPOINTS.LEARNING_JOURNEY.GET, {
-        params: studentId ? { student_id: studentId } : {},
-      });
+      const params = studentId
+        ? { student_id: studentId }
+        : { level: level || activeLevel };
+      const { data } = await api.get(API_ENDPOINTS.LEARNING_JOURNEY.GET, { params });
       setMeetings(data.data?.meetings || []);
       setStudentInfo(data.data?.student || null);
+      if (data.data?.level) {
+        setResolvedLevel(data.data.level);
+      }
     } catch {
       setMeetings([]);
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, level, activeLevel]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const effectiveStudentId = studentId || studentInfo?.id;
-  const displayLevel = level || studentInfo?.level || "Basic";
+  const displayLevel = level || studentInfo?.level || (resolvedLevel && resolvedLevel !== "DEFAULT" ? resolvedLevel : activeLevel) || "Basic (A1)";
   const displayName = studentName || studentInfo?.name || "";
   const isCompleted = courseCompleted ?? Boolean(studentInfo?.course_completed);
   const completedCount = meetings.filter((m) => m.completed).length;
 
+  const loadTemplateForLevel = async (targetLvl) => {
+    setTplLevel(targetLvl);
+    setLoadingTpl(true);
+    try {
+      const { data } = await api.get(API_ENDPOINTS.LEARNING_JOURNEY.GET, {
+        params: { level: targetLvl },
+      });
+      const list = data.data?.meetings || [];
+      setTplDraft(list.map((m) => ({ meeting_number: m.meeting_number, topic: m.topic })));
+    } catch {
+      setTplDraft(meetings.map((m) => ({ meeting_number: m.meeting_number, topic: m.topic })));
+    } finally {
+      setLoadingTpl(false);
+    }
+  };
+
   const openTemplateModal = () => {
-    setTplDraft(meetings.map((m) => ({ meeting_number: m.meeting_number, topic: m.topic })));
+    const initialLvl =
+      (resolvedLevel && resolvedLevel !== "DEFAULT" && COURSE_LEVELS.includes(resolvedLevel) ? resolvedLevel : null) ||
+      (COURSE_LEVELS.includes(displayLevel) ? displayLevel : null) ||
+      activeLevel ||
+      COURSE_LEVELS[0];
     setTplModal(true);
+    loadTemplateForLevel(initialLvl);
   };
 
   const saveTemplate = async (e) => {
     e.preventDefault();
     setSavingTpl(true);
     try {
-      await request(() => api.put(API_ENDPOINTS.LEARNING_JOURNEY.TEMPLATE, { meetings: tplDraft }), {
-        success: "Roadmap 12 pertemuan berhasil diperbarui & diterapkan ke semua akun (Ortu, Siswa, Tutor)!",
+      await request(() => api.put(API_ENDPOINTS.LEARNING_JOURNEY.TEMPLATE, { level: tplLevel, meetings: tplDraft }), {
+        success: `Roadmap 12 bulan untuk level "${tplLevel}" berhasil disimpan!`,
       });
+      if (!studentId && !level) {
+        setActiveLevel(tplLevel);
+      }
       setTplModal(false);
       load();
     } catch {
@@ -161,11 +201,37 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
               onClick={openTemplateModal}
               className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-brand-dark"
             >
-              <Settings2 size={13} /> Edit Roadmap 12 Bulan (Semua Akun)
+              <Settings2 size={13} /> Edit Roadmap 12 Bulan per Level
             </button>
           )}
         </div>
       </div>
+
+      {/* Selector Level Kurikulum (tampil saat admin meninjau roadmap tanpa siswa spesifik) */}
+      {isStaff && !studentId && !level && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white/80 p-2">
+          <span className="px-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            Pilih Level:
+          </span>
+          {COURSE_LEVELS.map((lv) => {
+            const active = activeLevel === lv;
+            return (
+              <button
+                key={lv}
+                type="button"
+                onClick={() => setActiveLevel(lv)}
+                className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+                  active
+                    ? "bg-brand text-white shadow-2xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {lv}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* 12-Meeting Roadmap Grid (4 rows x 3 columns) */}
       {loading ? (
@@ -347,39 +413,67 @@ export default function LearningJourneyRoadmap({ studentId, studentName, level, 
         </p>
       )}
 
-      {/* Modal Admin: Edit Kurikulum 12 Bulan & Replace ke Semua Akun */}
-      <Modal open={tplModal} title="Edit Kurikulum Learning Journey Roadmap (12 Bulan)" onClose={() => setTplModal(false)}>
+      {/* Modal Admin: Edit Kurikulum 12 Bulan per Level */}
+      <Modal open={tplModal} title="Edit Kurikulum Learning Journey Roadmap (12 Bab / Bulan)" onClose={() => setTplModal(false)}>
         <form onSubmit={saveTemplate} className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-700">
+              Pilih Kategori Level Kelas *
+            </label>
+            <select
+              className="input !py-2 text-xs font-bold text-brand-dark"
+              value={tplLevel}
+              onChange={(e) => loadTemplateForLevel(e.target.value)}
+            >
+              {COURSE_LEVELS.map((lv) => (
+                <option key={lv} value={lv}>
+                  {lv}
+                </option>
+              ))}
+              {tplLevel && !COURSE_LEVELS.includes(tplLevel) && (
+                <option value={tplLevel}>{tplLevel}</option>
+              )}
+            </select>
+          </div>
+
           <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900">
-            Perubahan fokus kemampuan / topik bulan di sini akan <b>otomatis menggantikan (replace)</b> tampilan roadmap di seluruh akun <b>Orang Tua, Siswa, dan Tutor</b>.
+            Perubahan judul 12 bab/bulan di sini hanya berlaku untuk level <b>{tplLevel}</b> dan otomatis muncul di akun <b>Siswa, Orang Tua, dan Tutor</b> pada level tersebut.
           </div>
-          <div className="max-h-[55vh] space-y-2.5 overflow-y-auto pr-1">
-            {tplDraft.map((item, idx) => (
-              <div key={item.meeting_number} className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-xs font-black text-brand-dark">
-                  {item.meeting_number}
-                </span>
-                <input
-                  required
-                  className="input !py-2 text-xs font-semibold"
-                  placeholder={`Fokus kemampuan bulan ke-${item.meeting_number}`}
-                  value={item.topic}
-                  onChange={(e) => {
-                    const next = [...tplDraft];
-                    next[idx] = { ...next[idx], topic: e.target.value };
-                    setTplDraft(next);
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+
+          {loadingTpl ? (
+            <div className="flex h-48 items-center justify-center text-xs text-slate-500">
+              <Loader2 size={18} className="mr-2 animate-spin text-brand" /> Memuat roadmap level {tplLevel}...
+            </div>
+          ) : (
+            <div className="max-h-[48vh] space-y-2.5 overflow-y-auto pr-1">
+              {tplDraft.map((item, idx) => (
+                <div key={item.meeting_number} className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-xs font-black text-brand-dark">
+                    {item.meeting_number}
+                  </span>
+                  <input
+                    required
+                    className="input !py-2 text-xs font-semibold"
+                    placeholder={`Judul bab / fokus bulan ke-${item.meeting_number} (${tplLevel})`}
+                    value={item.topic}
+                    onChange={(e) => {
+                      const next = [...tplDraft];
+                      next[idx] = { ...next[idx], topic: e.target.value };
+                      setTplDraft(next);
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" className="btn-ghost" onClick={() => setTplModal(false)}>
               Batal
             </button>
-            <button type="submit" disabled={savingTpl} className="btn-primary">
+            <button type="submit" disabled={savingTpl || loadingTpl} className="btn-primary">
               {savingTpl ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              Simpan &amp; Replace ke Semua Akun
+              Simpan Roadmap Level Ini
             </button>
           </div>
         </form>
